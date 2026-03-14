@@ -249,7 +249,7 @@ The `ImageManager` in `devenv` maintains a `manifest.json` in `~/.core/images/` 
 
 ## Configuration
 
-The `devenv` package reads `~/.core/config.yaml` via the `go-config` library:
+The `devenv` package reads `~/.core/config.yaml` via the `config` library:
 
 ```yaml
 version: 1

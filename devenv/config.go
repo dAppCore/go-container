@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"forge.lthn.ai/core/go-config"
+	"forge.lthn.ai/core/config"
 	"forge.lthn.ai/core/go-io"
 )
 

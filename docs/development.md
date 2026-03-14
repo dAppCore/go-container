@@ -8,7 +8,7 @@ description: How to build, test, and contribute to go-container.
 ## Prerequisites
 
 - **Go 1.26+** -- The module uses Go 1.26 features.
-- **Go workspace** -- This module is part of a Go workspace at `~/Code/go.work`. Local development of sibling modules (go-io, go-config, go-i18n, cli) requires the workspace file.
+- **Go workspace** -- This module is part of a Go workspace at `~/Code/go.work`. Local development of sibling modules (go-io, config, go-i18n, cli) requires the workspace file.
 
 Optional (for actually running VMs):
 

@@ -106,7 +106,7 @@ content, err := container.ApplyTemplate("core-dev", map[string]string{
 | Module | Purpose |
 |--------|---------|
 | `forge.lthn.ai/core/go-io` | File system abstraction (`Medium` interface), process utilities |
-| `forge.lthn.ai/core/go-config` | Configuration loading (used by `devenv` for `~/.core/config.yaml`) |
+| `forge.lthn.ai/core/config` | Configuration loading (used by `devenv` for `~/.core/config.yaml`) |
 | `forge.lthn.ai/core/go-i18n` | Internationalised UI strings (used by `cmd/vm`) |
 | `forge.lthn.ai/core/cli` | CLI framework (used by `cmd/vm` for command registration) |
 | `github.com/stretchr/testify` | Test assertions |

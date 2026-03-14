@@ -14,7 +14,7 @@ go test ./devenv/                          # single package
 
 No build step required -- this is a library. The `cmd/vm/` package registers CLI commands via `init()` into the parent `core/cli` binary.
 
-**Go workspace**: This module is part of a Go workspace (`~/Code/go.work`). Sibling modules (`go-io`, `go-config`, `go-i18n`, `cli`) are resolved via the workspace file during local development.
+**Go workspace**: This module is part of a Go workspace (`~/Code/go.work`). Sibling modules (`go-io`, `config`, `go-i18n`, `cli`) are resolved via the workspace file during local development.
 
 ## Architecture
 

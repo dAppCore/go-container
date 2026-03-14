@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	forge.lthn.ai/core/cli v0.1.0
-	forge.lthn.ai/core/go-config v0.1.0
+	forge.lthn.ai/core/config v0.1.0
 	forge.lthn.ai/core/go-i18n v0.1.0
 	forge.lthn.ai/core/go-io v0.0.3
 	github.com/stretchr/testify v1.11.1
