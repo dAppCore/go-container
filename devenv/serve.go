@@ -2,13 +2,13 @@ package devenv
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // ServeOptions configures the dev server.
@@ -24,7 +24,7 @@ func (d *DevOps) Serve(ctx context.Context, projectDir string, opts ServeOptions
 		return err
 	}
 	if !running {
-		return errors.New("dev environment not running (run 'core dev boot' first)")
+		return coreerr.E("DevOps.Serve", "dev environment not running (run 'core dev boot' first)", nil)
 	}
 
 	if opts.Port == 0 {
@@ -38,7 +38,7 @@ func (d *DevOps) Serve(ctx context.Context, projectDir string, opts ServeOptions
 
 	// Mount project directory via SSHFS
 	if err := d.mountProject(ctx, servePath); err != nil {
-		return fmt.Errorf("failed to mount project: %w", err)
+		return coreerr.E("DevOps.Serve", "failed to mount project", err)
 	}
 
 	// Detect and run serve command

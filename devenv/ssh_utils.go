@@ -2,12 +2,14 @@ package devenv
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // ensureHostKey ensures that the host key for the dev environment is in the known hosts file.
@@ -20,35 +22,34 @@ func ensureHostKey(ctx context.Context, port int) error {
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("get home dir: %w", err)
+		return coreerr.E("ensureHostKey", "get home dir", err)
 	}
 
 	knownHostsPath := filepath.Join(home, ".core", "known_hosts")
 
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(knownHostsPath), 0755); err != nil {
-		return fmt.Errorf("create known_hosts dir: %w", err)
+	if err := coreio.Local.EnsureDir(filepath.Dir(knownHostsPath)); err != nil {
+		return coreerr.E("ensureHostKey", "create known_hosts dir", err)
 	}
 
 	// Get host key using ssh-keyscan
 	cmd := exec.CommandContext(ctx, "ssh-keyscan", "-p", fmt.Sprintf("%d", port), "localhost")
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("ssh-keyscan failed: %w", err)
+		return coreerr.E("ensureHostKey", "ssh-keyscan failed", err)
 	}
 
 	if len(out) == 0 {
-		return errors.New("ssh-keyscan returned no keys")
+		return coreerr.E("ensureHostKey", "ssh-keyscan returned no keys", nil)
 	}
 
 	// Read existing known_hosts to avoid duplicates
-	existing, _ := os.ReadFile(knownHostsPath)
-	existingStr := string(existing)
+	existingStr, _ := coreio.Local.Read(knownHostsPath)
 
 	// Append new keys that aren't already there
 	f, err := os.OpenFile(knownHostsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
-		return fmt.Errorf("open known_hosts: %w", err)
+		return coreerr.E("ensureHostKey", "open known_hosts", err)
 	}
 	defer f.Close()
 
@@ -60,7 +61,7 @@ func ensureHostKey(ctx context.Context, port int) error {
 		}
 		if !strings.Contains(existingStr, line) {
 			if _, err := f.WriteString(line + "\n"); err != nil {
-				return fmt.Errorf("write known_hosts: %w", err)
+				return coreerr.E("ensureHostKey", "write known_hosts", err)
 			}
 		}
 	}

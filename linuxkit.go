@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // LinuxKitManager implements the Manager interface for LinuxKit VMs.
@@ -24,12 +25,12 @@ type LinuxKitManager struct {
 func NewLinuxKitManager(m io.Medium) (*LinuxKitManager, error) {
 	statePath, err := DefaultStatePath()
 	if err != nil {
-		return nil, fmt.Errorf("failed to determine state path: %w", err)
+		return nil, coreerr.E("NewLinuxKitManager", "failed to determine state path", err)
 	}
 
 	state, err := LoadState(statePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load state: %w", err)
+		return nil, coreerr.E("NewLinuxKitManager", "failed to load state", err)
 	}
 
 	hypervisor, err := DetectHypervisor()
@@ -57,19 +58,19 @@ func NewLinuxKitManagerWithHypervisor(m io.Medium, state *State, hypervisor Hype
 func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions) (*Container, error) {
 	// Validate image exists
 	if !m.medium.IsFile(image) {
-		return nil, fmt.Errorf("image not found: %s", image)
+		return nil, coreerr.E("LinuxKitManager.Run", "image not found: "+image, nil)
 	}
 
 	// Detect image format
 	format := DetectImageFormat(image)
 	if format == FormatUnknown {
-		return nil, fmt.Errorf("unsupported image format: %s", image)
+		return nil, coreerr.E("LinuxKitManager.Run", "unsupported image format: "+image, nil)
 	}
 
 	// Generate container ID
 	id, err := GenerateID()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate container ID: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Run", "failed to generate container ID", err)
 	}
 
 	// Apply defaults
@@ -91,13 +92,13 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 
 	// Ensure logs directory exists
 	if err := EnsureLogsDir(); err != nil {
-		return nil, fmt.Errorf("failed to create logs directory: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Run", "failed to create logs directory", err)
 	}
 
 	// Get log file path
 	logPath, err := LogPath(id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to determine log path: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Run", "failed to determine log path", err)
 	}
 
 	// Build hypervisor options
@@ -114,13 +115,13 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	// Build the command
 	cmd, err := m.hypervisor.BuildCommand(ctx, image, hvOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build hypervisor command: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Run", "failed to build hypervisor command", err)
 	}
 
 	// Create log file
 	logFile, err := os.Create(logPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create log file: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Run", "failed to create log file", err)
 	}
 
 	// Create container record
@@ -143,7 +144,7 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 		// Start the process
 		if err := cmd.Start(); err != nil {
 			_ = logFile.Close()
-			return nil, fmt.Errorf("failed to start VM: %w", err)
+			return nil, coreerr.E("LinuxKitManager.Run", "failed to start VM", err)
 		}
 
 		container.PID = cmd.Process.Pid
@@ -153,7 +154,7 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 			// Try to kill the process we just started
 			_ = cmd.Process.Kill()
 			_ = logFile.Close()
-			return nil, fmt.Errorf("failed to save state: %w", err)
+			return nil, coreerr.E("LinuxKitManager.Run", "failed to save state", err)
 		}
 
 		// Close log file handle (process has its own)
@@ -170,18 +171,18 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		_ = logFile.Close()
-		return nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Run", "failed to get stdout pipe", err)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		_ = logFile.Close()
-		return nil, fmt.Errorf("failed to get stderr pipe: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Run", "failed to get stderr pipe", err)
 	}
 
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
-		return nil, fmt.Errorf("failed to start VM: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Run", "failed to start VM", err)
 	}
 
 	container.PID = cmd.Process.Pid
@@ -190,7 +191,7 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	if err := m.state.Add(container); err != nil {
 		_ = cmd.Process.Kill()
 		_ = logFile.Close()
-		return nil, fmt.Errorf("failed to save state: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Run", "failed to save state", err)
 	}
 
 	// Copy output to both log and stdout
@@ -212,7 +213,7 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 
 	_ = logFile.Close()
 	if err := m.state.Update(container); err != nil {
-		return container, fmt.Errorf("update container state: %w", err)
+		return container, coreerr.E("LinuxKitManager.Run", "update container state", err)
 	}
 
 	return container, nil
@@ -240,11 +241,11 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) error {
 	}
 	container, ok := m.state.Get(id)
 	if !ok {
-		return fmt.Errorf("container not found: %s", id)
+		return coreerr.E("LinuxKitManager.Stop", "container not found: "+id, nil)
 	}
 
 	if container.Status != StatusRunning {
-		return fmt.Errorf("container is not running: %s", id)
+		return coreerr.E("LinuxKitManager.Stop", "container is not running: "+id, nil)
 	}
 
 	// Find the process
@@ -333,16 +334,16 @@ func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) (goi
 	}
 	_, ok := m.state.Get(id)
 	if !ok {
-		return nil, fmt.Errorf("container not found: %s", id)
+		return nil, coreerr.E("LinuxKitManager.Logs", "container not found: "+id, nil)
 	}
 
 	logPath, err := LogPath(id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to determine log path: %w", err)
+		return nil, coreerr.E("LinuxKitManager.Logs", "failed to determine log path", err)
 	}
 
 	if !m.medium.IsFile(logPath) {
-		return nil, fmt.Errorf("no logs available for container: %s", id)
+		return nil, coreerr.E("LinuxKitManager.Logs", "no logs available for container: "+id, nil)
 	}
 
 	if !follow {
@@ -423,11 +424,11 @@ func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) err
 	}
 	container, ok := m.state.Get(id)
 	if !ok {
-		return fmt.Errorf("container not found: %s", id)
+		return coreerr.E("LinuxKitManager.Exec", "container not found: "+id, nil)
 	}
 
 	if container.Status != StatusRunning {
-		return fmt.Errorf("container is not running: %s", id)
+		return coreerr.E("LinuxKitManager.Exec", "container is not running: "+id, nil)
 	}
 
 	// Default SSH port

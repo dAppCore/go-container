@@ -2,7 +2,6 @@ package vm
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +13,7 @@ import (
 	"forge.lthn.ai/core/go-container"
 	"forge.lthn.ai/core/go-i18n"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // addVMTemplatesCommand adds the 'templates' command under vm.
@@ -42,7 +42,7 @@ func addTemplatesShowCommand(parent *cli.Command) {
 		Long:  i18n.T("cmd.vm.templates.show.long"),
 		RunE: func(cmd *cli.Command, args []string) error {
 			if len(args) == 0 {
-				return errors.New(i18n.T("cmd.vm.error.template_required"))
+				return coreerr.E("templates show", i18n.T("cmd.vm.error.template_required"), nil)
 			}
 			return showTemplate(args[0])
 		},
@@ -59,7 +59,7 @@ func addTemplatesVarsCommand(parent *cli.Command) {
 		Long:  i18n.T("cmd.vm.templates.vars.long"),
 		RunE: func(cmd *cli.Command, args []string) error {
 			if len(args) == 0 {
-				return errors.New(i18n.T("cmd.vm.error.template_required"))
+				return coreerr.E("templates vars", i18n.T("cmd.vm.error.template_required"), nil)
 			}
 			return showTemplateVars(args[0])
 		},
@@ -151,20 +151,20 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	// Apply template with variables
 	content, err := container.ApplyTemplate(templateName, vars)
 	if err != nil {
-		return fmt.Errorf(i18n.T("common.error.failed", map[string]any{"Action": "apply template"})+": %w", err)
+		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "apply template"}), err)
 	}
 
 	// Create a temporary directory for the build
 	tmpDir, err := os.MkdirTemp("", "core-linuxkit-*")
 	if err != nil {
-		return fmt.Errorf(i18n.T("common.error.failed", map[string]any{"Action": "create temp directory"})+": %w", err)
+		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "create temp directory"}), err)
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Write the YAML file
 	yamlPath := filepath.Join(tmpDir, templateName+".yml")
-	if err := os.WriteFile(yamlPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf(i18n.T("common.error.failed", map[string]any{"Action": "write template"})+": %w", err)
+	if err := io.Local.Write(yamlPath, content); err != nil {
+		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "write template"}), err)
 	}
 
 	fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("common.label.template")), repoNameStyle.Render(templateName))
@@ -173,13 +173,13 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	// Build the image using linuxkit
 	outputPath := filepath.Join(tmpDir, templateName)
 	if err := buildLinuxKitImage(yamlPath, outputPath); err != nil {
-		return fmt.Errorf(i18n.T("common.error.failed", map[string]any{"Action": "build image"})+": %w", err)
+		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "build image"}), err)
 	}
 
 	// Find the built image (linuxkit creates .iso or other format)
 	imagePath := findBuiltImage(outputPath)
 	if imagePath == "" {
-		return errors.New(i18n.T("cmd.vm.error.no_image_found"))
+		return coreerr.E("RunFromTemplate", i18n.T("cmd.vm.error.no_image_found"), nil)
 	}
 
 	fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("common.label.image")), imagePath)
@@ -188,7 +188,7 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	// Run the image
 	manager, err := container.NewLinuxKitManager(io.Local)
 	if err != nil {
-		return fmt.Errorf(i18n.T("common.error.failed", map[string]any{"Action": "initialize container manager"})+": %w", err)
+		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "initialize container manager"}), err)
 	}
 
 	fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("cmd.vm.label.hypervisor")), manager.Hypervisor().Name())
@@ -197,7 +197,7 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	ctx := context.Background()
 	c, err := manager.Run(ctx, imagePath, runOpts)
 	if err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.run", "container")+": %w", err)
+		return coreerr.E("RunFromTemplate", i18n.T("i18n.fail.run", "container"), err)
 	}
 
 	if runOpts.Detach {
@@ -288,7 +288,7 @@ func lookupLinuxKit() (string, error) {
 		}
 	}
 
-	return "", errors.New(i18n.T("cmd.vm.error.linuxkit_not_found"))
+	return "", coreerr.E("lookupLinuxKit", i18n.T("cmd.vm.error.linuxkit_not_found"), nil)
 }
 
 // ParseVarFlags parses --var flags into a map.

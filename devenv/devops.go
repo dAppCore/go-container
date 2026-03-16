@@ -3,7 +3,6 @@ package devenv
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 
 	"forge.lthn.ai/core/go-container"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 const (
@@ -31,17 +31,17 @@ type DevOps struct {
 func New(m io.Medium) (*DevOps, error) {
 	cfg, err := LoadConfig(m)
 	if err != nil {
-		return nil, fmt.Errorf("devops.New: failed to load config: %w", err)
+		return nil, coreerr.E("devops.New", "failed to load config", err)
 	}
 
 	images, err := NewImageManager(m, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("devops.New: failed to create image manager: %w", err)
+		return nil, coreerr.E("devops.New", "failed to create image manager", err)
 	}
 
 	mgr, err := container.NewLinuxKitManager(io.Local)
 	if err != nil {
-		return nil, fmt.Errorf("devops.New: failed to create container manager: %w", err)
+		return nil, coreerr.E("devops.New", "failed to create container manager", err)
 	}
 
 	return &DevOps{
@@ -117,14 +117,14 @@ func DefaultBootOptions() BootOptions {
 // Boot starts the dev environment.
 func (d *DevOps) Boot(ctx context.Context, opts BootOptions) error {
 	if !d.images.IsInstalled() {
-		return errors.New("dev image not installed (run 'core dev install' first)")
+		return coreerr.E("DevOps.Boot", "dev image not installed (run 'core dev install' first)", nil)
 	}
 
 	// Check if already running
 	if !opts.Fresh {
 		running, err := d.IsRunning(ctx)
 		if err == nil && running {
-			return errors.New("dev environment already running (use 'core dev stop' first or --fresh)")
+			return coreerr.E("DevOps.Boot", "dev environment already running (use 'core dev stop' first or --fresh)", nil)
 		}
 	}
 
@@ -168,7 +168,7 @@ func (d *DevOps) Boot(ctx context.Context, opts BootOptions) error {
 		}
 	}
 
-	return fmt.Errorf("failed to verify host key after boot: %w", lastErr)
+	return coreerr.E("DevOps.Boot", "failed to verify host key after boot", lastErr)
 }
 
 // Stop stops the dev environment.
@@ -178,7 +178,7 @@ func (d *DevOps) Stop(ctx context.Context) error {
 		return err
 	}
 	if c == nil {
-		return errors.New("dev environment not found")
+		return coreerr.E("DevOps.Stop", "dev environment not found", nil)
 	}
 	return d.container.Stop(ctx, c.ID)
 }

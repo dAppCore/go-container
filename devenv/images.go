@@ -3,7 +3,6 @@ package devenv
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 
 	"forge.lthn.ai/core/go-container/sources"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // ImageManager handles image downloads and updates.
@@ -110,13 +110,13 @@ func (m *ImageManager) Install(ctx context.Context, progress func(downloaded, to
 		}
 	}
 	if src == nil {
-		return errors.New("no image source available")
+		return coreerr.E("ImageManager.Install", "no image source available", nil)
 	}
 
 	// Get version
 	version, err := src.LatestVersion(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get latest version: %w", err)
+		return coreerr.E("ImageManager.Install", "failed to get latest version", err)
 	}
 
 	fmt.Printf("Downloading %s from %s...\n", ImageName(), src.Name())
@@ -140,7 +140,7 @@ func (m *ImageManager) Install(ctx context.Context, progress func(downloaded, to
 func (m *ImageManager) CheckUpdate(ctx context.Context) (current, latest string, hasUpdate bool, err error) {
 	info, ok := m.manifest.Images[ImageName()]
 	if !ok {
-		return "", "", false, errors.New("image not installed")
+		return "", "", false, coreerr.E("ImageManager.CheckUpdate", "image not installed", nil)
 	}
 	current = info.Version
 
@@ -153,7 +153,7 @@ func (m *ImageManager) CheckUpdate(ctx context.Context) (current, latest string,
 		}
 	}
 	if src == nil {
-		return current, "", false, errors.New("no image source available")
+		return current, "", false, coreerr.E("ImageManager.CheckUpdate", "no image source available", nil)
 	}
 
 	latest, err = src.LatestVersion(ctx)

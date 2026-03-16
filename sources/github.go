@@ -2,12 +2,12 @@ package sources
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // GitHubSource downloads images from GitHub Releases.
@@ -48,7 +48,7 @@ func (s *GitHubSource) LatestVersion(ctx context.Context) (string, error) {
 	)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("github.LatestVersion: %w", err)
+		return "", coreerr.E("github.LatestVersion", "failed", err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -66,7 +66,7 @@ func (s *GitHubSource) Download(ctx context.Context, m io.Medium, dest string, p
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("github.Download: %w", err)
+		return coreerr.E("github.Download", "failed", err)
 	}
 	return nil
 }

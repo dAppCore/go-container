@@ -3,12 +3,11 @@ package devenv
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"path/filepath"
 	"strings"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,7 +38,7 @@ func (d *DevOps) Test(ctx context.Context, projectDir string, opts TestOptions) 
 		return err
 	}
 	if !running {
-		return errors.New("dev environment not running (run 'core dev boot' first)")
+		return coreerr.E("DevOps.Test", "dev environment not running (run 'core dev boot' first)", nil)
 	}
 
 	var cmd string
@@ -59,12 +58,12 @@ func (d *DevOps) Test(ctx context.Context, projectDir string, opts TestOptions) 
 			}
 		}
 		if cmd == "" {
-			return fmt.Errorf("test command %q not found in .core/test.yaml", opts.Name)
+			return coreerr.E("DevOps.Test", "test command "+opts.Name+" not found in .core/test.yaml", nil)
 		}
 	} else {
 		cmd = DetectTestCommand(d.medium, projectDir)
 		if cmd == "" {
-			return errors.New("could not detect test command (create .core/test.yaml)")
+			return coreerr.E("DevOps.Test", "could not detect test command (create .core/test.yaml)", nil)
 		}
 	}
 

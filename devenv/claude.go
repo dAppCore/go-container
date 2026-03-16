@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // ClaudeOptions configures the Claude sandbox session.
@@ -28,13 +29,13 @@ func (d *DevOps) Claude(ctx context.Context, projectDir string, opts ClaudeOptio
 	if !running {
 		fmt.Println("Dev environment not running, booting...")
 		if err := d.Boot(ctx, DefaultBootOptions()); err != nil {
-			return fmt.Errorf("failed to boot: %w", err)
+			return coreerr.E("DevOps.Claude", "failed to boot", err)
 		}
 	}
 
 	// Mount project
 	if err := d.mountProject(ctx, projectDir); err != nil {
-		return fmt.Errorf("failed to mount project: %w", err)
+		return coreerr.E("DevOps.Claude", "failed to mount project", err)
 	}
 
 	// Prepare environment variables to forward

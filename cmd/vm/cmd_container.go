@@ -2,7 +2,6 @@ package vm
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	goio "io"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"forge.lthn.ai/core/go-container"
 	"forge.lthn.ai/core/go-i18n"
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 var (
@@ -49,7 +49,7 @@ func addVMRunCommand(parent *cli.Command) {
 
 			// Otherwise, require an image path
 			if len(args) == 0 {
-				return errors.New(i18n.T("cmd.vm.run.error.image_required"))
+				return coreerr.E("vm run", i18n.T("cmd.vm.run.error.image_required"), nil)
 			}
 			image := args[0]
 
@@ -71,7 +71,7 @@ func addVMRunCommand(parent *cli.Command) {
 func runContainer(image, name string, detach bool, memory, cpus, sshPort int) error {
 	manager, err := container.NewLinuxKitManager(io.Local)
 	if err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.init", "container manager")+": %w", err)
+		return coreerr.E("runContainer", i18n.T("i18n.fail.init", "container manager"), err)
 	}
 
 	opts := container.RunOptions{
@@ -92,7 +92,7 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int) er
 	ctx := context.Background()
 	c, err := manager.Run(ctx, image, opts)
 	if err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.run", "container")+": %w", err)
+		return coreerr.E("runContainer", i18n.T("i18n.fail.run", "container"), err)
 	}
 
 	if detach {
@@ -129,13 +129,13 @@ func addVMPsCommand(parent *cli.Command) {
 func listContainers(all bool) error {
 	manager, err := container.NewLinuxKitManager(io.Local)
 	if err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.init", "container manager")+": %w", err)
+		return coreerr.E("listContainers", i18n.T("i18n.fail.init", "container manager"), err)
 	}
 
 	ctx := context.Background()
 	containers, err := manager.List(ctx)
 	if err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.list", "containers")+": %w", err)
+		return coreerr.E("listContainers", i18n.T("i18n.fail.list", "containers"), err)
 	}
 
 	// Filter if not showing all
@@ -212,7 +212,7 @@ func addVMStopCommand(parent *cli.Command) {
 		Long:  i18n.T("cmd.vm.stop.long"),
 		RunE: func(cmd *cli.Command, args []string) error {
 			if len(args) == 0 {
-				return errors.New(i18n.T("cmd.vm.error.id_required"))
+				return coreerr.E("vm stop", i18n.T("cmd.vm.error.id_required"), nil)
 			}
 			return stopContainer(args[0])
 		},
@@ -224,7 +224,7 @@ func addVMStopCommand(parent *cli.Command) {
 func stopContainer(id string) error {
 	manager, err := container.NewLinuxKitManager(io.Local)
 	if err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.init", "container manager")+": %w", err)
+		return coreerr.E("stopContainer", i18n.T("i18n.fail.init", "container manager"), err)
 	}
 
 	// Support partial ID matching
@@ -237,7 +237,7 @@ func stopContainer(id string) error {
 
 	ctx := context.Background()
 	if err := manager.Stop(ctx, fullID); err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.stop", "container")+": %w", err)
+		return coreerr.E("stopContainer", i18n.T("i18n.fail.stop", "container"), err)
 	}
 
 	fmt.Printf("%s\n", successStyle.Render(i18n.T("common.status.stopped")))
@@ -261,11 +261,11 @@ func resolveContainerID(manager *container.LinuxKitManager, partialID string) (s
 
 	switch len(matches) {
 	case 0:
-		return "", errors.New(i18n.T("cmd.vm.error.no_match", map[string]any{"ID": partialID}))
+		return "", coreerr.E("resolveContainerID", i18n.T("cmd.vm.error.no_match", map[string]any{"ID": partialID}), nil)
 	case 1:
 		return matches[0].ID, nil
 	default:
-		return "", errors.New(i18n.T("cmd.vm.error.multiple_match", map[string]any{"ID": partialID}))
+		return "", coreerr.E("resolveContainerID", i18n.T("cmd.vm.error.multiple_match", map[string]any{"ID": partialID}), nil)
 	}
 }
 
@@ -279,7 +279,7 @@ func addVMLogsCommand(parent *cli.Command) {
 		Long:  i18n.T("cmd.vm.logs.long"),
 		RunE: func(cmd *cli.Command, args []string) error {
 			if len(args) == 0 {
-				return errors.New(i18n.T("cmd.vm.error.id_required"))
+				return coreerr.E("vm logs", i18n.T("cmd.vm.error.id_required"), nil)
 			}
 			return viewLogs(args[0], logsFollow)
 		},
@@ -293,7 +293,7 @@ func addVMLogsCommand(parent *cli.Command) {
 func viewLogs(id string, follow bool) error {
 	manager, err := container.NewLinuxKitManager(io.Local)
 	if err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.init", "container manager")+": %w", err)
+		return coreerr.E("viewLogs", i18n.T("i18n.fail.init", "container manager"), err)
 	}
 
 	fullID, err := resolveContainerID(manager, id)
@@ -304,7 +304,7 @@ func viewLogs(id string, follow bool) error {
 	ctx := context.Background()
 	reader, err := manager.Logs(ctx, fullID, follow)
 	if err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.get", "logs")+": %w", err)
+		return coreerr.E("viewLogs", i18n.T("i18n.fail.get", "logs"), err)
 	}
 	defer func() { _ = reader.Close() }()
 
@@ -320,7 +320,7 @@ func addVMExecCommand(parent *cli.Command) {
 		Long:  i18n.T("cmd.vm.exec.long"),
 		RunE: func(cmd *cli.Command, args []string) error {
 			if len(args) < 2 {
-				return errors.New(i18n.T("cmd.vm.error.id_and_cmd_required"))
+				return coreerr.E("vm exec", i18n.T("cmd.vm.error.id_and_cmd_required"), nil)
 			}
 			return execInContainer(args[0], args[1:])
 		},
@@ -332,7 +332,7 @@ func addVMExecCommand(parent *cli.Command) {
 func execInContainer(id string, cmd []string) error {
 	manager, err := container.NewLinuxKitManager(io.Local)
 	if err != nil {
-		return fmt.Errorf(i18n.T("i18n.fail.init", "container manager")+": %w", err)
+		return coreerr.E("execInContainer", i18n.T("i18n.fail.init", "container manager"), err)
 	}
 
 	fullID, err := resolveContainerID(manager, id)

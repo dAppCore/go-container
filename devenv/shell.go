@@ -2,10 +2,11 @@ package devenv
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // ShellOptions configures the shell connection.
@@ -21,7 +22,7 @@ func (d *DevOps) Shell(ctx context.Context, opts ShellOptions) error {
 		return err
 	}
 	if !running {
-		return errors.New("dev environment not running (run 'core dev boot' first)")
+		return coreerr.E("DevOps.Shell", "dev environment not running (run 'core dev boot' first)", nil)
 	}
 
 	if opts.Console {
@@ -62,7 +63,7 @@ func (d *DevOps) serialConsole(ctx context.Context) error {
 		return err
 	}
 	if c == nil {
-		return errors.New("console not available: container not found")
+		return coreerr.E("DevOps.serialConsole", "console not available: container not found", nil)
 	}
 
 	// Use socat to connect to the console socket

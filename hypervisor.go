@@ -2,13 +2,14 @@ package container
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // Hypervisor defines the interface for VM hypervisors.
@@ -67,7 +68,7 @@ func (q *QemuHypervisor) Available() bool {
 func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (*exec.Cmd, error) {
 	format := DetectImageFormat(image)
 	if format == FormatUnknown {
-		return nil, fmt.Errorf("unknown image format: %s", image)
+		return nil, coreerr.E("QemuHypervisor.BuildCommand", "unknown image format: "+image, nil)
 	}
 
 	args := []string{
@@ -175,7 +176,7 @@ func (h *HyperkitHypervisor) Available() bool {
 func (h *HyperkitHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (*exec.Cmd, error) {
 	format := DetectImageFormat(image)
 	if format == FormatUnknown {
-		return nil, fmt.Errorf("unknown image format: %s", image)
+		return nil, coreerr.E("HyperkitHypervisor.BuildCommand", "unknown image format: "+image, nil)
 	}
 
 	args := []string{
@@ -250,7 +251,7 @@ func DetectHypervisor() (Hypervisor, error) {
 		return qemu, nil
 	}
 
-	return nil, errors.New("no hypervisor available: install qemu or hyperkit (macOS)")
+	return nil, coreerr.E("DetectHypervisor", "no hypervisor available: install qemu or hyperkit (macOS)", nil)
 }
 
 // GetHypervisor returns a specific hypervisor by name.
@@ -259,16 +260,16 @@ func GetHypervisor(name string) (Hypervisor, error) {
 	case "qemu":
 		h := NewQemuHypervisor()
 		if !h.Available() {
-			return nil, errors.New("qemu is not available")
+			return nil, coreerr.E("GetHypervisor", "qemu is not available", nil)
 		}
 		return h, nil
 	case "hyperkit":
 		h := NewHyperkitHypervisor()
 		if !h.Available() {
-			return nil, errors.New("hyperkit is not available (requires macOS)")
+			return nil, coreerr.E("GetHypervisor", "hyperkit is not available (requires macOS)", nil)
 		}
 		return h, nil
 	default:
-		return nil, fmt.Errorf("unknown hypervisor: %s", name)
+		return nil, coreerr.E("GetHypervisor", "unknown hypervisor: "+name, nil)
 	}
 }

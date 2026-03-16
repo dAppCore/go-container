@@ -2,7 +2,6 @@ package container
 
 import (
 	"embed"
-	"fmt"
 	"iter"
 	"maps"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"strings"
 
 	"forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 //go:embed templates/*.yml
@@ -78,7 +78,7 @@ func GetTemplate(name string) (string, error) {
 		if t.Name == name {
 			content, err := embeddedTemplates.ReadFile(t.Path)
 			if err != nil {
-				return "", fmt.Errorf("failed to read embedded template %s: %w", name, err)
+				return "", coreerr.E("GetTemplate", "failed to read embedded template: "+name, err)
 			}
 			return string(content), nil
 		}
@@ -91,13 +91,13 @@ func GetTemplate(name string) (string, error) {
 		if io.Local.IsFile(templatePath) {
 			content, err := io.Local.Read(templatePath)
 			if err != nil {
-				return "", fmt.Errorf("failed to read user template %s: %w", name, err)
+				return "", coreerr.E("GetTemplate", "failed to read user template: "+name, err)
 			}
 			return content, nil
 		}
 	}
 
-	return "", fmt.Errorf("template not found: %s", name)
+	return "", coreerr.E("GetTemplate", "template not found: "+name, nil)
 }
 
 // ApplyTemplate applies variable substitution to a template.
@@ -158,7 +158,7 @@ func ApplyVariables(content string, vars map[string]string) (string, error) {
 	})
 
 	if len(missingVars) > 0 {
-		return "", fmt.Errorf("missing required variables: %s", strings.Join(missingVars, ", "))
+		return "", coreerr.E("ApplyVariables", "missing required variables: "+strings.Join(missingVars, ", "), nil)
 	}
 
 	return result, nil
