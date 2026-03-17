@@ -3,12 +3,12 @@ package container
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 
+	"forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 )
 
@@ -141,8 +141,7 @@ func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *H
 
 // isKVMAvailable checks if KVM is available on the system.
 func isKVMAvailable() bool {
-	_, err := os.Stat("/dev/kvm")
-	return err == nil
+	return io.Local.IsFile("/dev/kvm")
 }
 
 // HyperkitHypervisor implements Hypervisor for macOS Hyperkit.

@@ -478,6 +478,16 @@ kernel:
 	assert.Equal(t, "Real description", desc)
 }
 
+func TestListTemplatesIter_Good_EarlyBreak(t *testing.T) {
+	// Verify iterator stops when yield returns false
+	var count int
+	for range ListTemplatesIter() {
+		count++
+		break // stop after first template
+	}
+	assert.Equal(t, 1, count)
+}
+
 func TestScanUserTemplates_Good_DefaultDescription(t *testing.T) {
 	tmpDir := t.TempDir()
 

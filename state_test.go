@@ -208,6 +208,42 @@ func TestEnsureLogsDir_Good(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestState_All_Good_ReturnsCopies(t *testing.T) {
+	tmpDir := t.TempDir()
+	statePath := filepath.Join(tmpDir, "containers.json")
+	state := NewState(statePath)
+
+	_ = state.Add(&Container{ID: "abc12345", Status: StatusRunning})
+
+	all := state.All()
+	require.Len(t, all, 1)
+
+	// Mutating the returned copy should not affect the stored state
+	all[0].Status = StatusStopped
+
+	original, ok := state.Get("abc12345")
+	assert.True(t, ok)
+	assert.Equal(t, StatusRunning, original.Status)
+}
+
+func TestState_Get_Good_ReturnsCopy(t *testing.T) {
+	tmpDir := t.TempDir()
+	statePath := filepath.Join(tmpDir, "containers.json")
+	state := NewState(statePath)
+
+	_ = state.Add(&Container{ID: "abc12345", Name: "original"})
+
+	got, ok := state.Get("abc12345")
+	require.True(t, ok)
+
+	// Mutating the returned copy should not affect the stored state
+	got.Name = "mutated"
+
+	original, ok := state.Get("abc12345")
+	assert.True(t, ok)
+	assert.Equal(t, "original", original.Name)
+}
+
 func TestGenerateID_Good(t *testing.T) {
 	id1, err := GenerateID()
 	require.NoError(t, err)

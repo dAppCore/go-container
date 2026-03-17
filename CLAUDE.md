@@ -37,6 +37,6 @@ Three packages with a clear dependency direction: `devenv` -> `container` (root)
 
 - UK English (colour, organisation, honour)
 - Tests use testify; naming convention: `_Good` (happy path), `_Bad` (expected errors), `_Ugly` (edge cases)
-- Error wrapping: `fmt.Errorf("context: %w", err)`
+- Error wrapping: `coreerr.E("caller", "what failed", err)` via `go-log` (not `fmt.Errorf`)
 - Context propagation: all blocking operations take `context.Context` as first parameter
 - Licence: EUPL-1.2

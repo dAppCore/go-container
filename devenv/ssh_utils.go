@@ -47,12 +47,7 @@ func ensureHostKey(ctx context.Context, port int) error {
 	existingStr, _ := coreio.Local.Read(knownHostsPath)
 
 	// Append new keys that aren't already there
-	f, err := os.OpenFile(knownHostsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		return coreerr.E("ensureHostKey", "open known_hosts", err)
-	}
-	defer f.Close()
-
+	newContent := existingStr
 	lines := strings.Split(string(out), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -60,9 +55,13 @@ func ensureHostKey(ctx context.Context, port int) error {
 			continue
 		}
 		if !strings.Contains(existingStr, line) {
-			if _, err := f.WriteString(line + "\n"); err != nil {
-				return coreerr.E("ensureHostKey", "write known_hosts", err)
-			}
+			newContent += line + "\n"
+		}
+	}
+
+	if newContent != existingStr {
+		if err := coreio.Local.Write(knownHostsPath, newContent); err != nil {
+			return coreerr.E("ensureHostKey", "write known_hosts", err)
 		}
 	}
 

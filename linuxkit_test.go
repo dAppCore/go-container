@@ -784,3 +784,49 @@ func TestLinuxKitManager_Stop_Good_ProcessExitedWhileRunning(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, StatusStopped, c.Status)
 }
+
+func TestLinuxKitManager_Stop_Bad_CancelledContext(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := manager.Stop(ctx, "anything")
+	assert.Error(t, err)
+	assert.Equal(t, context.Canceled, err)
+}
+
+func TestLinuxKitManager_List_Bad_CancelledContext(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	containers, err := manager.List(ctx)
+	assert.Error(t, err)
+	assert.Nil(t, containers)
+	assert.Equal(t, context.Canceled, err)
+}
+
+func TestLinuxKitManager_Logs_Bad_CancelledContext(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	reader, err := manager.Logs(ctx, "anything", false)
+	assert.Error(t, err)
+	assert.Nil(t, reader)
+	assert.Equal(t, context.Canceled, err)
+}
+
+func TestLinuxKitManager_Exec_Bad_CancelledContext(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := manager.Exec(ctx, "anything", []string{"ls"})
+	assert.Error(t, err)
+	assert.Equal(t, context.Canceled, err)
+}

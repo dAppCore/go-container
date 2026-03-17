@@ -241,7 +241,7 @@ func findBuiltImage(basePath string) string {
 
 	for _, ext := range extensions {
 		path := basePath + ext
-		if _, err := os.Stat(path); err == nil {
+		if io.Local.IsFile(path) {
 			return path
 		}
 	}
@@ -250,7 +250,7 @@ func findBuiltImage(basePath string) string {
 	dir := filepath.Dir(basePath)
 	base := filepath.Base(basePath)
 
-	entries, err := os.ReadDir(dir)
+	entries, err := io.Local.List(dir)
 	if err != nil {
 		return ""
 	}
@@ -283,7 +283,7 @@ func lookupLinuxKit() (string, error) {
 	}
 
 	for _, p := range paths {
-		if _, err := os.Stat(p); err == nil {
+		if io.Local.IsFile(p) {
 			return p, nil
 		}
 	}
