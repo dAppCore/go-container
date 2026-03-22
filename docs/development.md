@@ -8,7 +8,7 @@ description: How to build, test, and contribute to go-container.
 ## Prerequisites
 
 - **Go 1.26+** -- The module uses Go 1.26 features.
-- **Go workspace** -- This module is part of a Go workspace at `~/Code/go.work`. Local development of sibling modules (go-io, config, go-i18n, cli) requires the workspace file.
+- **Go workspace** -- This module is part of a Go workspace at `~/Code/go.work`. Local development of sibling modules (core/io, config, core/i18n, cli) requires the workspace file.
 
 Optional (for actually running VMs):
 
@@ -109,7 +109,7 @@ go-container/
 - **UK English** in all strings, comments, and documentation (colour, organisation, honour).
 - **Strict typing** -- All function parameters and return values are typed. No `interface{}` without justification.
 - **Error wrapping** -- Use `fmt.Errorf("context: %w", err)` for all error returns.
-- **`io.Medium` abstraction** -- File system operations go through `io.Medium` (from `go-io`) rather than directly calling `os` functions. This enables testing with mock file systems. The `io.Local` singleton is used for real file system access.
+- **`io.Medium` abstraction** -- File system operations go through `io.Medium` (from `core/io`) rather than directly calling `os` functions. This enables testing with mock file systems. The `io.Local` singleton is used for real file system access.
 - **Compile-time interface checks** -- Use `var _ Interface = (*Impl)(nil)` to verify implementations at compile time (see `sources/cdn.go` and `sources/github.go`).
 - **Context propagation** -- All operations that might block accept a `context.Context` as their first parameter.
 

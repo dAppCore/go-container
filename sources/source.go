@@ -1,10 +1,10 @@
-// Package sources provides image download sources for go-container.
+// Package sources provides image download sources for container.
 package sources
 
 import (
 	"context"
 
-	"forge.lthn.ai/core/go-io"
+	"dappco.re/go/core/io"
 )
 
 // ImageSource defines the interface for downloading dev images.

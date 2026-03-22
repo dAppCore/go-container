@@ -1,6 +1,6 @@
 # go-container
 
-Module: `forge.lthn.ai/core/go-container`
+Module: `dappco.re/go/core/container`
 
 Container runtime for managing LinuxKit VMs as lightweight containers. Supports running LinuxKit images (ISO, qcow2, vmdk, raw) via QEMU or Hyperkit hypervisors. Includes a dev environment system for Claude Code agents and development workflows.
 
@@ -55,7 +55,7 @@ Container runtime for managing LinuxKit VMs as lightweight containers. Supports 
 ## Usage
 
 ```go
-import "forge.lthn.ai/core/go-container"
+import "dappco.re/go/core/container"
 
 // Auto-detect hypervisor
 hv, _ := container.DetectHypervisor()

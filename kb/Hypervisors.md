@@ -1,6 +1,6 @@
 # Hypervisors
 
-Module: `forge.lthn.ai/core/go-container`
+Module: `dappco.re/go/core/container`
 
 ## Interface
 

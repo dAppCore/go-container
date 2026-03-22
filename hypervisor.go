@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"strings"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 )
 
 // Hypervisor defines the interface for VM hypervisors.
