@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"forge.lthn.ai/core/go-container/sources"
-	"forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/container/sources"
+	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // ImageManager handles image downloads and updates.

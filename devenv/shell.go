@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 )
 
 // ShellOptions configures the shell connection.

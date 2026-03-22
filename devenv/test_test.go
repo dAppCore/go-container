@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"forge.lthn.ai/core/go-io"
+	"dappco.re/go/core/io"
 )
 
 func TestDetectTestCommand_Good_ComposerJSON(t *testing.T) {

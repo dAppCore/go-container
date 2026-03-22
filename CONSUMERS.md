@@ -1,6 +1,6 @@
 # Consumers of go-container
 
-These modules import `forge.lthn.ai/core/go-container`:
+These modules import `dappco.re/go/core/container`:
 
 - core
 - go-devops
