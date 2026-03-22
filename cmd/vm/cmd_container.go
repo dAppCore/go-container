@@ -9,11 +9,11 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"dappco.re/go/core/container"
+	"dappco.re/go/core/i18n"
+	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/go-container"
-	"forge.lthn.ai/core/go-i18n"
-	"forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
 )
 
 var (

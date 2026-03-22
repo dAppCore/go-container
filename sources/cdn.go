@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // CDNSource downloads images from a CDN or S3 bucket.

@@ -5,7 +5,7 @@ description: Container runtime, LinuxKit image builder, and portable development
 
 # go-container
 
-`forge.lthn.ai/core/go-container` provides a container runtime built on LinuxKit and lightweight hypervisors. It manages the full lifecycle of LinuxKit virtual machines -- from building images with embedded templates, to running them via QEMU or Hyperkit, to offering a portable development environment with shell access, project mounting, test execution, and Claude AI integration.
+`dappco.re/go/core/container` provides a container runtime built on LinuxKit and lightweight hypervisors. It manages the full lifecycle of LinuxKit virtual machines -- from building images with embedded templates, to running them via QEMU or Hyperkit, to offering a portable development environment with shell access, project mounting, test execution, and Claude AI integration.
 
 This is **not** a Docker wrapper. It runs real VMs from LinuxKit images (ISO, qcow2, VMDK, raw) using platform-native acceleration (KVM on Linux, HVF on macOS, Hyperkit where available).
 
@@ -13,7 +13,7 @@ This is **not** a Docker wrapper. It runs real VMs from LinuxKit images (ISO, qc
 ## Module path
 
 ```
-forge.lthn.ai/core/go-container
+dappco.re/go/core/container
 ```
 
 Requires **Go 1.26+**.
@@ -26,8 +26,8 @@ Requires **Go 1.26+**.
 ```go
 import (
     "context"
-    container "forge.lthn.ai/core/go-container"
-    "forge.lthn.ai/core/go-io"
+    container "dappco.re/go/core/container"
+    "dappco.re/go/core/io"
 )
 
 manager, err := container.NewLinuxKitManager(io.Local)
@@ -54,8 +54,8 @@ fmt.Printf("Started container %s (PID %d)\n", c.ID, c.PID)
 
 ```go
 import (
-    "forge.lthn.ai/core/go-container/devenv"
-    "forge.lthn.ai/core/go-io"
+    "dappco.re/go/core/container/devenv"
+    "dappco.re/go/core/io"
 )
 
 dev, err := devenv.New(io.Local)
@@ -77,7 +77,7 @@ err = dev.Test(ctx, "/path/to/project", devenv.TestOptions{})
 ### Build and run from a LinuxKit template
 
 ```go
-import container "forge.lthn.ai/core/go-container"
+import container "dappco.re/go/core/container"
 
 // List available templates (built-in + user-defined)
 templates := container.ListTemplates()
@@ -95,24 +95,24 @@ content, err := container.ApplyTemplate("core-dev", map[string]string{
 
 | Package | Import path | Purpose |
 |---------|-------------|---------|
-| `container` (root) | `forge.lthn.ai/core/go-container` | Container struct, Manager interface, hypervisor abstraction, LinuxKit manager, state persistence, template engine |
-| `devenv` | `forge.lthn.ai/core/go-container/devenv` | Portable dev environment orchestration: boot, shell, serve, test, Claude sandbox, image management |
-| `sources` | `forge.lthn.ai/core/go-container/sources` | Image download backends: CDN and GitHub Releases with progress reporting |
-| `cmd/vm` | `forge.lthn.ai/core/go-container/cmd/vm` | CLI commands (`core vm run`, `core vm ps`, `core vm stop`, `core vm logs`, `core vm exec`, `core vm templates`) |
+| `container` (root) | `dappco.re/go/core/container` | Container struct, Manager interface, hypervisor abstraction, LinuxKit manager, state persistence, template engine |
+| `devenv` | `dappco.re/go/core/container/devenv` | Portable dev environment orchestration: boot, shell, serve, test, Claude sandbox, image management |
+| `sources` | `dappco.re/go/core/container/sources` | Image download backends: CDN and GitHub Releases with progress reporting |
+| `cmd/vm` | `dappco.re/go/core/container/cmd/vm` | CLI commands (`core vm run`, `core vm ps`, `core vm stop`, `core vm logs`, `core vm exec`, `core vm templates`) |
 
 
 ## Dependencies
 
 | Module | Purpose |
 |--------|---------|
-| `forge.lthn.ai/core/go-io` | File system abstraction (`Medium` interface), process utilities |
+| `dappco.re/go/core/io` | File system abstraction (`Medium` interface), process utilities |
 | `forge.lthn.ai/core/config` | Configuration loading (used by `devenv` for `~/.core/config.yaml`) |
-| `forge.lthn.ai/core/go-i18n` | Internationalised UI strings (used by `cmd/vm`) |
+| `dappco.re/go/core/i18n` | Internationalised UI strings (used by `cmd/vm`) |
 | `forge.lthn.ai/core/cli` | CLI framework (used by `cmd/vm` for command registration) |
 | `github.com/stretchr/testify` | Test assertions |
 | `gopkg.in/yaml.v3` | YAML parsing for test configuration |
 
-The root `container` package has only two direct dependencies: `go-io` and the standard library. The `devenv` and `cmd/vm` packages pull in the heavier dependencies.
+The root `container` package has only two direct dependencies: `core/io` and the standard library. The `devenv` and `cmd/vm` packages pull in the heavier dependencies.
 
 
 ## CLI commands
