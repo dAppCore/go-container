@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestImageManager_Good_IsInstalled(t *testing.T) {
+func TestImageManager_IsInstalled_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -32,7 +32,7 @@ func TestImageManager_Good_IsInstalled(t *testing.T) {
 	assert.True(t, mgr.IsInstalled())
 }
 
-func TestNewImageManager_Good(t *testing.T) {
+func TestImages_NewImageManager_Good(t *testing.T) {
 	t.Run("creates manager with cdn source", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("CORE_IMAGES_DIR", tmpDir)
@@ -62,7 +62,7 @@ func TestNewImageManager_Good(t *testing.T) {
 	})
 }
 
-func TestManifest_Save(t *testing.T) {
+func TestManifest_Save_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := coreutil.JoinPath(tmpDir, "manifest.json")
 
@@ -89,7 +89,7 @@ func TestManifest_Save(t *testing.T) {
 	assert.Equal(t, "1.0.0", m2.Images["test.img"].Version)
 }
 
-func TestLoadManifest_Bad(t *testing.T) {
+func TestImages_LoadManifest_Bad(t *testing.T) {
 	t.Run("invalid json", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		path := coreutil.JoinPath(tmpDir, "manifest.json")
@@ -101,7 +101,7 @@ func TestLoadManifest_Bad(t *testing.T) {
 	})
 }
 
-func TestCheckUpdate_Bad(t *testing.T) {
+func TestImages_CheckUpdate_Bad(t *testing.T) {
 	t.Run("image not installed", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("CORE_IMAGES_DIR", tmpDir)
@@ -116,7 +116,7 @@ func TestCheckUpdate_Bad(t *testing.T) {
 	})
 }
 
-func TestNewImageManager_Good_AutoSource(t *testing.T) {
+func TestNewImageManager_AutoSource_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -129,7 +129,7 @@ func TestNewImageManager_Good_AutoSource(t *testing.T) {
 	assert.Len(t, mgr.sources, 2) // github and cdn
 }
 
-func TestNewImageManager_Good_UnknownSourceFallsToAuto(t *testing.T) {
+func TestNewImageManager_UnknownSourceFallsToAuto_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -142,7 +142,7 @@ func TestNewImageManager_Good_UnknownSourceFallsToAuto(t *testing.T) {
 	assert.Len(t, mgr.sources, 2) // falls to default (auto) which is github + cdn
 }
 
-func TestLoadManifest_Good_Empty(t *testing.T) {
+func TestLoadManifest_Empty_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := coreutil.JoinPath(tmpDir, "nonexistent.json")
 
@@ -154,7 +154,7 @@ func TestLoadManifest_Good_Empty(t *testing.T) {
 	assert.Equal(t, path, m.path)
 }
 
-func TestLoadManifest_Good_ExistingData(t *testing.T) {
+func TestLoadManifest_ExistingData_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := coreutil.JoinPath(tmpDir, "manifest.json")
 
@@ -169,7 +169,7 @@ func TestLoadManifest_Good_ExistingData(t *testing.T) {
 	assert.Equal(t, "cdn", m.Images["test.img"].Source)
 }
 
-func TestImageInfo_Struct(t *testing.T) {
+func TestImageInfo_Struct_Good(t *testing.T) {
 	info := ImageInfo{
 		Version:    "1.0.0",
 		SHA256:     "abc123",
@@ -182,7 +182,7 @@ func TestImageInfo_Struct(t *testing.T) {
 	assert.Equal(t, "github", info.Source)
 }
 
-func TestManifest_Save_Good_CreatesDirs(t *testing.T) {
+func TestManifest_Save_CreatesDirs_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	nestedPath := coreutil.JoinPath(tmpDir, "nested", "dir", "manifest.json")
 
@@ -201,7 +201,7 @@ func TestManifest_Save_Good_CreatesDirs(t *testing.T) {
 	assert.True(t, io.Local.IsFile(nestedPath))
 }
 
-func TestManifest_Save_Good_Overwrite(t *testing.T) {
+func TestManifest_Save_Overwrite_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := coreutil.JoinPath(tmpDir, "manifest.json")
 
@@ -233,7 +233,7 @@ func TestManifest_Save_Good_Overwrite(t *testing.T) {
 	assert.False(t, exists)
 }
 
-func TestImageManager_Install_Bad_NoSourceAvailable(t *testing.T) {
+func TestImageManager_Install_NoSourceAvailable_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -250,7 +250,7 @@ func TestImageManager_Install_Bad_NoSourceAvailable(t *testing.T) {
 	assert.Contains(t, err.Error(), "no image source available")
 }
 
-func TestNewImageManager_Good_CreatesDir(t *testing.T) {
+func TestNewImageManager_CreatesDir_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	imagesDir := coreutil.JoinPath(tmpDir, "images")
 	t.Setenv("CORE_IMAGES_DIR", imagesDir)
@@ -289,7 +289,7 @@ func (m *mockImageSource) Download(ctx context.Context, medium io.Medium, dest s
 	return medium.Write(imagePath, "mock image content")
 }
 
-func TestImageManager_Install_Good_WithMockSource(t *testing.T) {
+func TestImageManager_Install_WithMockSource_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -317,7 +317,7 @@ func TestImageManager_Install_Good_WithMockSource(t *testing.T) {
 	assert.Equal(t, "mock", info.Source)
 }
 
-func TestImageManager_Install_Bad_DownloadError(t *testing.T) {
+func TestImageManager_Install_DownloadError_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -339,7 +339,7 @@ func TestImageManager_Install_Bad_DownloadError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestImageManager_Install_Bad_VersionError(t *testing.T) {
+func TestImageManager_Install_VersionError_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -361,7 +361,7 @@ func TestImageManager_Install_Bad_VersionError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to get latest version")
 }
 
-func TestImageManager_Install_Good_SkipsUnavailableSource(t *testing.T) {
+func TestImageManager_Install_SkipsUnavailableSource_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -390,7 +390,7 @@ func TestImageManager_Install_Good_SkipsUnavailableSource(t *testing.T) {
 	assert.Equal(t, "available", info.Source)
 }
 
-func TestImageManager_CheckUpdate_Good_WithMockSource(t *testing.T) {
+func TestImageManager_CheckUpdate_WithMockSource_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -420,7 +420,7 @@ func TestImageManager_CheckUpdate_Good_WithMockSource(t *testing.T) {
 	assert.True(t, hasUpdate)
 }
 
-func TestImageManager_CheckUpdate_Good_NoUpdate(t *testing.T) {
+func TestImageManager_CheckUpdate_NoUpdate_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -450,7 +450,7 @@ func TestImageManager_CheckUpdate_Good_NoUpdate(t *testing.T) {
 	assert.False(t, hasUpdate)
 }
 
-func TestImageManager_CheckUpdate_Bad_NoSource(t *testing.T) {
+func TestImageManager_CheckUpdate_NoSource_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -477,7 +477,7 @@ func TestImageManager_CheckUpdate_Bad_NoSource(t *testing.T) {
 	assert.Contains(t, err.Error(), "no image source available")
 }
 
-func TestImageManager_CheckUpdate_Bad_VersionError(t *testing.T) {
+func TestImageManager_CheckUpdate_VersionError_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -505,7 +505,7 @@ func TestImageManager_CheckUpdate_Bad_VersionError(t *testing.T) {
 	assert.Equal(t, "v1.0.0", current) // Current should still be returned
 }
 
-func TestImageManager_Install_Bad_EmptySources(t *testing.T) {
+func TestImageManager_Install_EmptySources_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -521,7 +521,7 @@ func TestImageManager_Install_Bad_EmptySources(t *testing.T) {
 	assert.Contains(t, err.Error(), "no image source available")
 }
 
-func TestImageManager_Install_Bad_AllUnavailable(t *testing.T) {
+func TestImageManager_Install_AllUnavailable_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -540,7 +540,7 @@ func TestImageManager_Install_Bad_AllUnavailable(t *testing.T) {
 	assert.Contains(t, err.Error(), "no image source available")
 }
 
-func TestImageManager_CheckUpdate_Good_FirstSourceUnavailable(t *testing.T) {
+func TestImageManager_CheckUpdate_FirstSourceUnavailable_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("CORE_IMAGES_DIR", tmpDir)
 
@@ -567,7 +567,7 @@ func TestImageManager_CheckUpdate_Good_FirstSourceUnavailable(t *testing.T) {
 	assert.True(t, hasUpdate)
 }
 
-func TestManifest_Struct(t *testing.T) {
+func TestManifest_Struct_Good(t *testing.T) {
 	m := &Manifest{
 		Images: map[string]ImageInfo{
 			"test.img": {Version: "1.0.0"},

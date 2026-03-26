@@ -44,11 +44,19 @@ var builtinTemplates = []Template{
 // ListTemplates returns all available LinuxKit templates.
 // It combines embedded templates with any templates found in the user's
 // .core/linuxkit directory.
+//
+// Usage:
+//
+//	templates := ListTemplates()
 func ListTemplates() []Template {
 	return slices.Collect(ListTemplatesIter())
 }
 
 // ListTemplatesIter returns an iterator for all available LinuxKit templates.
+//
+// Usage:
+//
+//	for template := range ListTemplatesIter() { _ = template }
 func ListTemplatesIter() iter.Seq[Template] {
 	return func(yield func(Template) bool) {
 		// Yield builtin templates
@@ -72,6 +80,10 @@ func ListTemplatesIter() iter.Seq[Template] {
 
 // GetTemplate returns the content of a template by name.
 // It first checks embedded templates, then user templates.
+//
+// Usage:
+//
+//	content, err := GetTemplate("core-dev")
 func GetTemplate(name string) (string, error) {
 	// Check embedded templates first
 	for _, t := range builtinTemplates {
@@ -104,6 +116,10 @@ func GetTemplate(name string) (string, error) {
 // It supports two syntaxes:
 //   - ${VAR} - required variable, returns error if not provided
 //   - ${VAR:-default} - variable with default value
+//
+// Usage:
+//
+//	content, err := ApplyTemplate("core-dev", vars)
 func ApplyTemplate(name string, vars map[string]string) (string, error) {
 	content, err := GetTemplate(name)
 	if err != nil {
@@ -117,6 +133,10 @@ func ApplyTemplate(name string, vars map[string]string) (string, error) {
 // It supports two syntaxes:
 //   - ${VAR} - required variable, returns error if not provided
 //   - ${VAR:-default} - variable with default value
+//
+// Usage:
+//
+//	content, err := ApplyVariables(raw, vars)
 func ApplyVariables(content string, vars map[string]string) (string, error) {
 	// Pattern for ${VAR:-default} syntax
 	defaultPattern := regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*):-([^}]*)\}`)
@@ -166,6 +186,10 @@ func ApplyVariables(content string, vars map[string]string) (string, error) {
 
 // ExtractVariables extracts all variable names from a template.
 // Returns two slices: required variables and optional variables (with defaults).
+//
+// Usage:
+//
+//	required, optional := ExtractVariables(content)
 func ExtractVariables(content string) (required []string, optional map[string]string) {
 	optional = make(map[string]string)
 	requiredSet := make(map[string]bool)

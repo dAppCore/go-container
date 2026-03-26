@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCDNSource_Good_Available(t *testing.T) {
+func TestCDNSource_Available_Good(t *testing.T) {
 	src := NewCDNSource(SourceConfig{
 		CDNURL:    "https://images.example.com",
 		ImageName: "core-devops-darwin-arm64.qcow2",
@@ -23,7 +23,7 @@ func TestCDNSource_Good_Available(t *testing.T) {
 	assert.True(t, src.Available())
 }
 
-func TestCDNSource_Bad_NoURL(t *testing.T) {
+func TestCDNSource_NoURL_Bad(t *testing.T) {
 	src := NewCDNSource(SourceConfig{
 		ImageName: "core-devops-darwin-arm64.qcow2",
 	})
@@ -115,7 +115,7 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 	})
 }
 
-func TestCDNSource_LatestVersion_Bad_NoManifest(t *testing.T) {
+func TestCDNSource_LatestVersion_NoManifest_Bad(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
@@ -131,7 +131,7 @@ func TestCDNSource_LatestVersion_Bad_NoManifest(t *testing.T) {
 	assert.Equal(t, "latest", version)
 }
 
-func TestCDNSource_LatestVersion_Bad_ServerError(t *testing.T) {
+func TestCDNSource_LatestVersion_ServerError_Bad(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -147,7 +147,7 @@ func TestCDNSource_LatestVersion_Bad_ServerError(t *testing.T) {
 	assert.Equal(t, "latest", version)
 }
 
-func TestCDNSource_Download_Good_NoProgress(t *testing.T) {
+func TestCDNSource_Download_NoProgress_Good(t *testing.T) {
 	content := "test content"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", core.Sprintf("%d", len(content)))
@@ -171,7 +171,7 @@ func TestCDNSource_Download_Good_NoProgress(t *testing.T) {
 	assert.Equal(t, content, data)
 }
 
-func TestCDNSource_Download_Good_LargeFile(t *testing.T) {
+func TestCDNSource_Download_LargeFile_Good(t *testing.T) {
 	// Create content larger than buffer size (32KB)
 	content := make([]byte, 64*1024) // 64KB
 	for i := range content {
@@ -203,7 +203,7 @@ func TestCDNSource_Download_Good_LargeFile(t *testing.T) {
 	assert.Equal(t, int64(len(content)), lastDownloaded)
 }
 
-func TestCDNSource_Download_Bad_HTTPErrorCodes(t *testing.T) {
+func TestCDNSource_Download_HTTPErrorCodes_Bad(t *testing.T) {
 	testCases := []struct {
 		name       string
 		statusCode int
@@ -235,12 +235,12 @@ func TestCDNSource_Download_Bad_HTTPErrorCodes(t *testing.T) {
 	}
 }
 
-func TestCDNSource_InterfaceCompliance(t *testing.T) {
+func TestCDNSource_InterfaceCompliance_Good(t *testing.T) {
 	// Verify CDNSource implements ImageSource
 	var _ ImageSource = (*CDNSource)(nil)
 }
 
-func TestCDNSource_Config(t *testing.T) {
+func TestCDNSource_Config_Good(t *testing.T) {
 	cfg := SourceConfig{
 		CDNURL:    "https://cdn.example.com",
 		ImageName: "my-image.qcow2",
@@ -251,7 +251,7 @@ func TestCDNSource_Config(t *testing.T) {
 	assert.Equal(t, "my-image.qcow2", src.config.ImageName)
 }
 
-func TestNewCDNSource_Good(t *testing.T) {
+func TestCDN_NewCDNSource_Good(t *testing.T) {
 	cfg := SourceConfig{
 		GitHubRepo:    "host-uk/core-images",
 		RegistryImage: "ghcr.io/host-uk/core-devops",
@@ -265,7 +265,7 @@ func TestNewCDNSource_Good(t *testing.T) {
 	assert.Equal(t, cfg.CDNURL, src.config.CDNURL)
 }
 
-func TestCDNSource_Download_Good_CreatesDestDir(t *testing.T) {
+func TestCDNSource_Download_CreatesDestDir_Good(t *testing.T) {
 	content := "test content"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -291,7 +291,7 @@ func TestCDNSource_Download_Good_CreatesDestDir(t *testing.T) {
 	assert.True(t, info.IsDir())
 }
 
-func TestSourceConfig_Struct(t *testing.T) {
+func TestSourceConfig_Struct_Good(t *testing.T) {
 	cfg := SourceConfig{
 		GitHubRepo:    "owner/repo",
 		RegistryImage: "ghcr.io/owner/image",

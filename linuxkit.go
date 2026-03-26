@@ -22,6 +22,10 @@ type LinuxKitManager struct {
 }
 
 // NewLinuxKitManager creates a new LinuxKit manager with auto-detected hypervisor.
+//
+// Usage:
+//
+//	manager, err := NewLinuxKitManager(io.Local)
 func NewLinuxKitManager(m io.Medium) (*LinuxKitManager, error) {
 	statePath, err := DefaultStatePath()
 	if err != nil {
@@ -46,6 +50,10 @@ func NewLinuxKitManager(m io.Medium) (*LinuxKitManager, error) {
 }
 
 // NewLinuxKitManagerWithHypervisor creates a manager with a specific hypervisor.
+//
+// Usage:
+//
+//	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, hypervisor)
 func NewLinuxKitManagerWithHypervisor(m io.Medium, state *State, hypervisor Hypervisor) *LinuxKitManager {
 	return &LinuxKitManager{
 		state:      state,

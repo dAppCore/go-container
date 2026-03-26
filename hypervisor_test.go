@@ -20,7 +20,7 @@ func TestQemuHypervisor_Available_Good(t *testing.T) {
 	assert.IsType(t, true, available)
 }
 
-func TestQemuHypervisor_Available_Bad_InvalidBinary(t *testing.T) {
+func TestQemuHypervisor_Available_InvalidBinary_Bad(t *testing.T) {
 	q := &QemuHypervisor{
 		Binary: "nonexistent-qemu-binary-that-does-not-exist",
 	}
@@ -44,7 +44,7 @@ func TestHyperkitHypervisor_Available_Good(t *testing.T) {
 	}
 }
 
-func TestHyperkitHypervisor_Available_Bad_NotDarwin(t *testing.T) {
+func TestHyperkitHypervisor_Available_NotDarwin_Bad(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("This test only runs on non-darwin systems")
 	}
@@ -56,7 +56,7 @@ func TestHyperkitHypervisor_Available_Bad_NotDarwin(t *testing.T) {
 	assert.False(t, available, "Hyperkit should not be available on non-darwin systems")
 }
 
-func TestHyperkitHypervisor_Available_Bad_InvalidBinary(t *testing.T) {
+func TestHyperkitHypervisor_Available_InvalidBinary_Bad(t *testing.T) {
 	h := &HyperkitHypervisor{
 		Binary: "nonexistent-hyperkit-binary-that-does-not-exist",
 	}
@@ -66,7 +66,7 @@ func TestHyperkitHypervisor_Available_Bad_InvalidBinary(t *testing.T) {
 	assert.False(t, available)
 }
 
-func TestIsKVMAvailable_Good(t *testing.T) {
+func TestHypervisor_IsKVMAvailable_Good(t *testing.T) {
 	// This test verifies the function runs without error
 	// The actual result depends on the system
 	result := isKVMAvailable()
@@ -80,7 +80,7 @@ func TestIsKVMAvailable_Good(t *testing.T) {
 	}
 }
 
-func TestDetectHypervisor_Good(t *testing.T) {
+func TestHypervisor_DetectHypervisor_Good(t *testing.T) {
 	// DetectHypervisor tries to find an available hypervisor
 	hv, err := DetectHypervisor()
 
@@ -95,7 +95,7 @@ func TestDetectHypervisor_Good(t *testing.T) {
 	}
 }
 
-func TestGetHypervisor_Good_Qemu(t *testing.T) {
+func TestGetHypervisor_Qemu_Good(t *testing.T) {
 	hv, err := GetHypervisor("qemu")
 
 	// Depends on whether qemu is installed
@@ -107,7 +107,7 @@ func TestGetHypervisor_Good_Qemu(t *testing.T) {
 	}
 }
 
-func TestGetHypervisor_Good_QemuUppercase(t *testing.T) {
+func TestGetHypervisor_QemuUppercase_Good(t *testing.T) {
 	hv, err := GetHypervisor("QEMU")
 
 	// Depends on whether qemu is installed
@@ -119,7 +119,7 @@ func TestGetHypervisor_Good_QemuUppercase(t *testing.T) {
 	}
 }
 
-func TestGetHypervisor_Good_Hyperkit(t *testing.T) {
+func TestGetHypervisor_Hyperkit_Good(t *testing.T) {
 	hv, err := GetHypervisor("hyperkit")
 
 	// On non-darwin systems, should always fail
@@ -137,14 +137,14 @@ func TestGetHypervisor_Good_Hyperkit(t *testing.T) {
 	}
 }
 
-func TestGetHypervisor_Bad_Unknown(t *testing.T) {
+func TestGetHypervisor_Unknown_Bad(t *testing.T) {
 	_, err := GetHypervisor("unknown-hypervisor")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown hypervisor")
 }
 
-func TestQemuHypervisor_BuildCommand_Good_WithPortsAndVolumes(t *testing.T) {
+func TestQemuHypervisor_BuildCommand_WithPortsAndVolumes_Good(t *testing.T) {
 	q := NewQemuHypervisor()
 
 	ctx := context.Background()
@@ -172,7 +172,7 @@ func TestQemuHypervisor_BuildCommand_Good_WithPortsAndVolumes(t *testing.T) {
 	assert.Contains(t, args, "4")
 }
 
-func TestQemuHypervisor_BuildCommand_Good_QCow2Format(t *testing.T) {
+func TestQemuHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 	q := NewQemuHypervisor()
 
 	ctx := context.Background()
@@ -192,7 +192,7 @@ func TestQemuHypervisor_BuildCommand_Good_QCow2Format(t *testing.T) {
 	assert.True(t, found, "Should have qcow2 drive argument")
 }
 
-func TestQemuHypervisor_BuildCommand_Good_VMDKFormat(t *testing.T) {
+func TestQemuHypervisor_BuildCommand_VMDKFormat_Good(t *testing.T) {
 	q := NewQemuHypervisor()
 
 	ctx := context.Background()
@@ -212,7 +212,7 @@ func TestQemuHypervisor_BuildCommand_Good_VMDKFormat(t *testing.T) {
 	assert.True(t, found, "Should have vmdk drive argument")
 }
 
-func TestQemuHypervisor_BuildCommand_Good_RawFormat(t *testing.T) {
+func TestQemuHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 	q := NewQemuHypervisor()
 
 	ctx := context.Background()
@@ -232,7 +232,7 @@ func TestQemuHypervisor_BuildCommand_Good_RawFormat(t *testing.T) {
 	assert.True(t, found, "Should have raw drive argument")
 }
 
-func TestHyperkitHypervisor_BuildCommand_Good_WithPorts(t *testing.T) {
+func TestHyperkitHypervisor_BuildCommand_WithPorts_Good(t *testing.T) {
 	h := NewHyperkitHypervisor()
 
 	ctx := context.Background()
@@ -255,7 +255,7 @@ func TestHyperkitHypervisor_BuildCommand_Good_WithPorts(t *testing.T) {
 	assert.Contains(t, args, "2")
 }
 
-func TestHyperkitHypervisor_BuildCommand_Good_QCow2Format(t *testing.T) {
+func TestHyperkitHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 	h := NewHyperkitHypervisor()
 
 	ctx := context.Background()
@@ -266,7 +266,7 @@ func TestHyperkitHypervisor_BuildCommand_Good_QCow2Format(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
-func TestHyperkitHypervisor_BuildCommand_Good_RawFormat(t *testing.T) {
+func TestHyperkitHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 	h := NewHyperkitHypervisor()
 
 	ctx := context.Background()
@@ -277,7 +277,7 @@ func TestHyperkitHypervisor_BuildCommand_Good_RawFormat(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
-func TestHyperkitHypervisor_BuildCommand_Good_NoPorts(t *testing.T) {
+func TestHyperkitHypervisor_BuildCommand_NoPorts_Good(t *testing.T) {
 	h := NewHyperkitHypervisor()
 
 	ctx := context.Background()
@@ -293,7 +293,7 @@ func TestHyperkitHypervisor_BuildCommand_Good_NoPorts(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
-func TestQemuHypervisor_BuildCommand_Good_NoSSHPort(t *testing.T) {
+func TestQemuHypervisor_BuildCommand_NoSSHPort_Good(t *testing.T) {
 	q := NewQemuHypervisor()
 
 	ctx := context.Background()
@@ -309,7 +309,7 @@ func TestQemuHypervisor_BuildCommand_Good_NoSSHPort(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
-func TestQemuHypervisor_BuildCommand_Bad_UnknownFormat(t *testing.T) {
+func TestQemuHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
 	q := NewQemuHypervisor()
 
 	ctx := context.Background()
@@ -320,7 +320,7 @@ func TestQemuHypervisor_BuildCommand_Bad_UnknownFormat(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown image format")
 }
 
-func TestHyperkitHypervisor_BuildCommand_Bad_UnknownFormat(t *testing.T) {
+func TestHyperkitHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
 	h := NewHyperkitHypervisor()
 
 	ctx := context.Background()
@@ -336,7 +336,7 @@ func TestHyperkitHypervisor_Name_Good(t *testing.T) {
 	assert.Equal(t, "hyperkit", h.Name())
 }
 
-func TestHyperkitHypervisor_BuildCommand_Good_ISOFormat(t *testing.T) {
+func TestHyperkitHypervisor_BuildCommand_ISOFormat_Good(t *testing.T) {
 	h := NewHyperkitHypervisor()
 
 	ctx := context.Background()

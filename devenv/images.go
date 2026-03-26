@@ -37,6 +37,10 @@ type ImageInfo struct {
 }
 
 // NewImageManager creates a new image manager.
+//
+// Usage:
+//
+//	manager, err := NewImageManager(io.Local, cfg)
 func NewImageManager(m io.Medium, cfg *Config) (*ImageManager, error) {
 	imagesDir, err := ImagesDir()
 	if err != nil {

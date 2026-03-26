@@ -69,6 +69,10 @@ func (d *DevOps) mountProject(ctx context.Context, path string) error {
 }
 
 // DetectServeCommand auto-detects the serve command for a project.
+//
+// Usage:
+//
+//	cmd := DetectServeCommand(io.Local, ".")
 func DetectServeCommand(m io.Medium, projectDir string) string {
 	// Laravel/Octane
 	if hasFile(m, projectDir, "artisan") {

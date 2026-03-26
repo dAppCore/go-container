@@ -28,6 +28,10 @@ type DevOps struct {
 }
 
 // New creates a new DevOps instance using the provided medium.
+//
+// Usage:
+//
+//	dev, err := New(io.Local)
 func New(m io.Medium) (*DevOps, error) {
 	cfg, err := LoadConfig(m)
 	if err != nil {
@@ -53,11 +57,19 @@ func New(m io.Medium) (*DevOps, error) {
 }
 
 // ImageName returns the platform-specific image name.
+//
+// Usage:
+//
+//	name := ImageName()
 func ImageName() string {
 	return core.Sprintf("core-devops-%s-%s.qcow2", runtime.GOOS, runtime.GOARCH)
 }
 
 // ImagesDir returns the path to the images directory.
+//
+// Usage:
+//
+//	dir, err := ImagesDir()
 func ImagesDir() (string, error) {
 	if dir := core.Env("CORE_IMAGES_DIR"); dir != "" {
 		return dir, nil
@@ -70,6 +82,10 @@ func ImagesDir() (string, error) {
 }
 
 // ImagePath returns the full path to the platform-specific image.
+//
+// Usage:
+//
+//	path, err := ImagePath()
 func ImagePath() (string, error) {
 	dir, err := ImagesDir()
 	if err != nil {
@@ -106,6 +122,10 @@ type BootOptions struct {
 }
 
 // DefaultBootOptions returns sensible defaults.
+//
+// Usage:
+//
+//	opts := DefaultBootOptions()
 func DefaultBootOptions() BootOptions {
 	return BootOptions{
 		Memory: 4096,

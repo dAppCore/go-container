@@ -19,6 +19,10 @@ type GitHubSource struct {
 var _ ImageSource = (*GitHubSource)(nil)
 
 // NewGitHubSource creates a new GitHub source.
+//
+// Usage:
+//
+//	src := NewGitHubSource(cfg)
 func NewGitHubSource(cfg SourceConfig) *GitHubSource {
 	return &GitHubSource{config: cfg}
 }

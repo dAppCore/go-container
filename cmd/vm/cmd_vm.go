@@ -25,6 +25,10 @@ var (
 )
 
 // AddVMCommands adds container-related commands under 'vm' to the CLI.
+//
+// Usage:
+//
+//	AddVMCommands(root)
 func AddVMCommands(root *cli.Command) {
 	vmCmd := &cli.Command{
 		Use:   "vm",

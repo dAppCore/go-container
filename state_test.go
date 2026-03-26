@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewState_Good(t *testing.T) {
+func TestState_NewState_Good(t *testing.T) {
 	state := NewState("/tmp/test-state.json")
 
 	assert.NotNil(t, state)
@@ -20,7 +20,7 @@ func TestNewState_Good(t *testing.T) {
 	assert.Equal(t, "/tmp/test-state.json", state.FilePath())
 }
 
-func TestLoadState_Good_NewFile(t *testing.T) {
+func TestLoadState_NewFile_Good(t *testing.T) {
 	// Test loading from non-existent file
 	tmpDir := t.TempDir()
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
@@ -32,7 +32,7 @@ func TestLoadState_Good_NewFile(t *testing.T) {
 	assert.Empty(t, state.Containers)
 }
 
-func TestLoadState_Good_ExistingFile(t *testing.T) {
+func TestLoadState_ExistingFile_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 
@@ -63,7 +63,7 @@ func TestLoadState_Good_ExistingFile(t *testing.T) {
 	assert.Equal(t, StatusRunning, c.Status)
 }
 
-func TestLoadState_Bad_InvalidJSON(t *testing.T) {
+func TestLoadState_InvalidJSON_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 
@@ -140,7 +140,7 @@ func TestState_Remove_Good(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestState_Get_Bad_NotFound(t *testing.T) {
+func TestState_Get_NotFound_Bad(t *testing.T) {
 	state := NewState("/tmp/test-state.json")
 
 	_, ok := state.Get("nonexistent")
@@ -160,7 +160,7 @@ func TestState_All_Good(t *testing.T) {
 	assert.Len(t, all, 3)
 }
 
-func TestState_SaveState_Good_CreatesDirectory(t *testing.T) {
+func TestState_SaveState_CreatesDirectory_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	nestedPath := coreutil.JoinPath(tmpDir, "nested", "dir", "containers.json")
 	state := NewState(nestedPath)
@@ -174,31 +174,31 @@ func TestState_SaveState_Good_CreatesDirectory(t *testing.T) {
 	assert.True(t, io.Local.IsDir(core.PathDir(nestedPath)))
 }
 
-func TestDefaultStateDir_Good(t *testing.T) {
+func TestState_DefaultStateDir_Good(t *testing.T) {
 	dir, err := DefaultStateDir()
 	require.NoError(t, err)
 	assert.Contains(t, dir, ".core")
 }
 
-func TestDefaultStatePath_Good(t *testing.T) {
+func TestState_DefaultStatePath_Good(t *testing.T) {
 	path, err := DefaultStatePath()
 	require.NoError(t, err)
 	assert.Contains(t, path, "containers.json")
 }
 
-func TestDefaultLogsDir_Good(t *testing.T) {
+func TestState_DefaultLogsDir_Good(t *testing.T) {
 	dir, err := DefaultLogsDir()
 	require.NoError(t, err)
 	assert.Contains(t, dir, "logs")
 }
 
-func TestLogPath_Good(t *testing.T) {
+func TestState_LogPath_Good(t *testing.T) {
 	path, err := LogPath("abc12345")
 	require.NoError(t, err)
 	assert.Contains(t, path, "abc12345.log")
 }
 
-func TestEnsureLogsDir_Good(t *testing.T) {
+func TestState_EnsureLogsDir_Good(t *testing.T) {
 	// This test creates real directories - skip in CI if needed
 	err := EnsureLogsDir()
 	assert.NoError(t, err)
@@ -207,7 +207,7 @@ func TestEnsureLogsDir_Good(t *testing.T) {
 	assert.True(t, io.Local.IsDir(logsDir))
 }
 
-func TestGenerateID_Good(t *testing.T) {
+func TestState_GenerateID_Good(t *testing.T) {
 	id1, err := GenerateID()
 	require.NoError(t, err)
 	assert.Len(t, id1, 8)

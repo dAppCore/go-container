@@ -46,6 +46,10 @@ type QemuHypervisor struct {
 }
 
 // NewQemuHypervisor creates a new QEMU hypervisor instance.
+//
+// Usage:
+//
+//	hv := NewQemuHypervisor()
 func NewQemuHypervisor() *QemuHypervisor {
 	return &QemuHypervisor{
 		Binary: "qemu-system-x86_64",
@@ -149,6 +153,10 @@ type HyperkitHypervisor struct {
 }
 
 // NewHyperkitHypervisor creates a new Hyperkit hypervisor instance.
+//
+// Usage:
+//
+//	hv := NewHyperkitHypervisor()
 func NewHyperkitHypervisor() *HyperkitHypervisor {
 	return &HyperkitHypervisor{
 		Binary: "hyperkit",
@@ -215,6 +223,10 @@ func (h *HyperkitHypervisor) BuildCommand(ctx context.Context, image string, opt
 }
 
 // DetectImageFormat determines the image format from its file extension.
+//
+// Usage:
+//
+//	format := DetectImageFormat("/tmp/core-dev.qcow2")
 func DetectImageFormat(path string) ImageFormat {
 	ext := core.Lower(core.PathExt(path))
 	switch ext {
@@ -232,6 +244,10 @@ func DetectImageFormat(path string) ImageFormat {
 }
 
 // DetectHypervisor returns the best available hypervisor for the current platform.
+//
+// Usage:
+//
+//	hv, err := DetectHypervisor()
 func DetectHypervisor() (Hypervisor, error) {
 	// On macOS, prefer Hyperkit if available, fall back to QEMU
 	if runtime.GOOS == "darwin" {
@@ -251,6 +267,10 @@ func DetectHypervisor() (Hypervisor, error) {
 }
 
 // GetHypervisor returns a specific hypervisor by name.
+//
+// Usage:
+//
+//	hv, err := GetHypervisor("qemu")
 func GetHypervisor(name string) (Hypervisor, error) {
 	switch core.Lower(name) {
 	case "qemu":

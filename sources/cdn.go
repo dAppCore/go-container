@@ -21,6 +21,10 @@ type CDNSource struct {
 var _ ImageSource = (*CDNSource)(nil)
 
 // NewCDNSource creates a new CDN source.
+//
+// Usage:
+//
+//	src := NewCDNSource(cfg)
 func NewCDNSource(cfg SourceConfig) *CDNSource {
 	return &CDNSource{config: cfg}
 }

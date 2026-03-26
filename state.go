@@ -20,6 +20,10 @@ type State struct {
 }
 
 // DefaultStateDir returns the default directory for state files (~/.core).
+//
+// Usage:
+//
+//	dir, err := DefaultStateDir()
 func DefaultStateDir() (string, error) {
 	home := coreutil.HomeDir()
 	if home == "" {
@@ -29,6 +33,10 @@ func DefaultStateDir() (string, error) {
 }
 
 // DefaultStatePath returns the default path for the state file.
+//
+// Usage:
+//
+//	path, err := DefaultStatePath()
 func DefaultStatePath() (string, error) {
 	dir, err := DefaultStateDir()
 	if err != nil {
@@ -38,6 +46,10 @@ func DefaultStatePath() (string, error) {
 }
 
 // DefaultLogsDir returns the default directory for container logs.
+//
+// Usage:
+//
+//	dir, err := DefaultLogsDir()
 func DefaultLogsDir() (string, error) {
 	dir, err := DefaultStateDir()
 	if err != nil {
@@ -47,6 +59,10 @@ func DefaultLogsDir() (string, error) {
 }
 
 // NewState creates a new State instance.
+//
+// Usage:
+//
+//	state := NewState("/tmp/containers.json")
 func NewState(filePath string) *State {
 	return &State{
 		Containers: make(map[string]*Container),
@@ -56,6 +72,10 @@ func NewState(filePath string) *State {
 
 // LoadState loads the state from the given file path.
 // If the file doesn't exist, returns an empty state.
+//
+// Usage:
+//
+//	state, err := LoadState("/tmp/containers.json")
 func LoadState(filePath string) (*State, error) {
 	state := NewState(filePath)
 
@@ -156,6 +176,10 @@ func (s *State) FilePath() string {
 }
 
 // LogPath returns the log file path for a given container ID.
+//
+// Usage:
+//
+//	path, err := LogPath(containerID)
 func LogPath(id string) (string, error) {
 	logsDir, err := DefaultLogsDir()
 	if err != nil {
@@ -165,6 +189,10 @@ func LogPath(id string) (string, error) {
 }
 
 // EnsureLogsDir ensures the logs directory exists.
+//
+// Usage:
+//
+//	err := EnsureLogsDir()
 func EnsureLogsDir() error {
 	logsDir, err := DefaultLogsDir()
 	if err != nil {

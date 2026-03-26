@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestListTemplates_Good(t *testing.T) {
+func TestTemplates_ListTemplates_Good(t *testing.T) {
 	templates := ListTemplates()
 
 	// Should have at least the builtin templates
@@ -42,7 +42,7 @@ func TestListTemplates_Good(t *testing.T) {
 	assert.True(t, found, "server-php template should exist")
 }
 
-func TestGetTemplate_Good_CoreDev(t *testing.T) {
+func TestGetTemplate_CoreDev_Good(t *testing.T) {
 	content, err := GetTemplate("core-dev")
 
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestGetTemplate_Good_CoreDev(t *testing.T) {
 	assert.Contains(t, content, "services:")
 }
 
-func TestGetTemplate_Good_ServerPhp(t *testing.T) {
+func TestGetTemplate_ServerPhp_Good(t *testing.T) {
 	content, err := GetTemplate("server-php")
 
 	require.NoError(t, err)
@@ -64,14 +64,14 @@ func TestGetTemplate_Good_ServerPhp(t *testing.T) {
 	assert.Contains(t, content, "${DOMAIN:-localhost}")
 }
 
-func TestGetTemplate_Bad_NotFound(t *testing.T) {
+func TestGetTemplate_NotFound_Bad(t *testing.T) {
 	_, err := GetTemplate("nonexistent-template")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "template not found")
 }
 
-func TestApplyVariables_Good_SimpleSubstitution(t *testing.T) {
+func TestApplyVariables_SimpleSubstitution_Good(t *testing.T) {
 	content := "Hello ${NAME}, welcome to ${PLACE}!"
 	vars := map[string]string{
 		"NAME":  "World",
@@ -84,7 +84,7 @@ func TestApplyVariables_Good_SimpleSubstitution(t *testing.T) {
 	assert.Equal(t, "Hello World, welcome to Core!", result)
 }
 
-func TestApplyVariables_Good_WithDefaults(t *testing.T) {
+func TestApplyVariables_WithDefaults_Good(t *testing.T) {
 	content := "Memory: ${MEMORY:-1024}MB, CPUs: ${CPUS:-2}"
 	vars := map[string]string{
 		"MEMORY": "2048",
@@ -97,7 +97,7 @@ func TestApplyVariables_Good_WithDefaults(t *testing.T) {
 	assert.Equal(t, "Memory: 2048MB, CPUs: 2", result)
 }
 
-func TestApplyVariables_Good_AllDefaults(t *testing.T) {
+func TestApplyVariables_AllDefaults_Good(t *testing.T) {
 	content := "${HOST:-localhost}:${PORT:-8080}"
 	vars := map[string]string{} // No vars provided
 
@@ -107,7 +107,7 @@ func TestApplyVariables_Good_AllDefaults(t *testing.T) {
 	assert.Equal(t, "localhost:8080", result)
 }
 
-func TestApplyVariables_Good_MixedSyntax(t *testing.T) {
+func TestApplyVariables_MixedSyntax_Good(t *testing.T) {
 	content := `
 hostname: ${HOSTNAME:-myhost}
 ssh_key: ${SSH_KEY}
@@ -126,7 +126,7 @@ memory: ${MEMORY:-512}
 	assert.Contains(t, result, "memory: 512")
 }
 
-func TestApplyVariables_Good_EmptyDefault(t *testing.T) {
+func TestApplyVariables_EmptyDefault_Good(t *testing.T) {
 	content := "value: ${OPT:-}"
 	vars := map[string]string{}
 
@@ -136,7 +136,7 @@ func TestApplyVariables_Good_EmptyDefault(t *testing.T) {
 	assert.Equal(t, "value: ", result)
 }
 
-func TestApplyVariables_Bad_MissingRequired(t *testing.T) {
+func TestApplyVariables_MissingRequired_Bad(t *testing.T) {
 	content := "SSH Key: ${SSH_KEY}"
 	vars := map[string]string{} // Missing required SSH_KEY
 
@@ -147,7 +147,7 @@ func TestApplyVariables_Bad_MissingRequired(t *testing.T) {
 	assert.Contains(t, err.Error(), "SSH_KEY")
 }
 
-func TestApplyVariables_Bad_MultipleMissing(t *testing.T) {
+func TestApplyVariables_MultipleMissing_Bad(t *testing.T) {
 	content := "${VAR1} and ${VAR2} and ${VAR3}"
 	vars := map[string]string{
 		"VAR2": "provided",
@@ -162,7 +162,7 @@ func TestApplyVariables_Bad_MultipleMissing(t *testing.T) {
 	assert.True(t, core.Contains(errStr, "VAR1") || core.Contains(errStr, "VAR3"))
 }
 
-func TestApplyTemplate_Good(t *testing.T) {
+func TestTemplates_ApplyTemplate_Good(t *testing.T) {
 	vars := map[string]string{
 		"SSH_KEY": "ssh-rsa AAAA... user@host",
 	}
@@ -176,7 +176,7 @@ func TestApplyTemplate_Good(t *testing.T) {
 	assert.Contains(t, result, "core-dev") // HOSTNAME default
 }
 
-func TestApplyTemplate_Bad_TemplateNotFound(t *testing.T) {
+func TestApplyTemplate_TemplateNotFound_Bad(t *testing.T) {
 	vars := map[string]string{
 		"SSH_KEY": "test",
 	}
@@ -187,7 +187,7 @@ func TestApplyTemplate_Bad_TemplateNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "template not found")
 }
 
-func TestApplyTemplate_Bad_MissingVariable(t *testing.T) {
+func TestApplyTemplate_MissingVariable_Bad(t *testing.T) {
 	// server-php requires SSH_KEY
 	vars := map[string]string{} // Missing required SSH_KEY
 
@@ -197,7 +197,7 @@ func TestApplyTemplate_Bad_MissingVariable(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing required variables")
 }
 
-func TestExtractVariables_Good(t *testing.T) {
+func TestTemplates_ExtractVariables_Good(t *testing.T) {
 	content := `
 hostname: ${HOSTNAME:-myhost}
 ssh_key: ${SSH_KEY}
@@ -219,7 +219,7 @@ api_key: ${API_KEY}
 	assert.Len(t, optional, 3)
 }
 
-func TestExtractVariables_Good_NoVariables(t *testing.T) {
+func TestExtractVariables_NoVariables_Good(t *testing.T) {
 	content := "This has no variables at all"
 
 	required, optional := ExtractVariables(content)
@@ -228,7 +228,7 @@ func TestExtractVariables_Good_NoVariables(t *testing.T) {
 	assert.Empty(t, optional)
 }
 
-func TestExtractVariables_Good_OnlyDefaults(t *testing.T) {
+func TestExtractVariables_OnlyDefaults_Good(t *testing.T) {
 	content := "${A:-default1} ${B:-default2}"
 
 	required, optional := ExtractVariables(content)
@@ -239,7 +239,7 @@ func TestExtractVariables_Good_OnlyDefaults(t *testing.T) {
 	assert.Equal(t, "default2", optional["B"])
 }
 
-func TestScanUserTemplates_Good(t *testing.T) {
+func TestTemplates_ScanUserTemplates_Good(t *testing.T) {
 	// Create a temporary directory with template files
 	tmpDir := t.TempDir()
 
@@ -263,7 +263,7 @@ kernel:
 	assert.Equal(t, "My Custom Template", templates[0].Description)
 }
 
-func TestScanUserTemplates_Good_MultipleTemplates(t *testing.T) {
+func TestScanUserTemplates_MultipleTemplates_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create multiple template files
@@ -285,7 +285,7 @@ func TestScanUserTemplates_Good_MultipleTemplates(t *testing.T) {
 	assert.True(t, names["db"])
 }
 
-func TestScanUserTemplates_Good_EmptyDirectory(t *testing.T) {
+func TestScanUserTemplates_EmptyDirectory_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	templates := scanUserTemplates(tmpDir)
@@ -293,13 +293,13 @@ func TestScanUserTemplates_Good_EmptyDirectory(t *testing.T) {
 	assert.Empty(t, templates)
 }
 
-func TestScanUserTemplates_Bad_NonexistentDirectory(t *testing.T) {
+func TestScanUserTemplates_NonexistentDirectory_Bad(t *testing.T) {
 	templates := scanUserTemplates("/nonexistent/path/to/templates")
 
 	assert.Empty(t, templates)
 }
 
-func TestExtractTemplateDescription_Good(t *testing.T) {
+func TestTemplates_ExtractTemplateDescription_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := coreutil.JoinPath(tmpDir, "test.yml")
 
@@ -316,7 +316,7 @@ kernel:
 	assert.Equal(t, "My Template Description", desc)
 }
 
-func TestExtractTemplateDescription_Good_NoComments(t *testing.T) {
+func TestExtractTemplateDescription_NoComments_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := coreutil.JoinPath(tmpDir, "test.yml")
 
@@ -331,13 +331,13 @@ func TestExtractTemplateDescription_Good_NoComments(t *testing.T) {
 	assert.Empty(t, desc)
 }
 
-func TestExtractTemplateDescription_Bad_FileNotFound(t *testing.T) {
+func TestExtractTemplateDescription_FileNotFound_Bad(t *testing.T) {
 	desc := extractTemplateDescription("/nonexistent/file.yml")
 
 	assert.Empty(t, desc)
 }
 
-func TestVariablePatternEdgeCases_Good(t *testing.T) {
+func TestTemplates_VariablePatternEdgeCases_Good(t *testing.T) {
 	tests := []struct {
 		name     string
 		content  string
@@ -385,7 +385,7 @@ func TestVariablePatternEdgeCases_Good(t *testing.T) {
 	}
 }
 
-func TestScanUserTemplates_Good_SkipsBuiltinNames(t *testing.T) {
+func TestScanUserTemplates_SkipsBuiltinNames_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a template with a builtin name (should be skipped)
@@ -403,7 +403,7 @@ func TestScanUserTemplates_Good_SkipsBuiltinNames(t *testing.T) {
 	assert.Equal(t, "unique", templates[0].Name)
 }
 
-func TestScanUserTemplates_Good_SkipsDirectories(t *testing.T) {
+func TestScanUserTemplates_SkipsDirectories_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a subdirectory (should be skipped)
@@ -420,7 +420,7 @@ func TestScanUserTemplates_Good_SkipsDirectories(t *testing.T) {
 	assert.Equal(t, "valid", templates[0].Name)
 }
 
-func TestScanUserTemplates_Good_YamlExtension(t *testing.T) {
+func TestScanUserTemplates_YamlExtension_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create templates with both extensions
@@ -441,7 +441,7 @@ func TestScanUserTemplates_Good_YamlExtension(t *testing.T) {
 	assert.True(t, names["template2"])
 }
 
-func TestExtractTemplateDescription_Good_EmptyComment(t *testing.T) {
+func TestExtractTemplateDescription_EmptyComment_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := coreutil.JoinPath(tmpDir, "test.yml")
 
@@ -459,7 +459,7 @@ kernel:
 	assert.Equal(t, "Actual description here", desc)
 }
 
-func TestExtractTemplateDescription_Good_MultipleEmptyComments(t *testing.T) {
+func TestExtractTemplateDescription_MultipleEmptyComments_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := coreutil.JoinPath(tmpDir, "test.yml")
 
@@ -479,7 +479,7 @@ kernel:
 	assert.Equal(t, "Real description", desc)
 }
 
-func TestScanUserTemplates_Good_DefaultDescription(t *testing.T) {
+func TestScanUserTemplates_DefaultDescription_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a template without comments

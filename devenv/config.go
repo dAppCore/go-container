@@ -39,6 +39,10 @@ type CDNConfig struct {
 }
 
 // DefaultConfig returns sensible defaults.
+//
+// Usage:
+//
+//	cfg := DefaultConfig()
 func DefaultConfig() *Config {
 	return &Config{
 		Version: 1,
@@ -55,6 +59,10 @@ func DefaultConfig() *Config {
 }
 
 // ConfigPath returns the path to the config file.
+//
+// Usage:
+//
+//	path, err := ConfigPath()
 func ConfigPath() (string, error) {
 	home := coreutil.HomeDir()
 	if home == "" {
@@ -65,6 +73,10 @@ func ConfigPath() (string, error) {
 
 // LoadConfig loads configuration from ~/.core/config.yaml using the provided medium.
 // Returns default config if file doesn't exist.
+//
+// Usage:
+//
+//	cfg, err := LoadConfig(io.Local)
 func LoadConfig(m io.Medium) (*Config, error) {
 	configPath, err := ConfigPath()
 	if err != nil {

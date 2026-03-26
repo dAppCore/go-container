@@ -7,7 +7,7 @@ import (
 	"dappco.re/go/core/io"
 )
 
-func TestDetectTestCommand_Good_ComposerJSON(t *testing.T) {
+func TestDetectTestCommand_ComposerJSON_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `{"scripts":{"test":"pest"}}`)
 
@@ -17,7 +17,7 @@ func TestDetectTestCommand_Good_ComposerJSON(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_PackageJSON(t *testing.T) {
+func TestDetectTestCommand_PackageJSON_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), `{"scripts":{"test":"vitest"}}`)
 
@@ -27,7 +27,7 @@ func TestDetectTestCommand_Good_PackageJSON(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_GoMod(t *testing.T) {
+func TestDetectTestCommand_GoMod_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "go.mod"), "module example")
 
@@ -37,7 +37,7 @@ func TestDetectTestCommand_Good_GoMod(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_CoreTestYaml(t *testing.T) {
+func TestDetectTestCommand_CoreTestYaml_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	coreDir := coreutil.JoinPath(tmpDir, ".core")
 	_ = io.Local.EnsureDir(coreDir)
@@ -49,7 +49,7 @@ func TestDetectTestCommand_Good_CoreTestYaml(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_Pytest(t *testing.T) {
+func TestDetectTestCommand_Pytest_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "pytest.ini"), "[pytest]")
 
@@ -59,7 +59,7 @@ func TestDetectTestCommand_Good_Pytest(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_Taskfile(t *testing.T) {
+func TestDetectTestCommand_Taskfile_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "Taskfile.yaml"), "version: '3'")
 
@@ -69,7 +69,7 @@ func TestDetectTestCommand_Good_Taskfile(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Bad_NoFiles(t *testing.T) {
+func TestDetectTestCommand_NoFiles_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	cmd := DetectTestCommand(io.Local, tmpDir)
@@ -78,7 +78,7 @@ func TestDetectTestCommand_Bad_NoFiles(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_Priority(t *testing.T) {
+func TestDetectTestCommand_Priority_Good(t *testing.T) {
 	// .core/test.yaml should take priority over other detection methods
 	tmpDir := t.TempDir()
 	coreDir := coreutil.JoinPath(tmpDir, ".core")
@@ -92,7 +92,7 @@ func TestDetectTestCommand_Good_Priority(t *testing.T) {
 	}
 }
 
-func TestLoadTestConfig_Good(t *testing.T) {
+func TestTest_LoadTestConfig_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	coreDir := coreutil.JoinPath(tmpDir, ".core")
 	_ = io.Local.EnsureDir(coreDir)
@@ -131,7 +131,7 @@ env:
 	}
 }
 
-func TestLoadTestConfig_Bad_NotFound(t *testing.T) {
+func TestLoadTestConfig_NotFound_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	_, err := LoadTestConfig(io.Local, tmpDir)
@@ -140,7 +140,7 @@ func TestLoadTestConfig_Bad_NotFound(t *testing.T) {
 	}
 }
 
-func TestHasPackageScript_Good(t *testing.T) {
+func TestTest_HasPackageScript_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), `{"scripts":{"test":"jest","build":"webpack"}}`)
 
@@ -152,7 +152,7 @@ func TestHasPackageScript_Good(t *testing.T) {
 	}
 }
 
-func TestHasPackageScript_Bad_MissingScript(t *testing.T) {
+func TestHasPackageScript_MissingScript_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), `{"scripts":{"build":"webpack"}}`)
 
@@ -161,7 +161,7 @@ func TestHasPackageScript_Bad_MissingScript(t *testing.T) {
 	}
 }
 
-func TestHasComposerScript_Good(t *testing.T) {
+func TestTest_HasComposerScript_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `{"scripts":{"test":"pest","post-install-cmd":"@php artisan migrate"}}`)
 
@@ -170,7 +170,7 @@ func TestHasComposerScript_Good(t *testing.T) {
 	}
 }
 
-func TestHasComposerScript_Bad_MissingScript(t *testing.T) {
+func TestHasComposerScript_MissingScript_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `{"scripts":{"build":"@php build.php"}}`)
 
@@ -179,7 +179,7 @@ func TestHasComposerScript_Bad_MissingScript(t *testing.T) {
 	}
 }
 
-func TestTestConfig_Struct(t *testing.T) {
+func TestTestConfig_Struct_Good(t *testing.T) {
 	cfg := &TestConfig{
 		Version:  2,
 		Command:  "my-test",
@@ -200,7 +200,7 @@ func TestTestConfig_Struct(t *testing.T) {
 	}
 }
 
-func TestTestCommand_Struct(t *testing.T) {
+func TestTestCommand_Struct_Good(t *testing.T) {
 	cmd := TestCommand{
 		Name: "integration",
 		Run:  "go test -tags=integration ./...",
@@ -213,7 +213,7 @@ func TestTestCommand_Struct(t *testing.T) {
 	}
 }
 
-func TestTestOptions_Struct(t *testing.T) {
+func TestTestOptions_Struct_Good(t *testing.T) {
 	opts := TestOptions{
 		Name:    "unit",
 		Command: []string{"go", "test", "-v"},
@@ -226,7 +226,7 @@ func TestTestOptions_Struct(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_TaskfileYml(t *testing.T) {
+func TestDetectTestCommand_TaskfileYml_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "Taskfile.yml"), "version: '3'")
 
@@ -236,7 +236,7 @@ func TestDetectTestCommand_Good_TaskfileYml(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_Pyproject(t *testing.T) {
+func TestDetectTestCommand_Pyproject_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "pyproject.toml"), "[tool.pytest]")
 
@@ -246,7 +246,7 @@ func TestDetectTestCommand_Good_Pyproject(t *testing.T) {
 	}
 }
 
-func TestHasPackageScript_Bad_NoFile(t *testing.T) {
+func TestHasPackageScript_NoFile_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	if hasPackageScript(io.Local, tmpDir, "test") {
@@ -254,7 +254,7 @@ func TestHasPackageScript_Bad_NoFile(t *testing.T) {
 	}
 }
 
-func TestHasPackageScript_Bad_InvalidJSON(t *testing.T) {
+func TestHasPackageScript_InvalidJSON_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), `invalid json`)
 
@@ -263,7 +263,7 @@ func TestHasPackageScript_Bad_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestHasPackageScript_Bad_NoScripts(t *testing.T) {
+func TestHasPackageScript_NoScripts_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), `{"name":"test"}`)
 
@@ -272,7 +272,7 @@ func TestHasPackageScript_Bad_NoScripts(t *testing.T) {
 	}
 }
 
-func TestHasComposerScript_Bad_NoFile(t *testing.T) {
+func TestHasComposerScript_NoFile_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	if hasComposerScript(io.Local, tmpDir, "test") {
@@ -280,7 +280,7 @@ func TestHasComposerScript_Bad_NoFile(t *testing.T) {
 	}
 }
 
-func TestHasComposerScript_Bad_InvalidJSON(t *testing.T) {
+func TestHasComposerScript_InvalidJSON_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `invalid json`)
 
@@ -289,7 +289,7 @@ func TestHasComposerScript_Bad_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestHasComposerScript_Bad_NoScripts(t *testing.T) {
+func TestHasComposerScript_NoScripts_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `{"name":"test/pkg"}`)
 
@@ -298,7 +298,7 @@ func TestHasComposerScript_Bad_NoScripts(t *testing.T) {
 	}
 }
 
-func TestLoadTestConfig_Bad_InvalidYAML(t *testing.T) {
+func TestLoadTestConfig_InvalidYAML_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	coreDir := coreutil.JoinPath(tmpDir, ".core")
 	_ = io.Local.EnsureDir(coreDir)
@@ -310,7 +310,7 @@ func TestLoadTestConfig_Bad_InvalidYAML(t *testing.T) {
 	}
 }
 
-func TestLoadTestConfig_Good_MinimalConfig(t *testing.T) {
+func TestLoadTestConfig_MinimalConfig_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	coreDir := coreutil.JoinPath(tmpDir, ".core")
 	_ = io.Local.EnsureDir(coreDir)
@@ -328,7 +328,7 @@ func TestLoadTestConfig_Good_MinimalConfig(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_ComposerWithoutScript(t *testing.T) {
+func TestDetectTestCommand_ComposerWithoutScript_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	// composer.json without test script should not return composer test
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `{"name":"test/pkg"}`)
@@ -340,7 +340,7 @@ func TestDetectTestCommand_Good_ComposerWithoutScript(t *testing.T) {
 	}
 }
 
-func TestDetectTestCommand_Good_PackageJSONWithoutScript(t *testing.T) {
+func TestDetectTestCommand_PackageJSONWithoutScript_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	// package.json without test or dev script
 	_ = io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), `{"name":"test"}`)

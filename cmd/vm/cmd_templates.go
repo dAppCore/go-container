@@ -148,6 +148,10 @@ func showTemplateVars(name string) error {
 }
 
 // RunFromTemplate builds and runs a LinuxKit image from a template.
+//
+// Usage:
+//
+//	err := RunFromTemplate("core-dev", vars, runOpts)
 func RunFromTemplate(templateName string, vars map[string]string, runOpts container.RunOptions) error {
 	// Apply template with variables
 	content, err := container.ApplyTemplate(templateName, vars)
@@ -295,6 +299,10 @@ func lookupLinuxKit() (string, error) {
 
 // ParseVarFlags parses --var flags into a map.
 // Format: --var KEY=VALUE or --var KEY="VALUE"
+//
+// Usage:
+//
+//	vars := ParseVarFlags([]string{"SSH_KEY=abc", "PORT=2222"})
 func ParseVarFlags(varFlags []string) map[string]string {
 	vars := make(map[string]string)
 

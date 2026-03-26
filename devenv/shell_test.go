@@ -6,13 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestShellOptions_Default(t *testing.T) {
+func TestShellOptions_Default_Good(t *testing.T) {
 	opts := ShellOptions{}
 	assert.False(t, opts.Console)
 	assert.Nil(t, opts.Command)
 }
 
-func TestShellOptions_Console(t *testing.T) {
+func TestShellOptions_Console_Good(t *testing.T) {
 	opts := ShellOptions{
 		Console: true,
 	}
@@ -20,7 +20,7 @@ func TestShellOptions_Console(t *testing.T) {
 	assert.Nil(t, opts.Command)
 }
 
-func TestShellOptions_Command(t *testing.T) {
+func TestShellOptions_Command_Good(t *testing.T) {
 	opts := ShellOptions{
 		Command: []string{"ls", "-la"},
 	}
@@ -28,7 +28,7 @@ func TestShellOptions_Command(t *testing.T) {
 	assert.Equal(t, []string{"ls", "-la"}, opts.Command)
 }
 
-func TestShellOptions_ConsoleWithCommand(t *testing.T) {
+func TestShellOptions_ConsoleWithCommand_Good(t *testing.T) {
 	opts := ShellOptions{
 		Console: true,
 		Command: []string{"echo", "hello"},
@@ -37,7 +37,7 @@ func TestShellOptions_ConsoleWithCommand(t *testing.T) {
 	assert.Equal(t, []string{"echo", "hello"}, opts.Command)
 }
 
-func TestShellOptions_EmptyCommand(t *testing.T) {
+func TestShellOptions_EmptyCommand_Good(t *testing.T) {
 	opts := ShellOptions{
 		Command: []string{},
 	}

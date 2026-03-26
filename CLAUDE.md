@@ -36,7 +36,7 @@ Three packages with a clear dependency direction: `devenv` -> `container` (root)
 ## Coding Standards
 
 - UK English (colour, organisation, honour)
-- Tests use testify; naming convention: `_Good` (happy path), `_Bad` (expected errors), `_Ugly` (edge cases)
-- Error wrapping: `fmt.Errorf("context: %w", err)`
+- Tests use testify; naming convention: `TestSubject_Function_{Good,Bad,Ugly}`
+- Error wrapping: `core.E("Op", "message", err)`
 - Context propagation: all blocking operations take `context.Context` as first parameter
 - Licence: EUPL-1.2

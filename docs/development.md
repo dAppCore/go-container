@@ -40,7 +40,7 @@ Tests use `testify` for assertions. Most tests are self-contained and do not req
 
 ## Test naming convention
 
-Tests follow a `_Good`, `_Bad`, `_Ugly` suffix pattern:
+Tests follow the `TestSubject_Function_{Good,Bad,Ugly}` pattern:
 
 | Suffix | Meaning |
 |--------|---------|
@@ -51,9 +51,9 @@ Tests follow a `_Good`, `_Bad`, `_Ugly` suffix pattern:
 Examples from the codebase:
 
 ```go
-func TestNewState_Good(t *testing.T)           { /* creates state successfully */ }
-func TestLoadState_Bad_InvalidJSON(t *testing.T) { /* handles corrupt state file */ }
-func TestGetHypervisor_Bad_Unknown(t *testing.T) { /* rejects unknown hypervisor name */ }
+func TestState_NewState_Good(t *testing.T)        { /* creates state successfully */ }
+func TestLoadState_InvalidJSON_Bad(t *testing.T)  { /* handles corrupt state file */ }
+func TestGetHypervisor_Unknown_Bad(t *testing.T)  { /* rejects unknown hypervisor name */ }
 ```
 
 
@@ -108,7 +108,7 @@ go-container/
 
 - **UK English** in all strings, comments, and documentation (colour, organisation, honour).
 - **Strict typing** -- All function parameters and return values are typed. No `interface{}` without justification.
-- **Error wrapping** -- Use `fmt.Errorf("context: %w", err)` for all error returns.
+- **Error wrapping** -- Use `core.E("Op", "message", err)` rather than `fmt.Errorf`.
 - **`io.Medium` abstraction** -- File system operations go through `io.Medium` (from `core/io`) rather than directly calling `os` functions. This enables testing with mock file systems. The `io.Local` singleton is used for real file system access.
 - **Compile-time interface checks** -- Use `var _ Interface = (*Impl)(nil)` to verify implementations at compile time (see `sources/cdn.go` and `sources/github.go`).
 - **Context propagation** -- All operations that might block accept a `context.Context` as their first parameter.
@@ -125,14 +125,14 @@ type MyHypervisor struct {
 
 func (h *MyHypervisor) Name() string { return "my-hypervisor" }
 func (h *MyHypervisor) Available() bool { /* check if binary exists */ }
-func (h *MyHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (*exec.Cmd, error) {
-    // Build and return exec.Cmd
+func (h *MyHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (*proc.Command, error) {
+    // Build and return the command.
 }
 ```
 
 2. Register it in `DetectHypervisor()` and `GetHypervisor()` in `hypervisor.go`.
 
-3. Add tests following the `_Good`/`_Bad` naming convention.
+3. Add tests following the `TestSubject_Function_{Good,Bad,Ugly}` naming convention.
 
 
 ## Adding a new image source

@@ -72,6 +72,10 @@ func (d *DevOps) Test(ctx context.Context, projectDir string, opts TestOptions) 
 }
 
 // DetectTestCommand auto-detects the test command for a project.
+//
+// Usage:
+//
+//	cmd := DetectTestCommand(io.Local, ".")
 func DetectTestCommand(m io.Medium, projectDir string) string {
 	// 1. Check .core/test.yaml
 	cfg, err := LoadTestConfig(m, projectDir)
@@ -112,6 +116,10 @@ func DetectTestCommand(m io.Medium, projectDir string) string {
 }
 
 // LoadTestConfig loads .core/test.yaml.
+//
+// Usage:
+//
+//	cfg, err := LoadTestConfig(io.Local, ".")
 func LoadTestConfig(m io.Medium, projectDir string) (*TestConfig, error) {
 	absPath := coreutil.AbsPath(coreutil.JoinPath(projectDir, ".core", "test.yaml"))
 

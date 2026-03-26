@@ -74,7 +74,7 @@ func newTestManager(t *testing.T) (*LinuxKitManager, *MockHypervisor, string) {
 	return manager, mock, tmpDir
 }
 
-func TestNewLinuxKitManagerWithHypervisor_Good(t *testing.T) {
+func TestLinuxKit_NewLinuxKitManagerWithHypervisor_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 	state, _ := LoadState(statePath)
@@ -87,7 +87,7 @@ func TestNewLinuxKitManagerWithHypervisor_Good(t *testing.T) {
 	assert.Equal(t, mock, manager.Hypervisor())
 }
 
-func TestLinuxKitManager_Run_Good_Detached(t *testing.T) {
+func TestLinuxKitManager_Run_Detached_Good(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	// Create a test image file
@@ -126,7 +126,7 @@ func TestLinuxKitManager_Run_Good_Detached(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-func TestLinuxKitManager_Run_Good_DefaultValues(t *testing.T) {
+func TestLinuxKitManager_Run_DefaultValues_Good(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	imagePath := coreutil.JoinPath(tmpDir, "test.qcow2")
@@ -151,7 +151,7 @@ func TestLinuxKitManager_Run_Good_DefaultValues(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 }
 
-func TestLinuxKitManager_Run_Bad_ImageNotFound(t *testing.T) {
+func TestLinuxKitManager_Run_ImageNotFound_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	ctx := context.Background()
@@ -162,7 +162,7 @@ func TestLinuxKitManager_Run_Bad_ImageNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "image not found")
 }
 
-func TestLinuxKitManager_Run_Bad_UnsupportedFormat(t *testing.T) {
+func TestLinuxKitManager_Run_UnsupportedFormat_Bad(t *testing.T) {
 	manager, _, tmpDir := newTestManager(t)
 
 	imagePath := coreutil.JoinPath(tmpDir, "test.txt")
@@ -202,7 +202,7 @@ func TestLinuxKitManager_Stop_Good(t *testing.T) {
 	assert.Equal(t, StatusStopped, c.Status)
 }
 
-func TestLinuxKitManager_Stop_Bad_NotFound(t *testing.T) {
+func TestLinuxKitManager_Stop_NotFound_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	ctx := context.Background()
@@ -212,7 +212,7 @@ func TestLinuxKitManager_Stop_Bad_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "container not found")
 }
 
-func TestLinuxKitManager_Stop_Bad_NotRunning(t *testing.T) {
+func TestLinuxKitManager_Stop_NotRunning_Bad(t *testing.T) {
 	_, _, tmpDir := newTestManager(t)
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 	state, err := LoadState(statePath)
@@ -249,7 +249,7 @@ func TestLinuxKitManager_List_Good(t *testing.T) {
 	assert.Len(t, containers, 2)
 }
 
-func TestLinuxKitManager_List_Good_VerifiesRunningStatus(t *testing.T) {
+func TestLinuxKitManager_List_VerifiesRunningStatus_Good(t *testing.T) {
 	_, _, tmpDir := newTestManager(t)
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 	state, err := LoadState(statePath)
@@ -301,7 +301,7 @@ func TestLinuxKitManager_Logs_Good(t *testing.T) {
 	assert.Equal(t, logContent, string(buf[:n]))
 }
 
-func TestLinuxKitManager_Logs_Bad_NotFound(t *testing.T) {
+func TestLinuxKitManager_Logs_NotFound_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	ctx := context.Background()
@@ -311,7 +311,7 @@ func TestLinuxKitManager_Logs_Bad_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "container not found")
 }
 
-func TestLinuxKitManager_Logs_Bad_NoLogFile(t *testing.T) {
+func TestLinuxKitManager_Logs_NoLogFile_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	// Use a unique ID that won't have a log file
@@ -334,7 +334,7 @@ func TestLinuxKitManager_Logs_Bad_NoLogFile(t *testing.T) {
 	}
 }
 
-func TestLinuxKitManager_Exec_Bad_NotFound(t *testing.T) {
+func TestLinuxKitManager_Exec_NotFound_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	ctx := context.Background()
@@ -344,7 +344,7 @@ func TestLinuxKitManager_Exec_Bad_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "container not found")
 }
 
-func TestLinuxKitManager_Exec_Bad_NotRunning(t *testing.T) {
+func TestLinuxKitManager_Exec_NotRunning_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	container := &Container{ID: "abc12345", Status: StatusStopped}
@@ -357,7 +357,7 @@ func TestLinuxKitManager_Exec_Bad_NotRunning(t *testing.T) {
 	assert.Contains(t, err.Error(), "not running")
 }
 
-func TestDetectImageFormat_Good(t *testing.T) {
+func TestLinuxKit_DetectImageFormat_Good(t *testing.T) {
 	tests := []struct {
 		path   string
 		format ImageFormat
@@ -379,7 +379,7 @@ func TestDetectImageFormat_Good(t *testing.T) {
 	}
 }
 
-func TestDetectImageFormat_Bad_Unknown(t *testing.T) {
+func TestDetectImageFormat_Unknown_Bad(t *testing.T) {
 	tests := []string{
 		"/path/to/image.txt",
 		"/path/to/image",
@@ -427,7 +427,7 @@ func TestQemuHypervisor_BuildCommand_Good(t *testing.T) {
 	assert.Contains(t, args, "-nographic")
 }
 
-func TestLinuxKitManager_Logs_Good_Follow(t *testing.T) {
+func TestLinuxKitManager_Logs_Follow_Good(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	// Create a unique container ID
@@ -465,7 +465,7 @@ func TestLinuxKitManager_Logs_Good_Follow(t *testing.T) {
 	assert.NoError(t, reader.Close())
 }
 
-func TestFollowReader_Read_Good_WithData(t *testing.T) {
+func TestFollowReader_Read_WithData_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	logPath := coreutil.JoinPath(tmpDir, "test.log")
 
@@ -498,7 +498,7 @@ func TestFollowReader_Read_Good_WithData(t *testing.T) {
 	}
 }
 
-func TestFollowReader_Read_Good_ContextCancel(t *testing.T) {
+func TestFollowReader_Read_ContextCancel_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	logPath := coreutil.JoinPath(tmpDir, "test.log")
 
@@ -542,14 +542,14 @@ func TestFollowReader_Close_Good(t *testing.T) {
 	assert.Error(t, readErr)
 }
 
-func TestNewFollowReader_Bad_FileNotFound(t *testing.T) {
+func TestNewFollowReader_FileNotFound_Bad(t *testing.T) {
 	ctx := context.Background()
 	_, err := newFollowReader(ctx, io.Local, "/nonexistent/path/to/file.log")
 
 	assert.Error(t, err)
 }
 
-func TestLinuxKitManager_Run_Bad_BuildCommandError(t *testing.T) {
+func TestLinuxKitManager_Run_BuildCommandError_Bad(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	// Create a test image file
@@ -568,7 +568,7 @@ func TestLinuxKitManager_Run_Bad_BuildCommandError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to build hypervisor command")
 }
 
-func TestLinuxKitManager_Run_Good_Foreground(t *testing.T) {
+func TestLinuxKitManager_Run_Foreground_Good(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	// Create a test image file
@@ -596,7 +596,7 @@ func TestLinuxKitManager_Run_Good_Foreground(t *testing.T) {
 	assert.Equal(t, StatusStopped, container.Status)
 }
 
-func TestLinuxKitManager_Stop_Good_ContextCancelled(t *testing.T) {
+func TestLinuxKitManager_Stop_ContextCancelled_Good(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	// Create a test image file
@@ -633,19 +633,19 @@ func TestLinuxKitManager_Stop_Good_ContextCancelled(t *testing.T) {
 	assert.Equal(t, context.Canceled, err)
 }
 
-func TestIsProcessRunning_Good_ExistingProcess(t *testing.T) {
+func TestIsProcessRunning_ExistingProcess_Good(t *testing.T) {
 	// Use our own PID which definitely exists
 	running := isProcessRunning(syscall.Getpid())
 	assert.True(t, running)
 }
 
-func TestIsProcessRunning_Bad_NonexistentProcess(t *testing.T) {
+func TestIsProcessRunning_NonexistentProcess_Bad(t *testing.T) {
 	// Use a PID that almost certainly doesn't exist
 	running := isProcessRunning(999999)
 	assert.False(t, running)
 }
 
-func TestLinuxKitManager_Run_Good_WithPortsAndVolumes(t *testing.T) {
+func TestLinuxKitManager_Run_WithPortsAndVolumes_Good(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
@@ -674,7 +674,7 @@ func TestLinuxKitManager_Run_Good_WithPortsAndVolumes(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 }
 
-func TestFollowReader_Read_Bad_ReaderError(t *testing.T) {
+func TestFollowReader_Read_ReaderError_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	logPath := coreutil.JoinPath(tmpDir, "test.log")
 
@@ -695,7 +695,7 @@ func TestFollowReader_Read_Bad_ReaderError(t *testing.T) {
 	assert.Error(t, readErr)
 }
 
-func TestLinuxKitManager_Run_Bad_StartError(t *testing.T) {
+func TestLinuxKitManager_Run_StartError_Bad(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
@@ -716,7 +716,7 @@ func TestLinuxKitManager_Run_Bad_StartError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to start VM")
 }
 
-func TestLinuxKitManager_Run_Bad_ForegroundStartError(t *testing.T) {
+func TestLinuxKitManager_Run_ForegroundStartError_Bad(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
@@ -737,7 +737,7 @@ func TestLinuxKitManager_Run_Bad_ForegroundStartError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to start VM")
 }
 
-func TestLinuxKitManager_Run_Good_ForegroundWithError(t *testing.T) {
+func TestLinuxKitManager_Run_ForegroundWithError_Good(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
@@ -760,7 +760,7 @@ func TestLinuxKitManager_Run_Good_ForegroundWithError(t *testing.T) {
 	assert.Equal(t, StatusError, container.Status)
 }
 
-func TestLinuxKitManager_Stop_Good_ProcessExitedWhileRunning(t *testing.T) {
+func TestLinuxKitManager_Stop_ProcessExitedWhileRunning_Good(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	// Add a "running" container with a process that has already exited
