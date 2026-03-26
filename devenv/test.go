@@ -2,13 +2,13 @@ package devenv
 
 import (
 	"context"
-	"encoding/json"
-	"path/filepath"
-	"strings"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
+
+	"dappco.re/go/core/container/internal/coreutil"
 )
 
 // TestConfig holds test configuration from .core/test.yaml.
@@ -45,7 +45,7 @@ func (d *DevOps) Test(ctx context.Context, projectDir string, opts TestOptions) 
 
 	// Priority: explicit command > named command > auto-detect
 	if len(opts.Command) > 0 {
-		cmd = strings.Join(opts.Command, " ")
+		cmd = core.Join(" ", opts.Command...)
 	} else if opts.Name != "" {
 		cfg, err := LoadTestConfig(d.medium, projectDir)
 		if err != nil {
@@ -113,11 +113,7 @@ func DetectTestCommand(m io.Medium, projectDir string) string {
 
 // LoadTestConfig loads .core/test.yaml.
 func LoadTestConfig(m io.Medium, projectDir string) (*TestConfig, error) {
-	path := filepath.Join(projectDir, ".core", "test.yaml")
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
+	absPath := coreutil.AbsPath(coreutil.JoinPath(projectDir, ".core", "test.yaml"))
 
 	content, err := m.Read(absPath)
 	if err != nil {
@@ -133,20 +129,12 @@ func LoadTestConfig(m io.Medium, projectDir string) (*TestConfig, error) {
 }
 
 func hasFile(m io.Medium, dir, name string) bool {
-	path := filepath.Join(dir, name)
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return false
-	}
+	absPath := coreutil.AbsPath(coreutil.JoinPath(dir, name))
 	return m.IsFile(absPath)
 }
 
 func hasPackageScript(m io.Medium, projectDir, script string) bool {
-	path := filepath.Join(projectDir, "package.json")
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return false
-	}
+	absPath := coreutil.AbsPath(coreutil.JoinPath(projectDir, "package.json"))
 
 	content, err := m.Read(absPath)
 	if err != nil {
@@ -156,7 +144,8 @@ func hasPackageScript(m io.Medium, projectDir, script string) bool {
 	var pkg struct {
 		Scripts map[string]string `json:"scripts"`
 	}
-	if err := json.Unmarshal([]byte(content), &pkg); err != nil {
+	result := core.JSONUnmarshalString(content, &pkg)
+	if !result.OK {
 		return false
 	}
 
@@ -165,11 +154,7 @@ func hasPackageScript(m io.Medium, projectDir, script string) bool {
 }
 
 func hasComposerScript(m io.Medium, projectDir, script string) bool {
-	path := filepath.Join(projectDir, "composer.json")
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return false
-	}
+	absPath := coreutil.AbsPath(coreutil.JoinPath(projectDir, "composer.json"))
 
 	content, err := m.Read(absPath)
 	if err != nil {
@@ -179,7 +164,8 @@ func hasComposerScript(m io.Medium, projectDir, script string) bool {
 	var pkg struct {
 		Scripts map[string]any `json:"scripts"`
 	}
-	if err := json.Unmarshal([]byte(content), &pkg); err != nil {
+	result := core.JSONUnmarshalString(content, &pkg)
+	if !result.OK {
 		return false
 	}
 

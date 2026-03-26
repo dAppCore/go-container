@@ -2,14 +2,12 @@ package vm
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"text/tabwriter"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/container"
+	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/core/container/internal/proc"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -72,29 +70,30 @@ func listTemplates() error {
 	templates := container.ListTemplates()
 
 	if len(templates) == 0 {
-		fmt.Println(i18n.T("cmd.vm.templates.no_templates"))
+		core.Println(i18n.T("cmd.vm.templates.no_templates"))
 		return nil
 	}
 
-	fmt.Printf("%s\n\n", repoNameStyle.Render(i18n.T("cmd.vm.templates.title")))
+	core.Print(nil, "%s", repoNameStyle.Render(i18n.T("cmd.vm.templates.title")))
+	core.Println()
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, i18n.T("cmd.vm.templates.header"))
-	_, _ = fmt.Fprintln(w, "----\t-----------")
+	w := tabwriter.NewWriter(proc.Stdout, 0, 0, 2, ' ', 0)
+	core.Print(w, "%s", i18n.T("cmd.vm.templates.header"))
+	core.Print(w, "%s", "----\t-----------")
 
 	for _, tmpl := range templates {
 		desc := tmpl.Description
 		if len(desc) > 60 {
 			desc = desc[:57] + "..."
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\n", repoNameStyle.Render(tmpl.Name), desc)
+		core.Print(w, "%s\t%s", repoNameStyle.Render(tmpl.Name), desc)
 	}
 	_ = w.Flush()
 
-	fmt.Println()
-	fmt.Printf("%s %s\n", i18n.T("cmd.vm.templates.hint.show"), dimStyle.Render("core vm templates show <name>"))
-	fmt.Printf("%s %s\n", i18n.T("cmd.vm.templates.hint.vars"), dimStyle.Render("core vm templates vars <name>"))
-	fmt.Printf("%s %s\n", i18n.T("cmd.vm.templates.hint.run"), dimStyle.Render("core vm run --template <name> --var SSH_KEY=\"...\""))
+	core.Println()
+	core.Print(nil, "%s %s", i18n.T("cmd.vm.templates.hint.show"), dimStyle.Render("core vm templates show <name>"))
+	core.Print(nil, "%s %s", i18n.T("cmd.vm.templates.hint.vars"), dimStyle.Render("core vm templates vars <name>"))
+	core.Print(nil, "%s %s", i18n.T("cmd.vm.templates.hint.run"), dimStyle.Render("core vm run --template <name> --var SSH_KEY=\"...\""))
 
 	return nil
 }
@@ -105,8 +104,9 @@ func showTemplate(name string) error {
 		return err
 	}
 
-	fmt.Printf("%s %s\n\n", dimStyle.Render(i18n.T("common.label.template")), repoNameStyle.Render(name))
-	fmt.Println(content)
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("common.label.template")), repoNameStyle.Render(name))
+	core.Println()
+	core.Println(content)
 
 	return nil
 }
@@ -119,28 +119,29 @@ func showTemplateVars(name string) error {
 
 	required, optional := container.ExtractVariables(content)
 
-	fmt.Printf("%s %s\n\n", dimStyle.Render(i18n.T("common.label.template")), repoNameStyle.Render(name))
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("common.label.template")), repoNameStyle.Render(name))
+	core.Println()
 
 	if len(required) > 0 {
-		fmt.Printf("%s\n", errorStyle.Render(i18n.T("cmd.vm.templates.vars.required")))
+		core.Print(nil, "%s", errorStyle.Render(i18n.T("cmd.vm.templates.vars.required")))
 		for _, v := range required {
-			fmt.Printf("  %s\n", varStyle.Render("${"+v+"}"))
+			core.Print(nil, "  %s", varStyle.Render("${"+v+"}"))
 		}
-		fmt.Println()
+		core.Println()
 	}
 
 	if len(optional) > 0 {
-		fmt.Printf("%s\n", successStyle.Render(i18n.T("cmd.vm.templates.vars.optional")))
+		core.Print(nil, "%s", successStyle.Render(i18n.T("cmd.vm.templates.vars.optional")))
 		for v, def := range optional {
-			fmt.Printf("  %s = %s\n",
+			core.Print(nil, "  %s = %s",
 				varStyle.Render("${"+v+"}"),
 				defaultStyle.Render(def))
 		}
-		fmt.Println()
+		core.Println()
 	}
 
 	if len(required) == 0 && len(optional) == 0 {
-		fmt.Println(i18n.T("cmd.vm.templates.vars.none"))
+		core.Println(i18n.T("cmd.vm.templates.vars.none"))
 	}
 
 	return nil
@@ -155,23 +156,23 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	}
 
 	// Create a temporary directory for the build
-	tmpDir, err := os.MkdirTemp("", "core-linuxkit-*")
+	tmpDir, err := coreutil.MkdirTemp("core-linuxkit-")
 	if err != nil {
 		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "create temp directory"}), err)
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	defer func() { _ = io.Local.DeleteAll(tmpDir) }()
 
 	// Write the YAML file
-	yamlPath := filepath.Join(tmpDir, templateName+".yml")
+	yamlPath := coreutil.JoinPath(tmpDir, core.Concat(templateName, ".yml"))
 	if err := io.Local.Write(yamlPath, content); err != nil {
 		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "write template"}), err)
 	}
 
-	fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("common.label.template")), repoNameStyle.Render(templateName))
-	fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("cmd.vm.label.building")), yamlPath)
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("common.label.template")), repoNameStyle.Render(templateName))
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.building")), yamlPath)
 
 	// Build the image using linuxkit
-	outputPath := filepath.Join(tmpDir, templateName)
+	outputPath := coreutil.JoinPath(tmpDir, templateName)
 	if err := buildLinuxKitImage(yamlPath, outputPath); err != nil {
 		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "build image"}), err)
 	}
@@ -182,8 +183,8 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 		return coreerr.E("RunFromTemplate", i18n.T("cmd.vm.error.no_image_found"), nil)
 	}
 
-	fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("common.label.image")), imagePath)
-	fmt.Println()
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("common.label.image")), imagePath)
+	core.Println()
 
 	// Run the image
 	manager, err := container.NewLinuxKitManager(io.Local)
@@ -191,8 +192,8 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "initialize container manager"}), err)
 	}
 
-	fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("cmd.vm.label.hypervisor")), manager.Hypervisor().Name())
-	fmt.Println()
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.hypervisor")), manager.Hypervisor().Name())
+	core.Println()
 
 	ctx := context.Background()
 	c, err := manager.Run(ctx, imagePath, runOpts)
@@ -201,13 +202,14 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	}
 
 	if runOpts.Detach {
-		fmt.Printf("%s %s\n", successStyle.Render(i18n.T("common.label.started")), c.ID)
-		fmt.Printf("%s %d\n", dimStyle.Render(i18n.T("cmd.vm.label.pid")), c.PID)
-		fmt.Println()
-		fmt.Println(i18n.T("cmd.vm.hint.view_logs", map[string]any{"ID": c.ID[:8]}))
-		fmt.Println(i18n.T("cmd.vm.hint.stop", map[string]any{"ID": c.ID[:8]}))
+		core.Print(nil, "%s %s", successStyle.Render(i18n.T("common.label.started")), c.ID)
+		core.Print(nil, "%s %d", dimStyle.Render(i18n.T("cmd.vm.label.pid")), c.PID)
+		core.Println()
+		core.Println(i18n.T("cmd.vm.hint.view_logs", map[string]any{"ID": c.ID[:8]}))
+		core.Println(i18n.T("cmd.vm.hint.stop", map[string]any{"ID": c.ID[:8]}))
 	} else {
-		fmt.Printf("\n%s %s\n", dimStyle.Render(i18n.T("cmd.vm.label.container_stopped")), c.ID)
+		core.Println()
+		core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.container_stopped")), c.ID)
 	}
 
 	return nil
@@ -223,13 +225,13 @@ func buildLinuxKitImage(yamlPath, outputPath string) error {
 
 	// Build the image
 	// linuxkit build --format iso-bios --name <output> <yaml>
-	cmd := exec.Command(lkPath, "build",
+	cmd := proc.NewCommand(lkPath, "build",
 		"--format", "iso-bios",
 		"--name", outputPath,
 		yamlPath)
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = proc.Stdout
+	cmd.Stderr = proc.Stderr
 
 	return cmd.Run()
 }
@@ -240,27 +242,27 @@ func findBuiltImage(basePath string) string {
 	extensions := []string{".iso", "-bios.iso", ".qcow2", ".raw", ".vmdk"}
 
 	for _, ext := range extensions {
-		path := basePath + ext
-		if _, err := os.Stat(path); err == nil {
+		path := core.Concat(basePath, ext)
+		if io.Local.IsFile(path) {
 			return path
 		}
 	}
 
 	// Check directory for any image file
-	dir := filepath.Dir(basePath)
-	base := filepath.Base(basePath)
+	dir := core.PathDir(basePath)
+	base := core.PathBase(basePath)
 
-	entries, err := os.ReadDir(dir)
+	entries, err := io.Local.List(dir)
 	if err != nil {
 		return ""
 	}
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if strings.HasPrefix(name, base) {
+		if core.HasPrefix(name, base) {
 			for _, ext := range []string{".iso", ".qcow2", ".raw", ".vmdk"} {
-				if strings.HasSuffix(name, ext) {
-					return filepath.Join(dir, name)
+				if core.HasSuffix(name, ext) {
+					return coreutil.JoinPath(dir, name)
 				}
 			}
 		}
@@ -272,7 +274,7 @@ func findBuiltImage(basePath string) string {
 // lookupLinuxKit finds the linuxkit binary.
 func lookupLinuxKit() (string, error) {
 	// Check PATH first
-	if path, err := exec.LookPath("linuxkit"); err == nil {
+	if path, err := proc.LookPath("linuxkit"); err == nil {
 		return path, nil
 	}
 
@@ -283,7 +285,7 @@ func lookupLinuxKit() (string, error) {
 	}
 
 	for _, p := range paths {
-		if _, err := os.Stat(p); err == nil {
+		if io.Local.Exists(p) {
 			return p, nil
 		}
 	}
@@ -297,15 +299,28 @@ func ParseVarFlags(varFlags []string) map[string]string {
 	vars := make(map[string]string)
 
 	for _, v := range varFlags {
-		parts := strings.SplitN(v, "=", 2)
+		parts := core.SplitN(v, "=", 2)
 		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
+			key := core.Trim(parts[0])
+			value := core.Trim(parts[1])
 			// Remove surrounding quotes if present
-			value = strings.Trim(value, "\"'")
+			value = stripWrappingQuotes(value)
 			vars[key] = value
 		}
 	}
 
 	return vars
+}
+
+func stripWrappingQuotes(value string) string {
+	if len(value) < 2 {
+		return value
+	}
+	if core.HasPrefix(value, "\"") && core.HasSuffix(value, "\"") {
+		return core.TrimSuffix(core.TrimPrefix(value, "\""), "\"")
+	}
+	if core.HasPrefix(value, "'") && core.HasSuffix(value, "'") {
+		return core.TrimSuffix(core.TrimPrefix(value, "'"), "'")
+	}
+	return value
 }

@@ -2,15 +2,15 @@ package devenv
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
+	"io/fs"
 	"time"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/container/sources"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/coreutil"
 )
 
 // ImageManager handles image downloads and updates.
@@ -49,7 +49,7 @@ func NewImageManager(m io.Medium, cfg *Config) (*ImageManager, error) {
 	}
 
 	// Load or create manifest
-	manifestPath := filepath.Join(imagesDir, "manifest.json")
+	manifestPath := coreutil.JoinPath(imagesDir, "manifest.json")
 	manifest, err := loadManifest(m, manifestPath)
 	if err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func (m *ImageManager) Install(ctx context.Context, progress func(downloaded, to
 		return coreerr.E("ImageManager.Install", "failed to get latest version", err)
 	}
 
-	fmt.Printf("Downloading %s from %s...\n", ImageName(), src.Name())
+	core.Print(nil, "Downloading %s from %s...", ImageName(), src.Name())
 
 	// Download
 	if err := src.Download(ctx, m.medium, imagesDir, progress); err != nil {
@@ -174,14 +174,15 @@ func loadManifest(m io.Medium, path string) (*Manifest, error) {
 
 	content, err := m.Read(path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if core.Is(err, fs.ErrNotExist) {
 			return manifest, nil
 		}
 		return nil, err
 	}
 
-	if err := json.Unmarshal([]byte(content), manifest); err != nil {
-		return nil, err
+	result := core.JSONUnmarshalString(content, manifest)
+	if !result.OK {
+		return nil, result.Value.(error)
 	}
 	manifest.medium = m
 	manifest.path = path
@@ -191,9 +192,9 @@ func loadManifest(m io.Medium, path string) (*Manifest, error) {
 
 // Save writes the manifest to disk.
 func (m *Manifest) Save() error {
-	data, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
+	result := core.JSONMarshal(m)
+	if !result.OK {
+		return result.Value.(error)
 	}
-	return m.medium.Write(m.path, string(data))
+	return m.medium.Write(m.path, string(result.Value.([]byte)))
 }

@@ -1,11 +1,12 @@
 package container
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
+	core "dappco.re/go/core"
+	"dappco.re/go/core/io"
+
+	"dappco.re/go/core/container/internal/coreutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -158,7 +159,7 @@ func TestApplyVariables_Bad_MultipleMissing(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing required variables")
 	// Should mention both missing vars
 	errStr := err.Error()
-	assert.True(t, strings.Contains(errStr, "VAR1") || strings.Contains(errStr, "VAR3"))
+	assert.True(t, core.Contains(errStr, "VAR1") || core.Contains(errStr, "VAR3"))
 }
 
 func TestApplyTemplate_Good(t *testing.T) {
@@ -248,11 +249,11 @@ func TestScanUserTemplates_Good(t *testing.T) {
 kernel:
   image: linuxkit/kernel:6.6
 `
-	err := os.WriteFile(filepath.Join(tmpDir, "custom.yml"), []byte(templateContent), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "custom.yml"), templateContent)
 	require.NoError(t, err)
 
 	// Create a non-template file (should be ignored)
-	err = os.WriteFile(filepath.Join(tmpDir, "readme.txt"), []byte("Not a template"), 0644)
+	err = io.Local.Write(coreutil.JoinPath(tmpDir, "readme.txt"), "Not a template")
 	require.NoError(t, err)
 
 	templates := scanUserTemplates(tmpDir)
@@ -266,9 +267,9 @@ func TestScanUserTemplates_Good_MultipleTemplates(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create multiple template files
-	err := os.WriteFile(filepath.Join(tmpDir, "web.yml"), []byte("# Web Server\nkernel:"), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "web.yml"), "# Web Server\nkernel:")
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(tmpDir, "db.yaml"), []byte("# Database Server\nkernel:"), 0644)
+	err = io.Local.Write(coreutil.JoinPath(tmpDir, "db.yaml"), "# Database Server\nkernel:")
 	require.NoError(t, err)
 
 	templates := scanUserTemplates(tmpDir)
@@ -300,14 +301,14 @@ func TestScanUserTemplates_Bad_NonexistentDirectory(t *testing.T) {
 
 func TestExtractTemplateDescription_Good(t *testing.T) {
 	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "test.yml")
+	path := coreutil.JoinPath(tmpDir, "test.yml")
 
 	content := `# My Template Description
 # More details here
 kernel:
   image: test
 `
-	err := os.WriteFile(path, []byte(content), 0644)
+	err := io.Local.Write(path, content)
 	require.NoError(t, err)
 
 	desc := extractTemplateDescription(path)
@@ -317,12 +318,12 @@ kernel:
 
 func TestExtractTemplateDescription_Good_NoComments(t *testing.T) {
 	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "test.yml")
+	path := coreutil.JoinPath(tmpDir, "test.yml")
 
 	content := `kernel:
   image: test
 `
-	err := os.WriteFile(path, []byte(content), 0644)
+	err := io.Local.Write(path, content)
 	require.NoError(t, err)
 
 	desc := extractTemplateDescription(path)
@@ -388,11 +389,11 @@ func TestScanUserTemplates_Good_SkipsBuiltinNames(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a template with a builtin name (should be skipped)
-	err := os.WriteFile(filepath.Join(tmpDir, "core-dev.yml"), []byte("# Duplicate\nkernel:"), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "core-dev.yml"), "# Duplicate\nkernel:")
 	require.NoError(t, err)
 
 	// Create a unique template
-	err = os.WriteFile(filepath.Join(tmpDir, "unique.yml"), []byte("# Unique\nkernel:"), 0644)
+	err = io.Local.Write(coreutil.JoinPath(tmpDir, "unique.yml"), "# Unique\nkernel:")
 	require.NoError(t, err)
 
 	templates := scanUserTemplates(tmpDir)
@@ -406,11 +407,11 @@ func TestScanUserTemplates_Good_SkipsDirectories(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a subdirectory (should be skipped)
-	err := os.MkdirAll(filepath.Join(tmpDir, "subdir"), 0755)
+	err := io.Local.EnsureDir(coreutil.JoinPath(tmpDir, "subdir"))
 	require.NoError(t, err)
 
 	// Create a valid template
-	err = os.WriteFile(filepath.Join(tmpDir, "valid.yml"), []byte("# Valid\nkernel:"), 0644)
+	err = io.Local.Write(coreutil.JoinPath(tmpDir, "valid.yml"), "# Valid\nkernel:")
 	require.NoError(t, err)
 
 	templates := scanUserTemplates(tmpDir)
@@ -423,9 +424,9 @@ func TestScanUserTemplates_Good_YamlExtension(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create templates with both extensions
-	err := os.WriteFile(filepath.Join(tmpDir, "template1.yml"), []byte("# Template 1\nkernel:"), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "template1.yml"), "# Template 1\nkernel:")
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(tmpDir, "template2.yaml"), []byte("# Template 2\nkernel:"), 0644)
+	err = io.Local.Write(coreutil.JoinPath(tmpDir, "template2.yaml"), "# Template 2\nkernel:")
 	require.NoError(t, err)
 
 	templates := scanUserTemplates(tmpDir)
@@ -442,7 +443,7 @@ func TestScanUserTemplates_Good_YamlExtension(t *testing.T) {
 
 func TestExtractTemplateDescription_Good_EmptyComment(t *testing.T) {
 	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "test.yml")
+	path := coreutil.JoinPath(tmpDir, "test.yml")
 
 	// First comment is empty, second has content
 	content := `#
@@ -450,7 +451,7 @@ func TestExtractTemplateDescription_Good_EmptyComment(t *testing.T) {
 kernel:
   image: test
 `
-	err := os.WriteFile(path, []byte(content), 0644)
+	err := io.Local.Write(path, content)
 	require.NoError(t, err)
 
 	desc := extractTemplateDescription(path)
@@ -460,7 +461,7 @@ kernel:
 
 func TestExtractTemplateDescription_Good_MultipleEmptyComments(t *testing.T) {
 	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "test.yml")
+	path := coreutil.JoinPath(tmpDir, "test.yml")
 
 	// Multiple empty comments before actual content
 	content := `#
@@ -470,7 +471,7 @@ func TestExtractTemplateDescription_Good_MultipleEmptyComments(t *testing.T) {
 kernel:
   image: test
 `
-	err := os.WriteFile(path, []byte(content), 0644)
+	err := io.Local.Write(path, content)
 	require.NoError(t, err)
 
 	desc := extractTemplateDescription(path)
@@ -485,7 +486,7 @@ func TestScanUserTemplates_Good_DefaultDescription(t *testing.T) {
 	content := `kernel:
   image: test
 `
-	err := os.WriteFile(filepath.Join(tmpDir, "nocomment.yml"), []byte(content), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "nocomment.yml"), content)
 	require.NoError(t, err)
 
 	templates := scanUserTemplates(tmpDir)

@@ -2,13 +2,13 @@ package devenv
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/core/container/internal/proc"
 )
 
 // ServeOptions configures the dev server.
@@ -33,7 +33,7 @@ func (d *DevOps) Serve(ctx context.Context, projectDir string, opts ServeOptions
 
 	servePath := projectDir
 	if opts.Path != "" {
-		servePath = filepath.Join(projectDir, opts.Path)
+		servePath = coreutil.JoinPath(projectDir, opts.Path)
 	}
 
 	// Mount project directory via SSHFS
@@ -43,8 +43,8 @@ func (d *DevOps) Serve(ctx context.Context, projectDir string, opts ServeOptions
 
 	// Detect and run serve command
 	serveCmd := DetectServeCommand(d.medium, servePath)
-	fmt.Printf("Starting server: %s\n", serveCmd)
-	fmt.Printf("Listening on http://localhost:%d\n", opts.Port)
+	core.Print(nil, "Starting server: %s", serveCmd)
+	core.Print(nil, "Listening on http://localhost:%d", opts.Port)
 
 	// Run serve command via SSH
 	return d.sshShell(ctx, []string{"cd", "/app", "&&", serveCmd})
@@ -52,21 +52,18 @@ func (d *DevOps) Serve(ctx context.Context, projectDir string, opts ServeOptions
 
 // mountProject mounts a directory into the VM via SSHFS.
 func (d *DevOps) mountProject(ctx context.Context, path string) error {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
+	absPath := coreutil.AbsPath(path)
 
 	// Use reverse SSHFS mount
 	// The VM connects back to host to mount the directory
-	cmd := exec.CommandContext(ctx, "ssh",
+	cmd := proc.NewCommandContext(ctx, "ssh",
 		"-o", "StrictHostKeyChecking=yes",
 		"-o", "UserKnownHostsFile=~/.core/known_hosts",
 		"-o", "LogLevel=ERROR",
 		"-R", "10000:localhost:22", // Reverse tunnel for SSHFS
-		"-p", fmt.Sprintf("%d", DefaultSSHPort),
+		"-p", core.Sprintf("%d", DefaultSSHPort),
 		"root@localhost",
-		fmt.Sprintf("mkdir -p /app && sshfs -p 10000 %s@localhost:%s /app -o allow_other", os.Getenv("USER"), absPath),
+		core.Sprintf("mkdir -p /app && sshfs -p 10000 %s@localhost:%s /app -o allow_other", core.Env("USER"), absPath),
 	)
 	return cmd.Run()
 }

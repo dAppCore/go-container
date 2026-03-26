@@ -1,12 +1,13 @@
 package container
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
+	"io/fs"
 	"sync"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
+
+	"dappco.re/go/core/container/internal/coreutil"
 )
 
 // State manages persistent container state.
@@ -20,11 +21,11 @@ type State struct {
 
 // DefaultStateDir returns the default directory for state files (~/.core).
 func DefaultStateDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	home := coreutil.HomeDir()
+	if home == "" {
+		return "", core.E("DefaultStateDir", "home directory not available", nil)
 	}
-	return filepath.Join(home, ".core"), nil
+	return coreutil.JoinPath(home, ".core"), nil
 }
 
 // DefaultStatePath returns the default path for the state file.
@@ -33,7 +34,7 @@ func DefaultStatePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "containers.json"), nil
+	return coreutil.JoinPath(dir, "containers.json"), nil
 }
 
 // DefaultLogsDir returns the default directory for container logs.
@@ -42,7 +43,7 @@ func DefaultLogsDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "logs"), nil
+	return coreutil.JoinPath(dir, "logs"), nil
 }
 
 // NewState creates a new State instance.
@@ -60,14 +61,15 @@ func LoadState(filePath string) (*State, error) {
 
 	dataStr, err := io.Local.Read(filePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if core.Is(err, fs.ErrNotExist) {
 			return state, nil
 		}
 		return nil, err
 	}
 
-	if err := json.Unmarshal([]byte(dataStr), state); err != nil {
-		return nil, err
+	result := core.JSONUnmarshalString(dataStr, state)
+	if !result.OK {
+		return nil, result.Value.(error)
 	}
 
 	return state, nil
@@ -79,17 +81,17 @@ func (s *State) SaveState() error {
 	defer s.mu.RUnlock()
 
 	// Ensure the directory exists
-	dir := filepath.Dir(s.filePath)
+	dir := core.PathDir(s.filePath)
 	if err := io.Local.EnsureDir(dir); err != nil {
 		return err
 	}
 
-	data, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
+	result := core.JSONMarshal(s)
+	if !result.OK {
+		return result.Value.(error)
 	}
 
-	return io.Local.Write(s.filePath, string(data))
+	return io.Local.Write(s.filePath, string(result.Value.([]byte)))
 }
 
 // Add adds a container to the state and persists it.
@@ -159,7 +161,7 @@ func LogPath(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(logsDir, id+".log"), nil
+	return coreutil.JoinPath(logsDir, core.Concat(id, ".log")), nil
 }
 
 // EnsureLogsDir ensures the logs directory exists.

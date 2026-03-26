@@ -2,14 +2,13 @@ package vm
 
 import (
 	"context"
-	"fmt"
 	goio "io"
-	"os"
-	"strings"
 	"text/tabwriter"
 	"time"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/container"
+	"dappco.re/go/core/container/internal/proc"
 	"dappco.re/go/core/i18n"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
@@ -82,12 +81,12 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int) er
 		SSHPort: sshPort,
 	}
 
-	fmt.Printf("%s %s\n", dimStyle.Render(i18n.Label("image")), image)
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.Label("image")), image)
 	if name != "" {
-		fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("cmd.vm.label.name")), name)
+		core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.name")), name)
 	}
-	fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("cmd.vm.label.hypervisor")), manager.Hypervisor().Name())
-	fmt.Println()
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.hypervisor")), manager.Hypervisor().Name())
+	core.Println()
 
 	ctx := context.Background()
 	c, err := manager.Run(ctx, image, opts)
@@ -96,13 +95,14 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int) er
 	}
 
 	if detach {
-		fmt.Printf("%s %s\n", successStyle.Render(i18n.Label("started")), c.ID)
-		fmt.Printf("%s %d\n", dimStyle.Render(i18n.T("cmd.vm.label.pid")), c.PID)
-		fmt.Println()
-		fmt.Println(i18n.T("cmd.vm.hint.view_logs", map[string]any{"ID": c.ID[:8]}))
-		fmt.Println(i18n.T("cmd.vm.hint.stop", map[string]any{"ID": c.ID[:8]}))
+		core.Print(nil, "%s %s", successStyle.Render(i18n.Label("started")), c.ID)
+		core.Print(nil, "%s %d", dimStyle.Render(i18n.T("cmd.vm.label.pid")), c.PID)
+		core.Println()
+		core.Println(i18n.T("cmd.vm.hint.view_logs", map[string]any{"ID": c.ID[:8]}))
+		core.Println(i18n.T("cmd.vm.hint.stop", map[string]any{"ID": c.ID[:8]}))
 	} else {
-		fmt.Printf("\n%s %s\n", dimStyle.Render(i18n.T("cmd.vm.label.container_stopped")), c.ID)
+		core.Println()
+		core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.container_stopped")), c.ID)
 	}
 
 	return nil
@@ -151,16 +151,16 @@ func listContainers(all bool) error {
 
 	if len(containers) == 0 {
 		if all {
-			fmt.Println(i18n.T("cmd.vm.ps.no_containers"))
+			core.Println(i18n.T("cmd.vm.ps.no_containers"))
 		} else {
-			fmt.Println(i18n.T("cmd.vm.ps.no_running"))
+			core.Println(i18n.T("cmd.vm.ps.no_running"))
 		}
 		return nil
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, i18n.T("cmd.vm.ps.header"))
-	_, _ = fmt.Fprintln(w, "--\t----\t-----\t------\t-------\t---")
+	w := tabwriter.NewWriter(proc.Stdout, 0, 0, 2, ' ', 0)
+	core.Print(w, "%s", i18n.T("cmd.vm.ps.header"))
+	core.Print(w, "%s", "--\t----\t-----\t------\t-------\t---")
 
 	for _, c := range containers {
 		// Shorten image path
@@ -183,7 +183,7 @@ func listContainers(all bool) error {
 			status = errorStyle.Render(status)
 		}
 
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\n",
+		core.Print(w, "%s\t%s\t%s\t%s\t%s\t%d",
 			c.ID[:8], c.Name, imageName, status, duration, c.PID)
 	}
 
@@ -193,15 +193,15 @@ func listContainers(all bool) error {
 
 func formatDuration(d time.Duration) string {
 	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
+		return core.Sprintf("%ds", int(d.Seconds()))
 	}
 	if d < time.Hour {
-		return fmt.Sprintf("%dm", int(d.Minutes()))
+		return core.Sprintf("%dm", int(d.Minutes()))
 	}
 	if d < 24*time.Hour {
-		return fmt.Sprintf("%dh", int(d.Hours()))
+		return core.Sprintf("%dh", int(d.Hours()))
 	}
-	return fmt.Sprintf("%dd", int(d.Hours()/24))
+	return core.Sprintf("%dd", int(d.Hours()/24))
 }
 
 // addVMStopCommand adds the 'stop' command under vm.
@@ -233,14 +233,14 @@ func stopContainer(id string) error {
 		return err
 	}
 
-	fmt.Printf("%s %s\n", dimStyle.Render(i18n.T("cmd.vm.stop.stopping")), fullID[:8])
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.stop.stopping")), fullID[:8])
 
 	ctx := context.Background()
 	if err := manager.Stop(ctx, fullID); err != nil {
 		return coreerr.E("stopContainer", i18n.T("i18n.fail.stop", "container"), err)
 	}
 
-	fmt.Printf("%s\n", successStyle.Render(i18n.T("common.status.stopped")))
+	core.Print(nil, "%s", successStyle.Render(i18n.T("common.status.stopped")))
 	return nil
 }
 
@@ -254,7 +254,7 @@ func resolveContainerID(manager *container.LinuxKitManager, partialID string) (s
 
 	var matches []*container.Container
 	for _, c := range containers {
-		if strings.HasPrefix(c.ID, partialID) || strings.HasPrefix(c.Name, partialID) {
+		if core.HasPrefix(c.ID, partialID) || core.HasPrefix(c.Name, partialID) {
 			matches = append(matches, c)
 		}
 	}
@@ -308,7 +308,7 @@ func viewLogs(id string, follow bool) error {
 	}
 	defer func() { _ = reader.Close() }()
 
-	_, err = goio.Copy(os.Stdout, reader)
+	_, err = goio.Copy(proc.Stdout, reader)
 	return err
 }
 

@@ -1,10 +1,10 @@
 package devenv
 
 import (
-	"os"
-	"path/filepath"
+	"syscall"
 	"testing"
 
+	"dappco.re/go/core/container/internal/coreutil"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,9 +27,7 @@ func TestLoadConfig_Good(t *testing.T) {
 	t.Run("returns default if not exists", func(t *testing.T) {
 		// Mock HOME to a temp dir
 		tempHome := t.TempDir()
-		origHome := os.Getenv("HOME")
 		t.Setenv("HOME", tempHome)
-		defer func() { _ = os.Setenv("HOME", origHome) }()
 
 		cfg, err := LoadConfig(io.Local)
 		assert.NoError(t, err)
@@ -40,8 +38,8 @@ func TestLoadConfig_Good(t *testing.T) {
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
 
-		coreDir := filepath.Join(tempHome, ".core")
-		err := os.MkdirAll(coreDir, 0755)
+		coreDir := coreutil.JoinPath(tempHome, ".core")
+		err := io.Local.EnsureDir(coreDir)
 		require.NoError(t, err)
 
 		configData := `
@@ -51,7 +49,7 @@ images:
   cdn:
     url: https://cdn.example.com
 `
-		err = os.WriteFile(filepath.Join(coreDir, "config.yaml"), []byte(configData), 0644)
+		err = io.Local.Write(coreutil.JoinPath(coreDir, "config.yaml"), configData)
 		require.NoError(t, err)
 
 		cfg, err := LoadConfig(io.Local)
@@ -67,11 +65,11 @@ func TestLoadConfig_Bad(t *testing.T) {
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
 
-		coreDir := filepath.Join(tempHome, ".core")
-		err := os.MkdirAll(coreDir, 0755)
+		coreDir := coreutil.JoinPath(tempHome, ".core")
+		err := io.Local.EnsureDir(coreDir)
 		require.NoError(t, err)
 
-		err = os.WriteFile(filepath.Join(coreDir, "config.yaml"), []byte("invalid: yaml: :"), 0644)
+		err = io.Local.Write(coreutil.JoinPath(coreDir, "config.yaml"), "invalid: yaml: :")
 		require.NoError(t, err)
 
 		_, err = LoadConfig(io.Local)
@@ -115,8 +113,8 @@ func TestLoadConfig_Good_PartialConfig(t *testing.T) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	coreDir := filepath.Join(tempHome, ".core")
-	err := os.MkdirAll(coreDir, 0755)
+	coreDir := coreutil.JoinPath(tempHome, ".core")
+	err := io.Local.EnsureDir(coreDir)
 	require.NoError(t, err)
 
 	// Config only specifies source, should merge with defaults
@@ -125,7 +123,7 @@ version: 1
 images:
   source: github
 `
-	err = os.WriteFile(filepath.Join(coreDir, "config.yaml"), []byte(configData), 0644)
+	err = io.Local.Write(coreutil.JoinPath(coreDir, "config.yaml"), configData)
 	require.NoError(t, err)
 
 	cfg, err := LoadConfig(io.Local)
@@ -191,11 +189,11 @@ images:
 			tempHome := t.TempDir()
 			t.Setenv("HOME", tempHome)
 
-			coreDir := filepath.Join(tempHome, ".core")
-			err := os.MkdirAll(coreDir, 0755)
+			coreDir := coreutil.JoinPath(tempHome, ".core")
+			err := io.Local.EnsureDir(coreDir)
 			require.NoError(t, err)
 
-			err = os.WriteFile(filepath.Join(coreDir, "config.yaml"), []byte(tt.config), 0644)
+			err = io.Local.Write(coreutil.JoinPath(coreDir, "config.yaml"), tt.config)
 			require.NoError(t, err)
 
 			cfg, err := LoadConfig(io.Local)
@@ -232,24 +230,24 @@ func TestCDNConfig_Struct(t *testing.T) {
 func TestLoadConfig_Bad_UnreadableFile(t *testing.T) {
 	// This test is platform-specific and may not work on all systems
 	// Skip if we can't test file permissions properly
-	if os.Getuid() == 0 {
+	if syscall.Getuid() == 0 {
 		t.Skip("Skipping permission test when running as root")
 	}
 
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	coreDir := filepath.Join(tempHome, ".core")
-	err := os.MkdirAll(coreDir, 0755)
+	coreDir := coreutil.JoinPath(tempHome, ".core")
+	err := io.Local.EnsureDir(coreDir)
 	require.NoError(t, err)
 
-	configPath := filepath.Join(coreDir, "config.yaml")
-	err = os.WriteFile(configPath, []byte("version: 1"), 0000)
+	configPath := coreutil.JoinPath(coreDir, "config.yaml")
+	err = io.Local.WriteMode(configPath, "version: 1", 0000)
 	require.NoError(t, err)
 
 	_, err = LoadConfig(io.Local)
 	assert.Error(t, err)
 
 	// Restore permissions so cleanup works
-	_ = os.Chmod(configPath, 0644)
+	_ = syscall.Chmod(configPath, 0644)
 }

@@ -2,13 +2,13 @@ package sources
 
 import (
 	"context"
-	"fmt"
+	goio "io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 
+	core "dappco.re/go/core"
+	"dappco.re/go/core/container/internal/coreutil"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,7 +35,7 @@ func TestCDNSource_LatestVersion_Good(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/manifest.json" {
 			w.WriteHeader(http.StatusOK)
-			_, _ = fmt.Fprint(w, `{"version": "1.2.3"}`)
+			_, _ = goio.WriteString(w, `{"version": "1.2.3"}`)
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -57,7 +57,7 @@ func TestCDNSource_Download_Good(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/test.img" {
 			w.WriteHeader(http.StatusOK)
-			_, _ = fmt.Fprint(w, content)
+			_, _ = goio.WriteString(w, content)
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -80,9 +80,9 @@ func TestCDNSource_Download_Good(t *testing.T) {
 	assert.True(t, progressCalled)
 
 	// Verify file content
-	data, err := os.ReadFile(filepath.Join(dest, imageName))
+	data, err := io.Local.Read(coreutil.JoinPath(dest, imageName))
 	assert.NoError(t, err)
-	assert.Equal(t, content, string(data))
+	assert.Equal(t, content, data)
 }
 
 func TestCDNSource_Download_Bad(t *testing.T) {
@@ -150,9 +150,9 @@ func TestCDNSource_LatestVersion_Bad_ServerError(t *testing.T) {
 func TestCDNSource_Download_Good_NoProgress(t *testing.T) {
 	content := "test content"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.Header().Set("Content-Length", core.Sprintf("%d", len(content)))
 		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprint(w, content)
+		_, _ = goio.WriteString(w, content)
 	}))
 	defer server.Close()
 
@@ -166,9 +166,9 @@ func TestCDNSource_Download_Good_NoProgress(t *testing.T) {
 	err := src.Download(context.Background(), io.Local, dest, nil)
 	assert.NoError(t, err)
 
-	data, err := os.ReadFile(filepath.Join(dest, "test.img"))
+	data, err := io.Local.Read(coreutil.JoinPath(dest, "test.img"))
 	assert.NoError(t, err)
-	assert.Equal(t, content, string(data))
+	assert.Equal(t, content, data)
 }
 
 func TestCDNSource_Download_Good_LargeFile(t *testing.T) {
@@ -179,7 +179,7 @@ func TestCDNSource_Download_Good_LargeFile(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.Header().Set("Content-Length", core.Sprintf("%d", len(content)))
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(content)
 	}))
@@ -230,7 +230,7 @@ func TestCDNSource_Download_Bad_HTTPErrorCodes(t *testing.T) {
 
 			err := src.Download(context.Background(), io.Local, dest, nil)
 			assert.Error(t, err)
-			assert.Contains(t, err.Error(), fmt.Sprintf("HTTP %d", tc.statusCode))
+			assert.Contains(t, err.Error(), core.Sprintf("HTTP %d", tc.statusCode))
 		})
 	}
 }
@@ -269,12 +269,12 @@ func TestCDNSource_Download_Good_CreatesDestDir(t *testing.T) {
 	content := "test content"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprint(w, content)
+		_, _ = goio.WriteString(w, content)
 	}))
 	defer server.Close()
 
 	tmpDir := t.TempDir()
-	dest := filepath.Join(tmpDir, "nested", "dir")
+	dest := coreutil.JoinPath(tmpDir, "nested", "dir")
 	// dest doesn't exist yet
 
 	src := NewCDNSource(SourceConfig{
@@ -286,7 +286,7 @@ func TestCDNSource_Download_Good_CreatesDestDir(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify nested dir was created
-	info, err := os.Stat(dest)
+	info, err := io.Local.Stat(dest)
 	assert.NoError(t, err)
 	assert.True(t, info.IsDir())
 }

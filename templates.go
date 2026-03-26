@@ -4,14 +4,14 @@ import (
 	"embed"
 	"iter"
 	"maps"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/coreutil"
 )
 
 //go:embed templates/*.yml
@@ -87,7 +87,7 @@ func GetTemplate(name string) (string, error) {
 	// Check user templates
 	userTemplatesDir := getUserTemplatesDir()
 	if userTemplatesDir != "" {
-		templatePath := filepath.Join(userTemplatesDir, name+".yml")
+		templatePath := coreutil.JoinPath(userTemplatesDir, core.Concat(name, ".yml"))
 		if io.Local.IsFile(templatePath) {
 			content, err := io.Local.Read(templatePath)
 			if err != nil {
@@ -158,7 +158,7 @@ func ApplyVariables(content string, vars map[string]string) (string, error) {
 	})
 
 	if len(missingVars) > 0 {
-		return "", coreerr.E("ApplyVariables", "missing required variables: "+strings.Join(missingVars, ", "), nil)
+		return "", coreerr.E("ApplyVariables", core.Concat("missing required variables: ", core.Join(", ", missingVars...)), nil)
 	}
 
 	return result, nil
@@ -206,21 +206,18 @@ func ExtractVariables(content string) (required []string, optional map[string]st
 // Returns empty string if the directory doesn't exist.
 func getUserTemplatesDir() string {
 	// Try workspace-relative .core/linuxkit first
-	cwd, err := os.Getwd()
-	if err == nil {
-		wsDir := filepath.Join(cwd, ".core", "linuxkit")
-		if io.Local.IsDir(wsDir) {
-			return wsDir
-		}
+	wsDir := coreutil.JoinPath(coreutil.CurrentDir(), ".core", "linuxkit")
+	if io.Local.IsDir(wsDir) {
+		return wsDir
 	}
 
 	// Try home directory
-	home, err := os.UserHomeDir()
-	if err != nil {
+	home := coreutil.HomeDir()
+	if home == "" {
 		return ""
 	}
 
-	homeDir := filepath.Join(home, ".core", "linuxkit")
+	homeDir := coreutil.JoinPath(home, ".core", "linuxkit")
 	if io.Local.IsDir(homeDir) {
 		return homeDir
 	}
@@ -243,12 +240,12 @@ func scanUserTemplates(dir string) []Template {
 		}
 
 		name := entry.Name()
-		if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") {
+		if !core.HasSuffix(name, ".yml") && !core.HasSuffix(name, ".yaml") {
 			continue
 		}
 
 		// Extract template name from filename
-		templateName := strings.TrimSuffix(strings.TrimSuffix(name, ".yml"), ".yaml")
+		templateName := core.TrimSuffix(core.TrimSuffix(name, ".yml"), ".yaml")
 
 		// Skip if this is a builtin template name (embedded takes precedence)
 		isBuiltin := false
@@ -263,7 +260,7 @@ func scanUserTemplates(dir string) []Template {
 		}
 
 		// Read file to extract description from comments
-		description := extractTemplateDescription(filepath.Join(dir, name))
+		description := extractTemplateDescription(coreutil.JoinPath(dir, name))
 		if description == "" {
 			description = "User-defined template"
 		}
@@ -271,7 +268,7 @@ func scanUserTemplates(dir string) []Template {
 		templates = append(templates, Template{
 			Name:        templateName,
 			Description: description,
-			Path:        filepath.Join(dir, name),
+			Path:        coreutil.JoinPath(dir, name),
 		})
 	}
 
@@ -286,14 +283,14 @@ func extractTemplateDescription(path string) string {
 		return ""
 	}
 
-	lines := strings.Split(content, "\n")
+	lines := core.Split(content, "\n")
 	var descLines []string
 
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "#") {
+		trimmed := core.Trim(line)
+		if core.HasPrefix(trimmed, "#") {
 			// Remove the # and trim
-			comment := strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
+			comment := core.Trim(core.TrimPrefix(trimmed, "#"))
 			if comment != "" {
 				descLines = append(descLines, comment)
 				// Only take the first meaningful comment line as description

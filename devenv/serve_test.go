@@ -1,17 +1,16 @@
 package devenv
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
+	"dappco.re/go/core/container/internal/coreutil"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDetectServeCommand_Good_Laravel(t *testing.T) {
 	tmpDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(tmpDir, "artisan"), []byte("#!/usr/bin/env php"), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "artisan"), "#!/usr/bin/env php")
 	assert.NoError(t, err)
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
@@ -21,7 +20,7 @@ func TestDetectServeCommand_Good_Laravel(t *testing.T) {
 func TestDetectServeCommand_Good_NodeDev(t *testing.T) {
 	tmpDir := t.TempDir()
 	packageJSON := `{"scripts":{"dev":"vite","start":"node index.js"}}`
-	err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(packageJSON), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), packageJSON)
 	assert.NoError(t, err)
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
@@ -31,7 +30,7 @@ func TestDetectServeCommand_Good_NodeDev(t *testing.T) {
 func TestDetectServeCommand_Good_NodeStart(t *testing.T) {
 	tmpDir := t.TempDir()
 	packageJSON := `{"scripts":{"start":"node server.js"}}`
-	err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(packageJSON), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), packageJSON)
 	assert.NoError(t, err)
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
@@ -40,7 +39,7 @@ func TestDetectServeCommand_Good_NodeStart(t *testing.T) {
 
 func TestDetectServeCommand_Good_PHP(t *testing.T) {
 	tmpDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(tmpDir, "composer.json"), []byte(`{"require":{}}`), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `{"require":{}}`)
 	assert.NoError(t, err)
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
@@ -49,9 +48,9 @@ func TestDetectServeCommand_Good_PHP(t *testing.T) {
 
 func TestDetectServeCommand_Good_GoMain(t *testing.T) {
 	tmpDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte("module example"), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "go.mod"), "module example")
 	assert.NoError(t, err)
-	err = os.WriteFile(filepath.Join(tmpDir, "main.go"), []byte("package main"), 0644)
+	err = io.Local.Write(coreutil.JoinPath(tmpDir, "main.go"), "package main")
 	assert.NoError(t, err)
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
@@ -60,7 +59,7 @@ func TestDetectServeCommand_Good_GoMain(t *testing.T) {
 
 func TestDetectServeCommand_Good_GoWithoutMain(t *testing.T) {
 	tmpDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte("module example"), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "go.mod"), "module example")
 	assert.NoError(t, err)
 
 	// No main.go, so falls through to fallback
@@ -70,7 +69,7 @@ func TestDetectServeCommand_Good_GoWithoutMain(t *testing.T) {
 
 func TestDetectServeCommand_Good_Django(t *testing.T) {
 	tmpDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(tmpDir, "manage.py"), []byte("#!/usr/bin/env python"), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "manage.py"), "#!/usr/bin/env python")
 	assert.NoError(t, err)
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
@@ -87,9 +86,9 @@ func TestDetectServeCommand_Good_Fallback(t *testing.T) {
 func TestDetectServeCommand_Good_Priority(t *testing.T) {
 	// Laravel (artisan) should take priority over PHP (composer.json)
 	tmpDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(tmpDir, "artisan"), []byte("#!/usr/bin/env php"), 0644)
+	err := io.Local.Write(coreutil.JoinPath(tmpDir, "artisan"), "#!/usr/bin/env php")
 	assert.NoError(t, err)
-	err = os.WriteFile(filepath.Join(tmpDir, "composer.json"), []byte(`{"require":{}}`), 0644)
+	err = io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `{"require":{}}`)
 	assert.NoError(t, err)
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
@@ -113,8 +112,8 @@ func TestServeOptions_Custom(t *testing.T) {
 
 func TestHasFile_Good(t *testing.T) {
 	tmpDir := t.TempDir()
-	testFile := filepath.Join(tmpDir, "test.txt")
-	err := os.WriteFile(testFile, []byte("content"), 0644)
+	testFile := coreutil.JoinPath(tmpDir, "test.txt")
+	err := io.Local.Write(testFile, "content")
 	assert.NoError(t, err)
 
 	assert.True(t, hasFile(io.Local, tmpDir, "test.txt"))
@@ -128,8 +127,8 @@ func TestHasFile_Bad(t *testing.T) {
 
 func TestHasFile_Bad_Directory(t *testing.T) {
 	tmpDir := t.TempDir()
-	subDir := filepath.Join(tmpDir, "subdir")
-	err := os.Mkdir(subDir, 0755)
+	subDir := coreutil.JoinPath(tmpDir, "subdir")
+	err := io.Local.EnsureDir(subDir)
 	assert.NoError(t, err)
 
 	// hasFile correctly returns false for directories (only true for regular files)

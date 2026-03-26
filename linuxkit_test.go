@@ -2,12 +2,13 @@ package container
 
 import (
 	"context"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
+	core "dappco.re/go/core"
+	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/core/container/internal/proc"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,30 +40,30 @@ func (m *MockHypervisor) Available() bool {
 	return m.available
 }
 
-func (m *MockHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (*exec.Cmd, error) {
+func (m *MockHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (*proc.Command, error) {
 	m.lastImage = image
 	m.lastOpts = opts
 	if m.buildErr != nil {
 		return nil, m.buildErr
 	}
 	// Return a simple command that exits quickly
-	return exec.CommandContext(ctx, m.commandToRun, "test"), nil
+	return proc.NewCommandContext(ctx, m.commandToRun, "test"), nil
 }
 
 // newTestManager creates a LinuxKitManager with mock hypervisor for testing.
 // Uses manual temp directory management to avoid race conditions with t.TempDir cleanup.
 func newTestManager(t *testing.T) (*LinuxKitManager, *MockHypervisor, string) {
-	tmpDir, err := os.MkdirTemp("", "linuxkit-test-*")
+	tmpDir, err := coreutil.MkdirTemp("linuxkit-test-")
 	require.NoError(t, err)
 
 	// Manual cleanup that handles race conditions with state file writes
 	t.Cleanup(func() {
 		// Give any pending file operations time to complete
 		time.Sleep(10 * time.Millisecond)
-		_ = os.RemoveAll(tmpDir)
+		_ = io.Local.DeleteAll(tmpDir)
 	})
 
-	statePath := filepath.Join(tmpDir, "containers.json")
+	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 
 	state, err := LoadState(statePath)
 	require.NoError(t, err)
@@ -75,7 +76,7 @@ func newTestManager(t *testing.T) (*LinuxKitManager, *MockHypervisor, string) {
 
 func TestNewLinuxKitManagerWithHypervisor_Good(t *testing.T) {
 	tmpDir := t.TempDir()
-	statePath := filepath.Join(tmpDir, "containers.json")
+	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 	state, _ := LoadState(statePath)
 	mock := NewMockHypervisor()
 
@@ -90,8 +91,8 @@ func TestLinuxKitManager_Run_Good_Detached(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	// Create a test image file
-	imagePath := filepath.Join(tmpDir, "test.iso")
-	err := os.WriteFile(imagePath, []byte("fake image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
+	err := io.Local.Write(imagePath, "fake image")
 	require.NoError(t, err)
 
 	// Use a command that runs briefly then exits
@@ -128,8 +129,8 @@ func TestLinuxKitManager_Run_Good_Detached(t *testing.T) {
 func TestLinuxKitManager_Run_Good_DefaultValues(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
-	imagePath := filepath.Join(tmpDir, "test.qcow2")
-	err := os.WriteFile(imagePath, []byte("fake image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.qcow2")
+	err := io.Local.Write(imagePath, "fake image")
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -164,8 +165,8 @@ func TestLinuxKitManager_Run_Bad_ImageNotFound(t *testing.T) {
 func TestLinuxKitManager_Run_Bad_UnsupportedFormat(t *testing.T) {
 	manager, _, tmpDir := newTestManager(t)
 
-	imagePath := filepath.Join(tmpDir, "test.txt")
-	err := os.WriteFile(imagePath, []byte("not an image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.txt")
+	err := io.Local.Write(imagePath, "not an image")
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -213,7 +214,7 @@ func TestLinuxKitManager_Stop_Bad_NotFound(t *testing.T) {
 
 func TestLinuxKitManager_Stop_Bad_NotRunning(t *testing.T) {
 	_, _, tmpDir := newTestManager(t)
-	statePath := filepath.Join(tmpDir, "containers.json")
+	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 	state, err := LoadState(statePath)
 	require.NoError(t, err)
 	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, NewMockHypervisor())
@@ -233,7 +234,7 @@ func TestLinuxKitManager_Stop_Bad_NotRunning(t *testing.T) {
 
 func TestLinuxKitManager_List_Good(t *testing.T) {
 	_, _, tmpDir := newTestManager(t)
-	statePath := filepath.Join(tmpDir, "containers.json")
+	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 	state, err := LoadState(statePath)
 	require.NoError(t, err)
 	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, NewMockHypervisor())
@@ -250,7 +251,7 @@ func TestLinuxKitManager_List_Good(t *testing.T) {
 
 func TestLinuxKitManager_List_Good_VerifiesRunningStatus(t *testing.T) {
 	_, _, tmpDir := newTestManager(t)
-	statePath := filepath.Join(tmpDir, "containers.json")
+	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 	state, err := LoadState(statePath)
 	require.NoError(t, err)
 	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, NewMockHypervisor())
@@ -275,8 +276,8 @@ func TestLinuxKitManager_Logs_Good(t *testing.T) {
 	manager, _, tmpDir := newTestManager(t)
 
 	// Create a log file manually
-	logsDir := filepath.Join(tmpDir, "logs")
-	require.NoError(t, os.MkdirAll(logsDir, 0755))
+	logsDir := coreutil.JoinPath(tmpDir, "logs")
+	require.NoError(t, io.Local.EnsureDir(logsDir))
 
 	container := &Container{ID: "abc12345"}
 	_ = manager.State().Add(container)
@@ -286,8 +287,8 @@ func TestLinuxKitManager_Logs_Good(t *testing.T) {
 	logContent := "test log content\nline 2\n"
 	logPath, err := LogPath("abc12345")
 	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Dir(logPath), 0755))
-	require.NoError(t, os.WriteFile(logPath, []byte(logContent), 0644))
+	require.NoError(t, io.Local.EnsureDir(core.PathDir(logPath)))
+	require.NoError(t, io.Local.Write(logPath, logContent))
 
 	ctx := context.Background()
 	reader, err := manager.Logs(ctx, "abc12345", false)
@@ -438,10 +439,10 @@ func TestLinuxKitManager_Logs_Good_Follow(t *testing.T) {
 	// Create a log file at the expected location
 	logPath, err := LogPath(uniqueID)
 	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Dir(logPath), 0755))
+	require.NoError(t, io.Local.EnsureDir(core.PathDir(logPath)))
 
 	// Write initial content
-	err = os.WriteFile(logPath, []byte("initial log content\n"), 0644)
+	err = io.Local.Write(logPath, "initial log content\n")
 	require.NoError(t, err)
 
 	// Create a cancellable context
@@ -466,11 +467,11 @@ func TestLinuxKitManager_Logs_Good_Follow(t *testing.T) {
 
 func TestFollowReader_Read_Good_WithData(t *testing.T) {
 	tmpDir := t.TempDir()
-	logPath := filepath.Join(tmpDir, "test.log")
+	logPath := coreutil.JoinPath(tmpDir, "test.log")
 
 	// Create log file with content
 	content := "test log line 1\ntest log line 2\n"
-	err := os.WriteFile(logPath, []byte(content), 0644)
+	err := io.Local.Write(logPath, content)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -481,9 +482,9 @@ func TestFollowReader_Read_Good_WithData(t *testing.T) {
 	defer func() { _ = reader.Close() }()
 
 	// The followReader seeks to end, so we need to append more content
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := io.Local.Append(logPath)
 	require.NoError(t, err)
-	_, err = f.WriteString("new line\n")
+	_, err = f.Write([]byte("new line\n"))
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
@@ -499,10 +500,10 @@ func TestFollowReader_Read_Good_WithData(t *testing.T) {
 
 func TestFollowReader_Read_Good_ContextCancel(t *testing.T) {
 	tmpDir := t.TempDir()
-	logPath := filepath.Join(tmpDir, "test.log")
+	logPath := coreutil.JoinPath(tmpDir, "test.log")
 
 	// Create log file
-	err := os.WriteFile(logPath, []byte("initial content\n"), 0644)
+	err := io.Local.Write(logPath, "initial content\n")
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -523,9 +524,9 @@ func TestFollowReader_Read_Good_ContextCancel(t *testing.T) {
 
 func TestFollowReader_Close_Good(t *testing.T) {
 	tmpDir := t.TempDir()
-	logPath := filepath.Join(tmpDir, "test.log")
+	logPath := coreutil.JoinPath(tmpDir, "test.log")
 
-	err := os.WriteFile(logPath, []byte("content\n"), 0644)
+	err := io.Local.Write(logPath, "content\n")
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -552,8 +553,8 @@ func TestLinuxKitManager_Run_Bad_BuildCommandError(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	// Create a test image file
-	imagePath := filepath.Join(tmpDir, "test.iso")
-	err := os.WriteFile(imagePath, []byte("fake image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
+	err := io.Local.Write(imagePath, "fake image")
 	require.NoError(t, err)
 
 	// Configure mock to return an error
@@ -571,8 +572,8 @@ func TestLinuxKitManager_Run_Good_Foreground(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	// Create a test image file
-	imagePath := filepath.Join(tmpDir, "test.iso")
-	err := os.WriteFile(imagePath, []byte("fake image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
+	err := io.Local.Write(imagePath, "fake image")
 	require.NoError(t, err)
 
 	// Use echo which exits quickly
@@ -599,8 +600,8 @@ func TestLinuxKitManager_Stop_Good_ContextCancelled(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
 	// Create a test image file
-	imagePath := filepath.Join(tmpDir, "test.iso")
-	err := os.WriteFile(imagePath, []byte("fake image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
+	err := io.Local.Write(imagePath, "fake image")
 	require.NoError(t, err)
 
 	// Use a command that takes a long time
@@ -634,7 +635,7 @@ func TestLinuxKitManager_Stop_Good_ContextCancelled(t *testing.T) {
 
 func TestIsProcessRunning_Good_ExistingProcess(t *testing.T) {
 	// Use our own PID which definitely exists
-	running := isProcessRunning(os.Getpid())
+	running := isProcessRunning(syscall.Getpid())
 	assert.True(t, running)
 }
 
@@ -647,8 +648,8 @@ func TestIsProcessRunning_Bad_NonexistentProcess(t *testing.T) {
 func TestLinuxKitManager_Run_Good_WithPortsAndVolumes(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
-	imagePath := filepath.Join(tmpDir, "test.iso")
-	err := os.WriteFile(imagePath, []byte("fake image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
+	err := io.Local.Write(imagePath, "fake image")
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -675,10 +676,10 @@ func TestLinuxKitManager_Run_Good_WithPortsAndVolumes(t *testing.T) {
 
 func TestFollowReader_Read_Bad_ReaderError(t *testing.T) {
 	tmpDir := t.TempDir()
-	logPath := filepath.Join(tmpDir, "test.log")
+	logPath := coreutil.JoinPath(tmpDir, "test.log")
 
 	// Create log file
-	err := os.WriteFile(logPath, []byte("content\n"), 0644)
+	err := io.Local.Write(logPath, "content\n")
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -697,8 +698,8 @@ func TestFollowReader_Read_Bad_ReaderError(t *testing.T) {
 func TestLinuxKitManager_Run_Bad_StartError(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
-	imagePath := filepath.Join(tmpDir, "test.iso")
-	err := os.WriteFile(imagePath, []byte("fake image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
+	err := io.Local.Write(imagePath, "fake image")
 	require.NoError(t, err)
 
 	// Use a command that doesn't exist to cause Start() to fail
@@ -718,8 +719,8 @@ func TestLinuxKitManager_Run_Bad_StartError(t *testing.T) {
 func TestLinuxKitManager_Run_Bad_ForegroundStartError(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
-	imagePath := filepath.Join(tmpDir, "test.iso")
-	err := os.WriteFile(imagePath, []byte("fake image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
+	err := io.Local.Write(imagePath, "fake image")
 	require.NoError(t, err)
 
 	// Use a command that doesn't exist to cause Start() to fail
@@ -739,8 +740,8 @@ func TestLinuxKitManager_Run_Bad_ForegroundStartError(t *testing.T) {
 func TestLinuxKitManager_Run_Good_ForegroundWithError(t *testing.T) {
 	manager, mock, tmpDir := newTestManager(t)
 
-	imagePath := filepath.Join(tmpDir, "test.iso")
-	err := os.WriteFile(imagePath, []byte("fake image"), 0644)
+	imagePath := coreutil.JoinPath(tmpDir, "test.iso")
+	err := io.Local.Write(imagePath, "fake image")
 	require.NoError(t, err)
 
 	// Use a command that exits with error
