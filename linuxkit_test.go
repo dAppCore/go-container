@@ -2,6 +2,8 @@ package container
 
 import (
 	"context"
+	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -355,6 +357,51 @@ func TestLinuxKitManager_Exec_NotRunning_Bad(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not running")
+}
+
+func TestLinuxKitManager_Exec_UsesContainerSSHOptions_Good(t *testing.T) {
+	manager, _, tmpDir := newTestManager(t)
+
+	capturePath := coreutil.JoinPath(tmpDir, "ssh-args.txt")
+	sshPath := coreutil.JoinPath(tmpDir, "ssh")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"" + capturePath + "\"\n"
+	require.NoError(t, io.Local.Write(sshPath, script))
+	require.NoError(t, os.Chmod(sshPath, 0o755))
+
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", tmpDir+":"+oldPath)
+
+	container := &Container{
+		ID:      "abc12345",
+		Status:  StatusRunning,
+		SSHPort: 2200,
+		SSHKey:  "/tmp/test-id_ed25519",
+	}
+	_ = manager.State().Add(container)
+
+	ctx := context.Background()
+	err := manager.Exec(ctx, "abc12345", []string{"ls", "-la"})
+	require.NoError(t, err)
+
+	data, err := io.Local.Read(capturePath)
+	require.NoError(t, err)
+	args := strings.Split(strings.TrimSpace(data), "\n")
+
+	assert.Equal(t, []string{
+		"-p",
+		"2200",
+		"-o",
+		"StrictHostKeyChecking=yes",
+		"-o",
+		"UserKnownHostsFile=~/.core/known_hosts",
+		"-o",
+		"LogLevel=ERROR",
+		"-i",
+		"/tmp/test-id_ed25519",
+		"root@localhost",
+		"ls",
+		"-la",
+	}, args)
 }
 
 func TestLinuxKit_DetectImageFormat_Good(t *testing.T) {

@@ -31,6 +31,10 @@ type Container struct {
 	Memory int `json:"memory,omitempty"`
 	// CPUs is the number of CPUs allocated.
 	CPUs int `json:"cpus,omitempty"`
+	// SSHPort is the host port mapped to guest SSH.
+	SSHPort int `json:"ssh_port,omitempty"`
+	// SSHKey is the private key used for SSH exec commands.
+	SSHKey string `json:"ssh_key,omitempty"`
 }
 
 // Status represents the state of a container.
