@@ -81,6 +81,10 @@ type Manager interface {
 }
 
 // GenerateID creates a new unique container ID (8 hex characters).
+//
+// Usage:
+//
+//	id, err := GenerateID()
 func GenerateID() (string, error) {
 	bytes := make([]byte, 4)
 	if _, err := rand.Read(bytes); err != nil {

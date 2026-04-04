@@ -2,12 +2,12 @@ package sources
 
 import (
 	"context"
-	"os"
-	"os/exec"
-	"strings"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/proc"
 )
 
 // GitHubSource downloads images from GitHub Releases.
@@ -19,6 +19,10 @@ type GitHubSource struct {
 var _ ImageSource = (*GitHubSource)(nil)
 
 // NewGitHubSource creates a new GitHub source.
+//
+// Usage:
+//
+//	src := NewGitHubSource(cfg)
 func NewGitHubSource(cfg SourceConfig) *GitHubSource {
 	return &GitHubSource{config: cfg}
 }
@@ -30,18 +34,18 @@ func (s *GitHubSource) Name() string {
 
 // Available checks if gh CLI is installed and authenticated.
 func (s *GitHubSource) Available() bool {
-	_, err := exec.LookPath("gh")
+	_, err := proc.LookPath("gh")
 	if err != nil {
 		return false
 	}
 	// Check if authenticated
-	cmd := exec.Command("gh", "auth", "status")
+	cmd := proc.NewCommand("gh", "auth", "status")
 	return cmd.Run() == nil
 }
 
 // LatestVersion returns the latest release tag.
 func (s *GitHubSource) LatestVersion(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, "gh", "release", "view",
+	cmd := proc.NewCommandContext(ctx, "gh", "release", "view",
 		"-R", s.config.GitHubRepo,
 		"--json", "tagName",
 		"-q", ".tagName",
@@ -50,20 +54,20 @@ func (s *GitHubSource) LatestVersion(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", coreerr.E("github.LatestVersion", "failed", err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return core.Trim(string(out)), nil
 }
 
 // Download downloads the image from the latest release.
 func (s *GitHubSource) Download(ctx context.Context, m io.Medium, dest string, progress func(downloaded, total int64)) error {
 	// Get release assets to find our image
-	cmd := exec.CommandContext(ctx, "gh", "release", "download",
+	cmd := proc.NewCommandContext(ctx, "gh", "release", "download",
 		"-R", s.config.GitHubRepo,
 		"-p", s.config.ImageName,
 		"-D", dest,
 		"--clobber",
 	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = proc.Stdout
+	cmd.Stderr = proc.Stderr
 
 	if err := cmd.Run(); err != nil {
 		return coreerr.E("github.Download", "failed", err)

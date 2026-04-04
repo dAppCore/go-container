@@ -3,15 +3,15 @@ package devenv
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
 	"time"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/container"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/coreutil"
 )
 
 const (
@@ -28,6 +28,10 @@ type DevOps struct {
 }
 
 // New creates a new DevOps instance using the provided medium.
+//
+// Usage:
+//
+//	dev, err := New(io.Local)
 func New(m io.Medium) (*DevOps, error) {
 	cfg, err := LoadConfig(m)
 	if err != nil {
@@ -53,29 +57,41 @@ func New(m io.Medium) (*DevOps, error) {
 }
 
 // ImageName returns the platform-specific image name.
+//
+// Usage:
+//
+//	name := ImageName()
 func ImageName() string {
-	return fmt.Sprintf("core-devops-%s-%s.qcow2", runtime.GOOS, runtime.GOARCH)
+	return core.Sprintf("core-devops-%s-%s.qcow2", runtime.GOOS, runtime.GOARCH)
 }
 
 // ImagesDir returns the path to the images directory.
+//
+// Usage:
+//
+//	dir, err := ImagesDir()
 func ImagesDir() (string, error) {
-	if dir := os.Getenv("CORE_IMAGES_DIR"); dir != "" {
+	if dir := core.Env("CORE_IMAGES_DIR"); dir != "" {
 		return dir, nil
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	home := coreutil.HomeDir()
+	if home == "" {
+		return "", core.E("ImagesDir", "home directory not available", nil)
 	}
-	return filepath.Join(home, ".core", "images"), nil
+	return coreutil.JoinPath(home, ".core", "images"), nil
 }
 
 // ImagePath returns the full path to the platform-specific image.
+//
+// Usage:
+//
+//	path, err := ImagePath()
 func ImagePath() (string, error) {
 	dir, err := ImagesDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, ImageName()), nil
+	return coreutil.JoinPath(dir, ImageName()), nil
 }
 
 // IsInstalled checks if the dev image is installed.
@@ -106,6 +122,10 @@ type BootOptions struct {
 }
 
 // DefaultBootOptions returns sensible defaults.
+//
+// Usage:
+//
+//	opts := DefaultBootOptions()
 func DefaultBootOptions() BootOptions {
 	return BootOptions{
 		Memory: 4096,

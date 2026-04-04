@@ -1,11 +1,12 @@
 package devenv
 
 import (
-	"os"
-	"path/filepath"
-
 	"dappco.re/go/core/io"
 	"forge.lthn.ai/core/config"
+
+	core "dappco.re/go/core"
+
+	"dappco.re/go/core/container/internal/coreutil"
 )
 
 // Config holds global devops configuration from ~/.core/config.yaml.
@@ -38,6 +39,10 @@ type CDNConfig struct {
 }
 
 // DefaultConfig returns sensible defaults.
+//
+// Usage:
+//
+//	cfg := DefaultConfig()
 func DefaultConfig() *Config {
 	return &Config{
 		Version: 1,
@@ -54,16 +59,24 @@ func DefaultConfig() *Config {
 }
 
 // ConfigPath returns the path to the config file.
+//
+// Usage:
+//
+//	path, err := ConfigPath()
 func ConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	home := coreutil.HomeDir()
+	if home == "" {
+		return "", core.E("ConfigPath", "home directory not available", nil)
 	}
-	return filepath.Join(home, ".core", "config.yaml"), nil
+	return coreutil.JoinPath(home, ".core", "config.yaml"), nil
 }
 
 // LoadConfig loads configuration from ~/.core/config.yaml using the provided medium.
 // Returns default config if file doesn't exist.
+//
+// Usage:
+//
+//	cfg, err := LoadConfig(io.Local)
 func LoadConfig(m io.Medium) (*Config, error) {
 	configPath, err := ConfigPath()
 	if err != nil {

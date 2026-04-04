@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSourceConfig_Empty(t *testing.T) {
+func TestSourceConfig_Empty_Good(t *testing.T) {
 	cfg := SourceConfig{}
 	assert.Empty(t, cfg.GitHubRepo)
 	assert.Empty(t, cfg.RegistryImage)
@@ -14,7 +14,7 @@ func TestSourceConfig_Empty(t *testing.T) {
 	assert.Empty(t, cfg.ImageName)
 }
 
-func TestSourceConfig_Complete(t *testing.T) {
+func TestSourceConfig_Complete_Good(t *testing.T) {
 	cfg := SourceConfig{
 		GitHubRepo:    "owner/repo",
 		RegistryImage: "ghcr.io/owner/image:v1",
@@ -28,7 +28,7 @@ func TestSourceConfig_Complete(t *testing.T) {
 	assert.Equal(t, "my-image-darwin-arm64.qcow2", cfg.ImageName)
 }
 
-func TestImageSource_Interface(t *testing.T) {
+func TestImageSource_Interface_Good(t *testing.T) {
 	// Ensure both sources implement the interface
 	var _ ImageSource = (*GitHubSource)(nil)
 	var _ ImageSource = (*CDNSource)(nil)

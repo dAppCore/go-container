@@ -2,14 +2,13 @@ package devenv
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/core/container/internal/proc"
 )
 
 // ClaudeOptions configures the Claude sandbox session.
@@ -27,7 +26,7 @@ func (d *DevOps) Claude(ctx context.Context, projectDir string, opts ClaudeOptio
 		return err
 	}
 	if !running {
-		fmt.Println("Dev environment not running, booting...")
+		core.Println("Dev environment not running, booting...")
 		if err := d.Boot(ctx, DefaultBootOptions()); err != nil {
 			return coreerr.E("DevOps.Claude", "failed to boot", err)
 		}
@@ -50,20 +49,22 @@ func (d *DevOps) Claude(ctx context.Context, projectDir string, opts ClaudeOptio
 		for _, auth := range authTypes {
 			switch auth {
 			case "anthropic":
-				if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-					envVars = append(envVars, "ANTHROPIC_API_KEY="+key)
+				if key := core.Env("ANTHROPIC_API_KEY"); key != "" {
+					envVars = append(envVars, core.Concat("ANTHROPIC_API_KEY=", key))
 				}
 			case "git":
 				// Forward git config
-				name, _ := exec.Command("git", "config", "user.name").Output()
-				email, _ := exec.Command("git", "config", "user.email").Output()
+				name, _ := proc.NewCommand("git", "config", "user.name").Output()
+				email, _ := proc.NewCommand("git", "config", "user.email").Output()
 				if len(name) > 0 {
-					envVars = append(envVars, "GIT_AUTHOR_NAME="+strings.TrimSpace(string(name)))
-					envVars = append(envVars, "GIT_COMMITTER_NAME="+strings.TrimSpace(string(name)))
+					trimmed := core.Trim(string(name))
+					envVars = append(envVars, core.Concat("GIT_AUTHOR_NAME=", trimmed))
+					envVars = append(envVars, core.Concat("GIT_COMMITTER_NAME=", trimmed))
 				}
 				if len(email) > 0 {
-					envVars = append(envVars, "GIT_AUTHOR_EMAIL="+strings.TrimSpace(string(email)))
-					envVars = append(envVars, "GIT_COMMITTER_EMAIL="+strings.TrimSpace(string(email)))
+					trimmed := core.Trim(string(email))
+					envVars = append(envVars, core.Concat("GIT_AUTHOR_EMAIL=", trimmed))
+					envVars = append(envVars, core.Concat("GIT_COMMITTER_EMAIL=", trimmed))
 				}
 			}
 		}
@@ -75,7 +76,7 @@ func (d *DevOps) Claude(ctx context.Context, projectDir string, opts ClaudeOptio
 		"-o", "UserKnownHostsFile=~/.core/known_hosts",
 		"-o", "LogLevel=ERROR",
 		"-A", // SSH agent forwarding
-		"-p", fmt.Sprintf("%d", DefaultSSHPort),
+		"-p", core.Sprintf("%d", DefaultSSHPort),
 	}
 
 	args = append(args, "root@localhost")
@@ -88,23 +89,20 @@ func (d *DevOps) Claude(ctx context.Context, projectDir string, opts ClaudeOptio
 	args = append(args, claudeCmd)
 
 	// Set environment for SSH
-	cmd := exec.CommandContext(ctx, "ssh", args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd := proc.NewCommandContext(ctx, "ssh", args...)
+	cmd.Stdin = proc.Stdin
+	cmd.Stdout = proc.Stdout
+	cmd.Stderr = proc.Stderr
 
 	// Pass environment variables through SSH
-	for _, env := range envVars {
-		parts := strings.SplitN(env, "=", 2)
-		if len(parts) == 2 {
-			cmd.Env = append(os.Environ(), env)
-		}
+	if len(envVars) > 0 {
+		cmd.Env = append(proc.Environ(), envVars...)
 	}
 
-	fmt.Println("Starting Claude in sandboxed environment...")
-	fmt.Println("Project mounted at /app")
-	fmt.Println("Auth forwarded: SSH agent" + formatAuthList(opts))
-	fmt.Println()
+	core.Println("Starting Claude in sandboxed environment...")
+	core.Println("Project mounted at /app")
+	core.Println(core.Concat("Auth forwarded: SSH agent", formatAuthList(opts)))
+	core.Println()
 
 	return cmd.Run()
 }
@@ -116,27 +114,27 @@ func formatAuthList(opts ClaudeOptions) string {
 	if len(opts.Auth) == 0 {
 		return ", gh, anthropic, git"
 	}
-	return ", " + strings.Join(opts.Auth, ", ")
+	return core.Concat(", ", core.Join(", ", opts.Auth...))
 }
 
 // CopyGHAuth copies GitHub CLI auth to the VM.
 func (d *DevOps) CopyGHAuth(ctx context.Context) error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
+	home := coreutil.HomeDir()
+	if home == "" {
+		return coreerr.E("DevOps.CopyGHAuth", "home directory not available", nil)
 	}
 
-	ghConfigDir := filepath.Join(home, ".config", "gh")
+	ghConfigDir := coreutil.JoinPath(home, ".config", "gh")
 	if !io.Local.IsDir(ghConfigDir) {
 		return nil // No gh config to copy
 	}
 
 	// Use scp to copy gh config
-	cmd := exec.CommandContext(ctx, "scp",
+	cmd := proc.NewCommandContext(ctx, "scp",
 		"-o", "StrictHostKeyChecking=yes",
 		"-o", "UserKnownHostsFile=~/.core/known_hosts",
 		"-o", "LogLevel=ERROR",
-		"-P", fmt.Sprintf("%d", DefaultSSHPort),
+		"-P", core.Sprintf("%d", DefaultSSHPort),
 		"-r", ghConfigDir,
 		"root@localhost:/root/.config/",
 	)

@@ -2,11 +2,11 @@ package devenv
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
 
+	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/proc"
 )
 
 // ShellOptions configures the shell connection.
@@ -39,7 +39,7 @@ func (d *DevOps) sshShell(ctx context.Context, command []string) error {
 		"-o", "UserKnownHostsFile=~/.core/known_hosts",
 		"-o", "LogLevel=ERROR",
 		"-A", // Agent forwarding
-		"-p", fmt.Sprintf("%d", DefaultSSHPort),
+		"-p", core.Sprintf("%d", DefaultSSHPort),
 		"root@localhost",
 	}
 
@@ -47,10 +47,10 @@ func (d *DevOps) sshShell(ctx context.Context, command []string) error {
 		args = append(args, command...)
 	}
 
-	cmd := exec.CommandContext(ctx, "ssh", args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd := proc.NewCommandContext(ctx, "ssh", args...)
+	cmd.Stdin = proc.Stdin
+	cmd.Stdout = proc.Stdout
+	cmd.Stderr = proc.Stderr
 
 	return cmd.Run()
 }
@@ -67,10 +67,10 @@ func (d *DevOps) serialConsole(ctx context.Context) error {
 	}
 
 	// Use socat to connect to the console socket
-	socketPath := fmt.Sprintf("/tmp/core-%s-console.sock", c.ID)
-	cmd := exec.CommandContext(ctx, "socat", "-,raw,echo=0", "unix-connect:"+socketPath)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	socketPath := core.Sprintf("/tmp/core-%s-console.sock", c.ID)
+	cmd := proc.NewCommandContext(ctx, "socat", "-,raw,echo=0", "unix-connect:"+socketPath)
+	cmd.Stdin = proc.Stdin
+	cmd.Stdout = proc.Stdout
+	cmd.Stderr = proc.Stderr
 	return cmd.Run()
 }

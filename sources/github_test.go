@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGitHubSource_Good_Available(t *testing.T) {
+func TestGitHubSource_Available_Good(t *testing.T) {
 	src := NewGitHubSource(SourceConfig{
 		GitHubRepo: "host-uk/core-images",
 		ImageName:  "core-devops-darwin-arm64.qcow2",
@@ -20,12 +20,12 @@ func TestGitHubSource_Good_Available(t *testing.T) {
 	_ = src.Available()
 }
 
-func TestGitHubSource_Name(t *testing.T) {
+func TestGitHubSource_Name_Good(t *testing.T) {
 	src := NewGitHubSource(SourceConfig{})
 	assert.Equal(t, "github", src.Name())
 }
 
-func TestGitHubSource_Config(t *testing.T) {
+func TestGitHubSource_Config_Good(t *testing.T) {
 	cfg := SourceConfig{
 		GitHubRepo: "owner/repo",
 		ImageName:  "test-image.qcow2",
@@ -37,7 +37,7 @@ func TestGitHubSource_Config(t *testing.T) {
 	assert.Equal(t, "test-image.qcow2", src.config.ImageName)
 }
 
-func TestGitHubSource_Good_Multiple(t *testing.T) {
+func TestGitHubSource_Multiple_Good(t *testing.T) {
 	// Test creating multiple sources with different configs
 	src1 := NewGitHubSource(SourceConfig{GitHubRepo: "org1/repo1", ImageName: "img1.qcow2"})
 	src2 := NewGitHubSource(SourceConfig{GitHubRepo: "org2/repo2", ImageName: "img2.qcow2"})
@@ -48,7 +48,7 @@ func TestGitHubSource_Good_Multiple(t *testing.T) {
 	assert.Equal(t, "github", src2.Name())
 }
 
-func TestNewGitHubSource_Good(t *testing.T) {
+func TestGitHub_NewGitHubSource_Good(t *testing.T) {
 	cfg := SourceConfig{
 		GitHubRepo:    "host-uk/core-images",
 		RegistryImage: "ghcr.io/host-uk/core-devops",
@@ -62,7 +62,7 @@ func TestNewGitHubSource_Good(t *testing.T) {
 	assert.Equal(t, cfg.GitHubRepo, src.config.GitHubRepo)
 }
 
-func TestGitHubSource_InterfaceCompliance(t *testing.T) {
+func TestGitHubSource_InterfaceCompliance_Good(t *testing.T) {
 	// Verify GitHubSource implements ImageSource
 	var _ ImageSource = (*GitHubSource)(nil)
 }

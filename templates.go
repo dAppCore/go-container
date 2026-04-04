@@ -4,14 +4,14 @@ import (
 	"embed"
 	"iter"
 	"maps"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/coreutil"
 )
 
 //go:embed templates/*.yml
@@ -44,11 +44,19 @@ var builtinTemplates = []Template{
 // ListTemplates returns all available LinuxKit templates.
 // It combines embedded templates with any templates found in the user's
 // .core/linuxkit directory.
+//
+// Usage:
+//
+//	templates := ListTemplates()
 func ListTemplates() []Template {
 	return slices.Collect(ListTemplatesIter())
 }
 
 // ListTemplatesIter returns an iterator for all available LinuxKit templates.
+//
+// Usage:
+//
+//	for template := range ListTemplatesIter() { _ = template }
 func ListTemplatesIter() iter.Seq[Template] {
 	return func(yield func(Template) bool) {
 		// Yield builtin templates
@@ -72,6 +80,10 @@ func ListTemplatesIter() iter.Seq[Template] {
 
 // GetTemplate returns the content of a template by name.
 // It first checks embedded templates, then user templates.
+//
+// Usage:
+//
+//	content, err := GetTemplate("core-dev")
 func GetTemplate(name string) (string, error) {
 	// Check embedded templates first
 	for _, t := range builtinTemplates {
@@ -87,7 +99,7 @@ func GetTemplate(name string) (string, error) {
 	// Check user templates
 	userTemplatesDir := getUserTemplatesDir()
 	if userTemplatesDir != "" {
-		templatePath := filepath.Join(userTemplatesDir, name+".yml")
+		templatePath := coreutil.JoinPath(userTemplatesDir, core.Concat(name, ".yml"))
 		if io.Local.IsFile(templatePath) {
 			content, err := io.Local.Read(templatePath)
 			if err != nil {
@@ -104,6 +116,10 @@ func GetTemplate(name string) (string, error) {
 // It supports two syntaxes:
 //   - ${VAR} - required variable, returns error if not provided
 //   - ${VAR:-default} - variable with default value
+//
+// Usage:
+//
+//	content, err := ApplyTemplate("core-dev", vars)
 func ApplyTemplate(name string, vars map[string]string) (string, error) {
 	content, err := GetTemplate(name)
 	if err != nil {
@@ -117,6 +133,10 @@ func ApplyTemplate(name string, vars map[string]string) (string, error) {
 // It supports two syntaxes:
 //   - ${VAR} - required variable, returns error if not provided
 //   - ${VAR:-default} - variable with default value
+//
+// Usage:
+//
+//	content, err := ApplyVariables(raw, vars)
 func ApplyVariables(content string, vars map[string]string) (string, error) {
 	// Pattern for ${VAR:-default} syntax
 	defaultPattern := regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*):-([^}]*)\}`)
@@ -158,7 +178,7 @@ func ApplyVariables(content string, vars map[string]string) (string, error) {
 	})
 
 	if len(missingVars) > 0 {
-		return "", coreerr.E("ApplyVariables", "missing required variables: "+strings.Join(missingVars, ", "), nil)
+		return "", coreerr.E("ApplyVariables", core.Concat("missing required variables: ", core.Join(", ", missingVars...)), nil)
 	}
 
 	return result, nil
@@ -166,6 +186,10 @@ func ApplyVariables(content string, vars map[string]string) (string, error) {
 
 // ExtractVariables extracts all variable names from a template.
 // Returns two slices: required variables and optional variables (with defaults).
+//
+// Usage:
+//
+//	required, optional := ExtractVariables(content)
 func ExtractVariables(content string) (required []string, optional map[string]string) {
 	optional = make(map[string]string)
 	requiredSet := make(map[string]bool)
@@ -206,21 +230,18 @@ func ExtractVariables(content string) (required []string, optional map[string]st
 // Returns empty string if the directory doesn't exist.
 func getUserTemplatesDir() string {
 	// Try workspace-relative .core/linuxkit first
-	cwd, err := os.Getwd()
-	if err == nil {
-		wsDir := filepath.Join(cwd, ".core", "linuxkit")
-		if io.Local.IsDir(wsDir) {
-			return wsDir
-		}
+	wsDir := coreutil.JoinPath(coreutil.CurrentDir(), ".core", "linuxkit")
+	if io.Local.IsDir(wsDir) {
+		return wsDir
 	}
 
 	// Try home directory
-	home, err := os.UserHomeDir()
-	if err != nil {
+	home := coreutil.HomeDir()
+	if home == "" {
 		return ""
 	}
 
-	homeDir := filepath.Join(home, ".core", "linuxkit")
+	homeDir := coreutil.JoinPath(home, ".core", "linuxkit")
 	if io.Local.IsDir(homeDir) {
 		return homeDir
 	}
@@ -243,12 +264,12 @@ func scanUserTemplates(dir string) []Template {
 		}
 
 		name := entry.Name()
-		if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") {
+		if !core.HasSuffix(name, ".yml") && !core.HasSuffix(name, ".yaml") {
 			continue
 		}
 
 		// Extract template name from filename
-		templateName := strings.TrimSuffix(strings.TrimSuffix(name, ".yml"), ".yaml")
+		templateName := core.TrimSuffix(core.TrimSuffix(name, ".yml"), ".yaml")
 
 		// Skip if this is a builtin template name (embedded takes precedence)
 		isBuiltin := false
@@ -263,7 +284,7 @@ func scanUserTemplates(dir string) []Template {
 		}
 
 		// Read file to extract description from comments
-		description := extractTemplateDescription(filepath.Join(dir, name))
+		description := extractTemplateDescription(coreutil.JoinPath(dir, name))
 		if description == "" {
 			description = "User-defined template"
 		}
@@ -271,7 +292,7 @@ func scanUserTemplates(dir string) []Template {
 		templates = append(templates, Template{
 			Name:        templateName,
 			Description: description,
-			Path:        filepath.Join(dir, name),
+			Path:        coreutil.JoinPath(dir, name),
 		})
 	}
 
@@ -286,14 +307,14 @@ func extractTemplateDescription(path string) string {
 		return ""
 	}
 
-	lines := strings.Split(content, "\n")
+	lines := core.Split(content, "\n")
 	var descLines []string
 
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "#") {
+		trimmed := core.Trim(line)
+		if core.HasPrefix(trimmed, "#") {
 			// Remove the # and trim
-			comment := strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
+			comment := core.Trim(core.TrimPrefix(trimmed, "#"))
 			if comment != "" {
 				descLines = append(descLines, comment)
 				// Only take the first meaningful comment line as description

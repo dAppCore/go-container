@@ -3,15 +3,15 @@ package container
 import (
 	"bufio"
 	"context"
-	"fmt"
 	goio "io"
-	"os"
-	"os/exec"
 	"syscall"
 	"time"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/proc"
 )
 
 // LinuxKitManager implements the Manager interface for LinuxKit VMs.
@@ -22,6 +22,10 @@ type LinuxKitManager struct {
 }
 
 // NewLinuxKitManager creates a new LinuxKit manager with auto-detected hypervisor.
+//
+// Usage:
+//
+//	manager, err := NewLinuxKitManager(io.Local)
 func NewLinuxKitManager(m io.Medium) (*LinuxKitManager, error) {
 	statePath, err := DefaultStatePath()
 	if err != nil {
@@ -46,6 +50,10 @@ func NewLinuxKitManager(m io.Medium) (*LinuxKitManager, error) {
 }
 
 // NewLinuxKitManagerWithHypervisor creates a manager with a specific hypervisor.
+//
+// Usage:
+//
+//	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, hypervisor)
 func NewLinuxKitManagerWithHypervisor(m io.Medium, state *State, hypervisor Hypervisor) *LinuxKitManager {
 	return &LinuxKitManager{
 		state:      state,
@@ -119,7 +127,7 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	}
 
 	// Create log file
-	logFile, err := os.Create(logPath)
+	logFile, err := io.Local.Create(logPath)
 	if err != nil {
 		return nil, coreerr.E("LinuxKitManager.Run", "failed to create log file", err)
 	}
@@ -196,11 +204,11 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 
 	// Copy output to both log and stdout
 	go func() {
-		mw := goio.MultiWriter(logFile, os.Stdout)
+		mw := goio.MultiWriter(logFile, proc.Stdout)
 		_, _ = goio.Copy(mw, stdout)
 	}()
 	go func() {
-		mw := goio.MultiWriter(logFile, os.Stderr)
+		mw := goio.MultiWriter(logFile, proc.Stderr)
 		_, _ = goio.Copy(mw, stderr)
 	}()
 
@@ -220,7 +228,7 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 }
 
 // waitForExit monitors a detached process and updates state when it exits.
-func (m *LinuxKitManager) waitForExit(id string, cmd *exec.Cmd) {
+func (m *LinuxKitManager) waitForExit(id string, cmd *proc.Command) {
 	err := cmd.Wait()
 
 	container, ok := m.state.Get(id)
@@ -249,16 +257,7 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) error {
 	}
 
 	// Find the process
-	process, err := os.FindProcess(container.PID)
-	if err != nil {
-		// Process doesn't exist, update state
-		container.Status = StatusStopped
-		_ = m.state.Update(container)
-		return nil
-	}
-
-	// Send SIGTERM
-	if err := process.Signal(syscall.SIGTERM); err != nil {
+	if err := syscall.Kill(container.PID, syscall.SIGTERM); err != nil {
 		// Process might already be gone
 		container.Status = StatusStopped
 		_ = m.state.Update(container)
@@ -267,28 +266,23 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) error {
 
 	// Honour already-cancelled contexts before waiting
 	if err := ctx.Err(); err != nil {
-		_ = process.Signal(syscall.SIGKILL)
+		_ = syscall.Kill(container.PID, syscall.SIGKILL)
 		return err
 	}
 
-	// Wait for graceful shutdown with timeout
-	done := make(chan struct{})
-	go func() {
-		_, _ = process.Wait()
-		close(done)
-	}()
+	deadline := time.After(10 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
 
-	select {
-	case <-done:
-		// Process exited gracefully
-	case <-time.After(10 * time.Second):
-		// Force kill
-		_ = process.Signal(syscall.SIGKILL)
-		<-done
-	case <-ctx.Done():
-		// Context cancelled
-		_ = process.Signal(syscall.SIGKILL)
-		return ctx.Err()
+	for isProcessRunning(container.PID) {
+		select {
+		case <-deadline:
+			_ = syscall.Kill(container.PID, syscall.SIGKILL)
+		case <-ctx.Done():
+			_ = syscall.Kill(container.PID, syscall.SIGKILL)
+			return ctx.Err()
+		case <-ticker.C:
+		}
 	}
 
 	container.Status = StatusStopped
@@ -317,14 +311,10 @@ func (m *LinuxKitManager) List(ctx context.Context) ([]*Container, error) {
 
 // isProcessRunning checks if a process with the given PID is still running.
 func isProcessRunning(pid int) bool {
-	process, err := os.FindProcess(pid)
-	if err != nil {
+	if pid <= 0 {
 		return false
 	}
-
-	// On Unix, FindProcess always succeeds, so we need to send signal 0 to check
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	return syscall.Kill(pid, syscall.Signal(0)) == nil
 }
 
 // Logs returns a reader for the container's log output.
@@ -436,7 +426,7 @@ func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) err
 
 	// Build SSH command
 	sshArgs := []string{
-		"-p", fmt.Sprintf("%d", sshPort),
+		"-p", core.Sprintf("%d", sshPort),
 		"-o", "StrictHostKeyChecking=yes",
 		"-o", "UserKnownHostsFile=~/.core/known_hosts",
 		"-o", "LogLevel=ERROR",
@@ -444,10 +434,10 @@ func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) err
 	}
 	sshArgs = append(sshArgs, cmd...)
 
-	sshCmd := exec.CommandContext(ctx, "ssh", sshArgs...)
-	sshCmd.Stdin = os.Stdin
-	sshCmd.Stdout = os.Stdout
-	sshCmd.Stderr = os.Stderr
+	sshCmd := proc.NewCommandContext(ctx, "ssh", sshArgs...)
+	sshCmd.Stdin = proc.Stdin
+	sshCmd.Stdout = proc.Stdout
+	sshCmd.Stderr = proc.Stderr
 
 	return sshCmd.Run()
 }

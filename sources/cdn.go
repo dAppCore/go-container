@@ -2,14 +2,14 @@ package sources
 
 import (
 	"context"
-	"fmt"
 	goio "io"
 	"net/http"
-	"os"
-	"path/filepath"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+
+	"dappco.re/go/core/container/internal/coreutil"
 )
 
 // CDNSource downloads images from a CDN or S3 bucket.
@@ -21,6 +21,10 @@ type CDNSource struct {
 var _ ImageSource = (*CDNSource)(nil)
 
 // NewCDNSource creates a new CDN source.
+//
+// Usage:
+//
+//	src := NewCDNSource(cfg)
 func NewCDNSource(cfg SourceConfig) *CDNSource {
 	return &CDNSource{config: cfg}
 }
@@ -38,7 +42,7 @@ func (s *CDNSource) Available() bool {
 // LatestVersion fetches version from manifest or returns "latest".
 func (s *CDNSource) LatestVersion(ctx context.Context) (string, error) {
 	// Try to fetch manifest.json for version info
-	url := fmt.Sprintf("%s/manifest.json", s.config.CDNURL)
+	url := core.Sprintf("%s/manifest.json", s.config.CDNURL)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "latest", nil
@@ -56,7 +60,7 @@ func (s *CDNSource) LatestVersion(ctx context.Context) (string, error) {
 
 // Download downloads the image from CDN.
 func (s *CDNSource) Download(ctx context.Context, m io.Medium, dest string, progress func(downloaded, total int64)) error {
-	url := fmt.Sprintf("%s/%s", s.config.CDNURL, s.config.ImageName)
+	url := core.Sprintf("%s/%s", s.config.CDNURL, s.config.ImageName)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -70,7 +74,7 @@ func (s *CDNSource) Download(ctx context.Context, m io.Medium, dest string, prog
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return coreerr.E("cdn.Download", fmt.Sprintf("HTTP %d", resp.StatusCode), nil)
+		return coreerr.E("cdn.Download", core.Sprintf("HTTP %d", resp.StatusCode), nil)
 	}
 
 	// Ensure dest directory exists
@@ -79,8 +83,8 @@ func (s *CDNSource) Download(ctx context.Context, m io.Medium, dest string, prog
 	}
 
 	// Create destination file
-	destPath := filepath.Join(dest, s.config.ImageName)
-	f, err := os.Create(destPath)
+	destPath := coreutil.JoinPath(dest, s.config.ImageName)
+	f, err := m.Create(destPath)
 	if err != nil {
 		return coreerr.E("cdn.Download", "create destination file", err)
 	}
