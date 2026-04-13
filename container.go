@@ -7,7 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"io"
+	goio "io"
 	"time"
 )
 
@@ -79,7 +79,7 @@ type Manager interface {
 	List(ctx context.Context) ([]*Container, error)
 	// Logs returns a reader for the container's log output.
 	// If follow is true, the reader will continue to stream new log entries.
-	Logs(ctx context.Context, id string, follow bool) (io.ReadCloser, error)
+	Logs(ctx context.Context, id string, follow bool) (goio.ReadCloser, error)
 	// Exec executes a command inside the container via SSH.
 	Exec(ctx context.Context, id string, cmd []string) error
 }
