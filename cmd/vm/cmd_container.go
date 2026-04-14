@@ -23,6 +23,8 @@ var (
 	runSSHPort      int
 	runTemplateName string
 	runVarFlags     []string
+	runRuntime      string
+	runGPU          bool
 )
 
 // addVMRunCommand adds the 'run' command under vm.
@@ -38,6 +40,7 @@ func addVMRunCommand(parent *cli.Command) {
 				Memory:  runMemory,
 				CPUs:    runCPUs,
 				SSHPort: runSSHPort,
+				GPU:     runGPU,
 			}
 
 			// If template is specified, build and run from template
@@ -52,7 +55,7 @@ func addVMRunCommand(parent *cli.Command) {
 			}
 			image := args[0]
 
-			return runContainer(image, runName, runDetach, runMemory, runCPUs, runSSHPort)
+			return runContainer(image, runName, runDetach, runMemory, runCPUs, runSSHPort, runRuntime, runGPU)
 		},
 	}
 
@@ -63,14 +66,46 @@ func addVMRunCommand(parent *cli.Command) {
 	runCmd.Flags().IntVar(&runSSHPort, "ssh-port", 0, i18n.T("cmd.vm.run.flag.ssh_port"))
 	runCmd.Flags().StringVar(&runTemplateName, "template", "", i18n.T("cmd.vm.run.flag.template"))
 	runCmd.Flags().StringArrayVar(&runVarFlags, "var", nil, i18n.T("cmd.vm.run.flag.var"))
+	runCmd.Flags().StringVar(&runRuntime, "runtime", "", i18n.T("cmd.vm.run.flag.runtime"))
+	runCmd.Flags().BoolVar(&runGPU, "gpu", false, i18n.T("cmd.vm.run.flag.gpu"))
 
 	parent.AddCommand(runCmd)
 }
 
-func runContainer(image, name string, detach bool, memory, cpus, sshPort int) error {
-	manager, err := container.NewLinuxKitManager(io.Local)
+// resolveRuntime maps the --runtime flag onto a RuntimeType. Empty string
+// triggers auto-detection via container.Detect().
+//
+// Usage:
+//
+//	rt, err := resolveRuntime("apple")
+func resolveRuntime(flag string) (container.RuntimeType, error) {
+	switch core.Lower(flag) {
+	case "", "auto":
+		rt := container.Detect()
+		if rt.Type == container.RuntimeNone {
+			return container.RuntimeNone, coreerr.E("resolveRuntime", i18n.T("cmd.vm.run.error.no_runtime"), nil)
+		}
+		return rt.Type, nil
+	case "apple":
+		return container.RuntimeApple, nil
+	case "docker":
+		return container.RuntimeDocker, nil
+	case "podman":
+		return container.RuntimePodman, nil
+	case "linuxkit":
+		return container.RuntimeLinuxKit, nil
+	case "tim":
+		// TIM is an image format; route it to the LinuxKit provider.
+		return container.RuntimeLinuxKit, nil
+	default:
+		return container.RuntimeNone, coreerr.E("resolveRuntime", "unknown runtime: "+flag, nil)
+	}
+}
+
+func runContainer(image, name string, detach bool, memory, cpus, sshPort int, runtimeFlag string, gpu bool) error {
+	rtType, err := resolveRuntime(runtimeFlag)
 	if err != nil {
-		return coreerr.E("runContainer", i18n.T("i18n.fail.init", "container manager"), err)
+		return err
 	}
 
 	opts := container.RunOptions{
@@ -79,11 +114,24 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int) er
 		Memory:  memory,
 		CPUs:    cpus,
 		SSHPort: sshPort,
+		GPU:     gpu,
 	}
 
 	core.Print(nil, "%s %s", dimStyle.Render(i18n.Label("image")), image)
 	if name != "" {
 		core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.name")), name)
+	}
+	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.runtime")), string(rtType))
+
+	if rtType == container.RuntimeApple {
+		return runContainerApple(image, name, detach, memory, cpus, gpu)
+	}
+
+	// LinuxKit (default) path — also used for Docker/Podman which route through
+	// the LinuxKit manager's hypervisor wrapper until native providers land.
+	manager, err := container.NewLinuxKitManager(io.Local)
+	if err != nil {
+		return coreerr.E("runContainer", i18n.T("i18n.fail.init", "container manager"), err)
 	}
 	core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.hypervisor")), manager.Hypervisor().Name())
 	core.Println()
@@ -105,6 +153,44 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int) er
 		core.Print(nil, "%s %s", dimStyle.Render(i18n.T("cmd.vm.label.container_stopped")), c.ID)
 	}
 
+	return nil
+}
+
+// runContainerApple boots an image through the AppleProvider. Ports and
+// volumes are omitted — they are handled via the Apple CLI directly when
+// declared on the image's source config.
+func runContainerApple(image, name string, detach bool, memory, cpus int, gpu bool) error {
+	p := container.NewAppleProvider()
+	if !p.Available() {
+		return coreerr.E("runContainerApple", i18n.T("cmd.vm.run.error.apple_unavailable"), nil)
+	}
+	core.Println()
+
+	img := &container.Image{
+		Name:     name,
+		Path:     image,
+		Format:   container.DetectImageFormat(image),
+		Provider: string(container.RuntimeApple),
+	}
+
+	opts := []container.RunOption{
+		container.WithName(name),
+		container.WithMemory(memory),
+		container.WithCPUs(cpus),
+		container.WithDetach(detach),
+	}
+	if gpu {
+		opts = append(opts, container.WithGPU(true))
+	}
+
+	c, err := p.Run(img, opts...)
+	if err != nil {
+		return coreerr.E("runContainerApple", i18n.T("i18n.fail.run", "container"), err)
+	}
+
+	core.Print(nil, "%s %s", successStyle.Render(i18n.Label("started")), c.ID)
+	core.Print(nil, "%s %d", dimStyle.Render(i18n.T("cmd.vm.label.pid")), c.PID)
+	core.Println()
 	return nil
 }
 

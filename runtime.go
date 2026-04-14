@@ -232,3 +232,52 @@ func captureVersion(path string, flag string) string {
 	}
 	return parts[0]
 }
+
+// ProviderFor returns a Provider matching the requested runtime type. If the
+// requested runtime is not available on the host the function returns an
+// error — callers should probe with Detect() first for auto-selection.
+//
+// Usage:
+//
+//	p, err := container.ProviderFor(container.RuntimeApple)
+func ProviderFor(rt RuntimeType) (Provider, error) {
+	switch rt {
+	case RuntimeApple:
+		p := NewAppleProvider()
+		if !p.Available() {
+			return nil, newRuntimeUnavailableError(rt)
+		}
+		return p, nil
+	default:
+		return nil, newRuntimeUnsupportedError(rt)
+	}
+}
+
+// HasRuntime reports whether a runtime of the given type is detected on the
+// host. Convenience wrapper over DetectAll for one-line conditional checks.
+//
+// Usage:
+//
+//	if container.HasRuntime(container.RuntimeApple) { ... }
+func HasRuntime(rt RuntimeType) bool {
+	for _, got := range DetectAll() {
+		if got.Type == rt {
+			return true
+		}
+	}
+	return false
+}
+
+// runtimeUnavailable returns a not-available error.
+func newRuntimeUnavailableError(rt RuntimeType) error {
+	return &runtimeError{msg: "runtime not available on this host: " + string(rt)}
+}
+
+// runtimeUnsupported returns a not-wired error.
+func newRuntimeUnsupportedError(rt RuntimeType) error {
+	return &runtimeError{msg: "no Provider implementation for runtime: " + string(rt)}
+}
+
+type runtimeError struct{ msg string }
+
+func (e *runtimeError) Error() string { return e.msg }

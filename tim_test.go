@@ -112,3 +112,61 @@ func TestTIM_DecryptLayer_WrongKey_Ugly(t *testing.T) {
 
 	assert.Error(t, err)
 }
+
+func TestTIM_EncryptTIMOnMedium_DecryptSTIMOnMedium_Good(t *testing.T) {
+	// Full on-disk round-trip: lay down a plaintext layer, seal it, and
+	// verify DecryptSTIMOnMedium restores the payload.
+	tmp := t.TempDir()
+	sandbox, err := io.NewSandboxed(tmp)
+	require.NoError(t, err)
+
+	root := "bundle-01"
+	appDir := coreutil.JoinPath(root, "rootfs", TIMLayerApp)
+	require.NoError(t, sandbox.EnsureDir(appDir))
+	require.NoError(t, sandbox.Write(coreutil.JoinPath(appDir, "server.bin"), "hello server"))
+
+	bundle := NewTIMBundle("worker-01", root)
+	key := []byte("workspace-key-32-bytes-xxxxxxxxx")
+
+	stim, err := EncryptTIMOnMedium(sandbox, bundle, key)
+	require.NoError(t, err)
+	assert.Equal(t, "stim", stim.Scheme)
+	sealedPath := coreutil.JoinPath(root, "rootfs", TIMLayerApp+".stim")
+	assert.True(t, sandbox.IsFile(sealedPath), "sealed layer artefact must exist on disk")
+
+	// Remove plaintext — decryption must recreate it.
+	require.NoError(t, sandbox.DeleteAll(appDir))
+
+	out, err := DecryptSTIMOnMedium(sandbox, stim, key)
+	require.NoError(t, err)
+	assert.Equal(t, "worker-01", out.ID)
+	assert.True(t, sandbox.IsDir(appDir))
+}
+
+func TestTIM_EncryptTIMOnMedium_MissingMedium_Bad(t *testing.T) {
+	bundle := NewTIMBundle("worker-01", "/tmp/x")
+
+	_, err := EncryptTIMOnMedium(nil, bundle, []byte("k"))
+
+	assert.Error(t, err)
+}
+
+func TestTIM_DecryptSTIMOnMedium_WrongKey_Ugly(t *testing.T) {
+	// Sealing with key A and unsealing with key B must fail — the payload
+	// must not leak under key mismatch.
+	tmp := t.TempDir()
+	sandbox, err := io.NewSandboxed(tmp)
+	require.NoError(t, err)
+
+	root := "bundle-01"
+	appDir := coreutil.JoinPath(root, "rootfs", TIMLayerApp)
+	require.NoError(t, sandbox.EnsureDir(appDir))
+	require.NoError(t, sandbox.Write(coreutil.JoinPath(appDir, "server.bin"), "hello"))
+
+	bundle := NewTIMBundle("worker-01", root)
+	stim, err := EncryptTIMOnMedium(sandbox, bundle, []byte("key-a-32-bytes-xxxxxxxxxxxxxxxxx"))
+	require.NoError(t, err)
+
+	_, err = DecryptSTIMOnMedium(sandbox, stim, []byte("key-b-32-bytes-xxxxxxxxxxxxxxxxx"))
+	assert.Error(t, err)
+}

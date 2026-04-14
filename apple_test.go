@@ -1,6 +1,7 @@
 package container
 
 import (
+	"context"
 	"runtime"
 	"testing"
 
@@ -78,4 +79,38 @@ func TestApple_Encrypt_MissingKey_Bad(t *testing.T) {
 	_, err := p.Encrypt(img, nil)
 
 	assert.Error(t, err)
+}
+
+func TestApple_Decrypt_MissingKey_Bad(t *testing.T) {
+	p := NewAppleProvider()
+	enc := &EncryptedImage{Path: "/tmp/foo.stim"}
+
+	_, err := p.Decrypt(enc, nil)
+
+	assert.Error(t, err)
+}
+
+func TestApple_Tracked_Empty_Good(t *testing.T) {
+	p := NewAppleProvider()
+
+	assert.Empty(t, p.Tracked(), "a fresh provider tracks no containers")
+}
+
+func TestApple_Wait_UnknownID_Bad(t *testing.T) {
+	p := NewAppleProvider()
+
+	err := p.Wait(context.Background(), "no-such-container")
+
+	assert.Error(t, err)
+}
+
+func TestApple_AvailableOnNonDarwin_Ugly(t *testing.T) {
+	// Available must respect GOOS — on Linux/Windows the apple binary name
+	// may resolve to something that isn't Apple's runtime, but Available()
+	// should still refuse.
+	p := &AppleProvider{Binary: "container"}
+
+	if runtime.GOOS != "darwin" {
+		assert.False(t, p.Available())
+	}
 }

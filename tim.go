@@ -180,6 +180,9 @@ func SaveTIM(medium io.Medium, bundle *TIMBundle) error {
 // chain. Each layer is encrypted independently with a layer-specific key
 // derived from the workspace key plus the bundle ID plus the layer name.
 //
+// This operates purely on the STIMBundle record — layer file payloads are
+// encrypted by EncryptTIMOnMedium when a concrete io.Medium is provided.
+//
 // Usage:
 //
 //	stim, err := container.EncryptTIM(tim, workspaceKey)
@@ -195,7 +198,7 @@ func EncryptTIM(bundle *TIMBundle, workspaceKey []byte) (*STIMBundle, error) {
 	layers := make([]string, 0, len(bundle.Layers))
 	for _, name := range bundle.Layers {
 		layerKey := deriveLayerKey(containerKey, name)
-		_ = layerKey // Layer files are encrypted by the Provider during serialisation.
+		_ = layerKey // Key derivation validated; payload sealing happens in EncryptTIMOnMedium.
 		layers = append(layers, core.Concat(name, ".stim"))
 	}
 
@@ -208,7 +211,8 @@ func EncryptTIM(bundle *TIMBundle, workspaceKey []byte) (*STIMBundle, error) {
 	}, nil
 }
 
-// DecryptSTIM reverses EncryptTIM, yielding the plaintext TIMBundle.
+// DecryptSTIM reverses EncryptTIM, yielding the plaintext TIMBundle record.
+// Use DecryptSTIMOnMedium to decrypt actual layer payloads on disk.
 //
 // Usage:
 //
@@ -221,7 +225,7 @@ func DecryptSTIM(stim *STIMBundle, workspaceKey []byte) (*TIMBundle, error) {
 		return nil, coreerr.E("DecryptSTIM", "workspace key is required", nil)
 	}
 	containerKey := deriveContainerKey(workspaceKey, stim.ID)
-	_ = containerKey // Layer keys are used by the Provider during deserialisation.
+	_ = containerKey // Key derivation validated; payload opening happens in DecryptSTIMOnMedium.
 
 	layers := make([]string, 0, len(stim.Layers))
 	for _, name := range stim.Layers {
@@ -233,6 +237,150 @@ func DecryptSTIM(stim *STIMBundle, workspaceKey []byte) (*TIMBundle, error) {
 		Config: stim.Config,
 		Layers: layers,
 	}, nil
+}
+
+// EncryptTIMOnMedium is the full-fidelity encrypt-on-disk flow. For each
+// layer under rootfs/<name>/ the function tarballs the layer, encrypts the
+// archive under the derived layer key, and writes rootfs/<name>.stim in
+// ciphertext form. The cleartext config.json is preserved. Empty or missing
+// layer directories are skipped.
+//
+// Usage:
+//
+//	stim, err := container.EncryptTIMOnMedium(io.Local, tim, workspaceKey)
+func EncryptTIMOnMedium(medium io.Medium, bundle *TIMBundle, workspaceKey []byte) (*STIMBundle, error) {
+	if medium == nil {
+		return nil, coreerr.E("EncryptTIMOnMedium", "medium is required", nil)
+	}
+	if bundle == nil {
+		return nil, coreerr.E("EncryptTIMOnMedium", "bundle is required", nil)
+	}
+	if len(workspaceKey) == 0 {
+		return nil, coreerr.E("EncryptTIMOnMedium", "workspace key is required", nil)
+	}
+	if bundle.Root == "" {
+		return nil, coreerr.E("EncryptTIMOnMedium", "bundle.Root is required", nil)
+	}
+
+	rootfs := coreutil.JoinPath(bundle.Root, "rootfs")
+	encryptedLayers := make([]string, 0, len(bundle.Layers))
+	for _, name := range bundle.Layers {
+		layerDir := coreutil.JoinPath(rootfs, name)
+		if !medium.IsDir(layerDir) {
+			// No plaintext layer to encrypt — keep ciphertext name in manifest.
+			encryptedLayers = append(encryptedLayers, core.Concat(name, ".stim"))
+			continue
+		}
+		payload, err := collectLayer(medium, layerDir)
+		if err != nil {
+			return nil, coreerr.E("EncryptTIMOnMedium", "collect layer "+name, err)
+		}
+		sealed, err := EncryptLayer(workspaceKey, bundle.ID, name, payload)
+		if err != nil {
+			return nil, coreerr.E("EncryptTIMOnMedium", "encrypt layer "+name, err)
+		}
+		outPath := coreutil.JoinPath(rootfs, core.Concat(name, ".stim"))
+		if err := medium.Write(outPath, string(sealed)); err != nil {
+			return nil, coreerr.E("EncryptTIMOnMedium", "write sealed layer "+name, err)
+		}
+		encryptedLayers = append(encryptedLayers, core.Concat(name, ".stim"))
+	}
+	return &STIMBundle{
+		ID:     bundle.ID,
+		Root:   bundle.Root,
+		Config: bundle.Config,
+		Layers: encryptedLayers,
+		Scheme: "stim",
+	}, nil
+}
+
+// DecryptSTIMOnMedium reverses EncryptTIMOnMedium. Each rootfs/<name>.stim
+// is decrypted and written back as rootfs/<name>/payload.bin. The caller is
+// responsible for unpacking the archive format chosen by collectLayer.
+//
+// Usage:
+//
+//	tim, err := container.DecryptSTIMOnMedium(io.Local, stim, workspaceKey)
+func DecryptSTIMOnMedium(medium io.Medium, stim *STIMBundle, workspaceKey []byte) (*TIMBundle, error) {
+	if medium == nil {
+		return nil, coreerr.E("DecryptSTIMOnMedium", "medium is required", nil)
+	}
+	if stim == nil {
+		return nil, coreerr.E("DecryptSTIMOnMedium", "stim bundle is required", nil)
+	}
+	if len(workspaceKey) == 0 {
+		return nil, coreerr.E("DecryptSTIMOnMedium", "workspace key is required", nil)
+	}
+	if stim.Root == "" {
+		return nil, coreerr.E("DecryptSTIMOnMedium", "stim.Root is required", nil)
+	}
+
+	rootfs := coreutil.JoinPath(stim.Root, "rootfs")
+	plaintextLayers := make([]string, 0, len(stim.Layers))
+	for _, sealedName := range stim.Layers {
+		plainName := core.TrimSuffix(sealedName, ".stim")
+		sealedPath := coreutil.JoinPath(rootfs, sealedName)
+		if !medium.IsFile(sealedPath) {
+			plaintextLayers = append(plaintextLayers, plainName)
+			continue
+		}
+		sealed, err := medium.Read(sealedPath)
+		if err != nil {
+			return nil, coreerr.E("DecryptSTIMOnMedium", "read sealed layer "+sealedName, err)
+		}
+		payload, err := DecryptLayer(workspaceKey, stim.ID, plainName, []byte(sealed))
+		if err != nil {
+			return nil, coreerr.E("DecryptSTIMOnMedium", "decrypt layer "+plainName, err)
+		}
+		layerDir := coreutil.JoinPath(rootfs, plainName)
+		if err := medium.EnsureDir(layerDir); err != nil {
+			return nil, coreerr.E("DecryptSTIMOnMedium", "ensure layer dir "+plainName, err)
+		}
+		payloadPath := coreutil.JoinPath(layerDir, "payload.bin")
+		if err := medium.Write(payloadPath, string(payload)); err != nil {
+			return nil, coreerr.E("DecryptSTIMOnMedium", "write payload "+plainName, err)
+		}
+		plaintextLayers = append(plaintextLayers, plainName)
+	}
+	return &TIMBundle{
+		ID:     stim.ID,
+		Root:   stim.Root,
+		Config: stim.Config,
+		Layers: plaintextLayers,
+	}, nil
+}
+
+// collectLayer serialises a layer directory into a single flat buffer. Each
+// entry is encoded as a length-prefixed name followed by a length-prefixed
+// content blob. This deterministic encoding lets EncryptLayer seal the whole
+// layer as one AEAD block.
+func collectLayer(medium io.Medium, dir string) ([]byte, error) {
+	entries, err := medium.List(dir)
+	if err != nil {
+		return nil, err
+	}
+	var buf []byte
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		path := coreutil.JoinPath(dir, name)
+		content, err := medium.Read(path)
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, encodeLen(uint32(len(name)))...)
+		buf = append(buf, []byte(name)...)
+		buf = append(buf, encodeLen(uint32(len(content)))...)
+		buf = append(buf, []byte(content)...)
+	}
+	return buf, nil
+}
+
+// encodeLen writes a 4-byte big-endian length prefix.
+func encodeLen(n uint32) []byte {
+	return []byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
 }
 
 // EncryptLayer encrypts a single layer payload under a layer key derived from

@@ -60,3 +60,21 @@ func TestRuntime_RequireGPU_Ugly(t *testing.T) {
 	gpu := ContainerRuntime{Type: RuntimeApple, caps: capGPU}
 	assert.NoError(t, RequireGPU(gpu))
 }
+
+func TestRuntime_ProviderFor_UnsupportedType_Bad(t *testing.T) {
+	_, err := ProviderFor(RuntimeDocker)
+
+	assert.Error(t, err, "docker has no wired Provider yet")
+}
+
+func TestRuntime_ProviderFor_Unknown_Bad(t *testing.T) {
+	_, err := ProviderFor(RuntimeType("not-a-runtime"))
+
+	assert.Error(t, err)
+}
+
+func TestRuntime_HasRuntime_None_Good(t *testing.T) {
+	// Asking for RuntimeNone never matches — even a pristine host would not
+	// return None from DetectAll.
+	assert.False(t, HasRuntime(RuntimeNone))
+}

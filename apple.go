@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"runtime"
+	"sync"
 	"time"
 
 	core "dappco.re/go/core"
@@ -41,6 +42,18 @@ type AppleProvider struct {
 	Binary string
 	// Version is the detected framework version (populated when known).
 	Version string
+
+	mu       sync.Mutex
+	tracked  map[string]*appleTracked
+}
+
+// appleTracked records a detached apple container process for lifecycle
+// observation. The AppleProvider populates this map on Run and drains it when
+// the underlying process exits.
+type appleTracked struct {
+	Container *Container
+	Cmd       *proc.Command
+	Done      chan struct{}
 }
 
 // NewAppleProvider returns an AppleProvider configured with the default
@@ -171,7 +184,76 @@ func (a *AppleProvider) Run(image *Image, opts ...RunOption) (*Container, error)
 	if cmd.Process != nil {
 		ctr.PID = cmd.Process.Pid
 	}
+
+	a.track(ctr, cmd)
 	return ctr, nil
+}
+
+// track registers a running apple container with the provider so state can
+// be observed after the caller releases the handle. Exits update the
+// Container.Status field so later List/Stat calls see the final state.
+func (a *AppleProvider) track(ctr *Container, cmd *proc.Command) {
+	if cmd == nil {
+		return
+	}
+	a.mu.Lock()
+	if a.tracked == nil {
+		a.tracked = make(map[string]*appleTracked)
+	}
+	entry := &appleTracked{Container: ctr, Cmd: cmd, Done: make(chan struct{})}
+	a.tracked[ctr.ID] = entry
+	a.mu.Unlock()
+
+	go func() {
+		err := cmd.Wait()
+		a.mu.Lock()
+		if err != nil {
+			ctr.Status = StatusError
+		} else {
+			ctr.Status = StatusStopped
+		}
+		close(entry.Done)
+		a.mu.Unlock()
+	}()
+}
+
+// Tracked returns a snapshot of every running apple container this provider
+// has launched. The returned records are safe to read but must not be mutated.
+//
+// Usage:
+//
+//	for _, c := range p.Tracked() { core.Println(c.ID, c.Status) }
+func (a *AppleProvider) Tracked() []*Container {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := make([]*Container, 0, len(a.tracked))
+	for _, t := range a.tracked {
+		// Return a shallow copy so callers cannot race the tracker goroutine.
+		c := *t.Container
+		out = append(out, &c)
+	}
+	return out
+}
+
+// Wait blocks until the tracked container with id has exited, or until ctx
+// is cancelled. Returns nil once the container is no longer running.
+//
+// Usage:
+//
+//	err := p.Wait(ctx, ctr.ID)
+func (a *AppleProvider) Wait(ctx context.Context, id string) error {
+	a.mu.Lock()
+	entry, ok := a.tracked[id]
+	a.mu.Unlock()
+	if !ok {
+		return coreerr.E("AppleProvider.Wait", "container not tracked: "+id, nil)
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-entry.Done:
+		return nil
+	}
 }
 
 // Encrypt wraps an Image with the sigil-chain encryption scheme (STIM). For
