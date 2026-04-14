@@ -63,6 +63,9 @@ type RunOptions struct {
 	SSHPort int
 	// SSHKey is the path to the SSH private key for exec commands.
 	SSHKey string
+	// GPU requests GPU passthrough into the container. Providers that do not
+	// support GPU passthrough return an error when this is set.
+	GPU bool
 }
 
 // Manager defines the interface for container lifecycle management.
