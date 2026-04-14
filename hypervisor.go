@@ -1,7 +1,9 @@
 package container
 
 import (
+	"bytes"
 	"context"
+	"os"
 	"runtime"
 
 	core "dappco.re/go/core"
@@ -89,6 +91,8 @@ func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *H
 		args = append(args, "-drive", core.Sprintf("file=%s,format=qcow2", image))
 	case FormatVMDK:
 		args = append(args, "-drive", core.Sprintf("file=%s,format=vmdk", image))
+	case FormatAMI:
+		args = append(args, "-drive", core.Sprintf("file=%s,format=raw", image))
 	case FormatRaw:
 		args = append(args, "-drive", core.Sprintf("file=%s,format=raw", image))
 	}
@@ -198,7 +202,7 @@ func (h *HyperkitHypervisor) BuildCommand(ctx context.Context, image string, opt
 	switch format {
 	case FormatISO:
 		args = append(args, "-s", core.Sprintf("2:0,ahci-cd,%s", image))
-	case FormatQCOW2, FormatVMDK, FormatRaw:
+	case FormatQCOW2, FormatVMDK, FormatRaw, FormatAMI:
 		args = append(args, "-s", core.Sprintf("2:0,virtio-blk,%s", image))
 	}
 
@@ -228,6 +232,10 @@ func (h *HyperkitHypervisor) BuildCommand(ctx context.Context, image string, opt
 //
 //	format := DetectImageFormat("/tmp/core-dev.qcow2")
 func DetectImageFormat(path string) ImageFormat {
+	if path == "" {
+		return FormatUnknown
+	}
+
 	ext := core.Lower(core.PathExt(path))
 	switch ext {
 	case ".iso":
@@ -236,11 +244,36 @@ func DetectImageFormat(path string) ImageFormat {
 		return FormatQCOW2
 	case ".vmdk":
 		return FormatVMDK
+	case ".ami":
+		return FormatAMI
 	case ".raw", ".img":
 		return FormatRaw
 	default:
-		return FormatUnknown
+		magic := detectImageMagic(path, 8)
+		if bytes.Equal(magic, []byte("QFI\xfb")) {
+			return FormatQCOW2
+		}
+		if bytes.HasPrefix(magic, []byte("KDMV")) {
+			return FormatVMDK
+		}
 	}
+
+	return FormatUnknown
+}
+
+func detectImageMagic(path string, limit int) []byte {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+
+	magic := make([]byte, limit)
+	n, err := file.Read(magic)
+	if err != nil || n == 0 {
+		return nil
+	}
+	return magic[:n]
 }
 
 // DetectHypervisor returns the best available hypervisor for the current platform.

@@ -107,6 +107,8 @@ const (
 	FormatQCOW2 ImageFormat = "qcow2"
 	// FormatVMDK is a VMware disk image format.
 	FormatVMDK ImageFormat = "vmdk"
+	// FormatAMI is an AWS AMI image format.
+	FormatAMI ImageFormat = "ami"
 	// FormatRaw is a raw disk image format.
 	FormatRaw ImageFormat = "raw"
 	// FormatUnknown indicates an unknown image format.
