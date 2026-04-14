@@ -7,12 +7,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	core "dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
 	"dappco.re/go/core/container/internal/coreutil"
 	"dappco.re/go/core/container/internal/proc"
 	"dappco.re/go/core/io"
+	coreerr "dappco.re/go/core/log"
 )
 
 // Provider defines a generic image lifecycle interface.
@@ -529,7 +530,22 @@ func (a *AppleProvider) Build(config ContainerConfig) (*Image, error) {
 	}, nil
 }
 
-// Run starts an Apple container image.
+// Run starts an Apple container image by invoking the detected `container`
+// CLI shipped with the Apple Containerisation framework (macOS 26+).
+//
+// The image.Path may be a bundle directory/file or a named image reference
+// understood by the Apple runtime. RunOptions map to CLI flags:
+//
+//	WithName(n)     → --name n
+//	WithDetach(t)   → --detach when true
+//	WithMemoryMB(m) → --memory mMiB
+//	WithCPUs(n)     → --cpus n
+//	WithPorts(map)  → repeated --publish host:guest
+//	WithVolumes(m)  → repeated --volume host:guest
+//	WithGPU(true)   → refused (Apple does not expose Metal passthrough)
+//
+//	provider := container.NewAppleProvider()
+//	ctr, err := provider.Run(image, container.WithMemoryMB(4096), container.WithDetach(true))
 func (a *AppleProvider) Run(image *Image, opts ...RunOption) (*Container, error) {
 	if a == nil || a.runtime == "" {
 		return nil, coreerr.E("AppleProvider.Run", "apple provider unavailable", nil)
@@ -542,14 +558,79 @@ func (a *AppleProvider) Run(image *Image, opts ...RunOption) (*Container, error)
 	}
 
 	cfg := resolveRunConfig(opts...)
-	_ = cfg
 
 	if cfg.gpu {
 		return nil, coreerr.E("AppleProvider.Run", "Apple provider does not expose GPU capability", nil)
 	}
 
-	// Apple Containers are expected to be executed via containerd bindings.
-	return nil, coreerr.E("AppleProvider.Run", "apple runtime execution is not wired in this build", nil)
+	id, err := GenerateID()
+	if err != nil {
+		return nil, coreerr.E("AppleProvider.Run", "generate container id", err)
+	}
+
+	args := []string{"run"}
+	if cfg.detach {
+		args = append(args, "--detach")
+	}
+	name := strings.TrimSpace(cfg.name)
+	if name == "" {
+		name = id[:8]
+	}
+	args = append(args, "--name", name)
+	if cfg.memory > 0 {
+		args = append(args, "--memory", core.Sprintf("%dMiB", cfg.memory))
+	}
+	if cfg.cpus > 0 {
+		args = append(args, "--cpus", core.Sprintf("%d", cfg.cpus))
+	}
+	for host, guest := range cfg.ports {
+		args = append(args, "--publish", core.Sprintf("%d:%d", host, guest))
+	}
+	for host, guest := range cfg.volumes {
+		args = append(args, "--volume", core.Sprintf("%s:%s", host, guest))
+	}
+	args = append(args, image.Path)
+
+	cmd := proc.NewCommand(a.runtime, args...)
+	cmd.Stdout = proc.Stdout
+	cmd.Stderr = proc.Stderr
+
+	if cfg.detach {
+		if err := cmd.Start(); err != nil {
+			return nil, coreerr.E("AppleProvider.Run", "start apple container", err)
+		}
+		return &Container{
+			ID:        id,
+			Name:      name,
+			Image:     image.Path,
+			Status:    StatusRunning,
+			StartedAt: time.Now(),
+			Ports:     cfg.ports,
+			Memory:    cfg.memory,
+			CPUs:      cfg.cpus,
+			SSHPort:   cfg.sshPort,
+			SSHKey:    cfg.sshKey,
+			PID:       cmd.Process.Pid,
+		}, nil
+	}
+
+	if err := cmd.Run(); err != nil {
+		return &Container{
+			ID:        id,
+			Name:      name,
+			Image:     image.Path,
+			Status:    StatusError,
+			StartedAt: time.Now(),
+		}, coreerr.E("AppleProvider.Run", "apple container exited with error", err)
+	}
+
+	return &Container{
+		ID:        id,
+		Name:      name,
+		Image:     image.Path,
+		Status:    StatusStopped,
+		StartedAt: time.Now(),
+	}, nil
 }
 
 // Encrypt is not yet supported for Apple container images.
