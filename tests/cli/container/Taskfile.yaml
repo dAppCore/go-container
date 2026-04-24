@@ -1,0 +1,33 @@
+version: "3"
+
+tasks:
+  build:
+    dir: ../../..
+    cmds:
+      - go build ./...
+
+  test:
+    dir: ../../..
+    cmds:
+      - go test -count=1 -race ./...
+
+  vet:
+    dir: ../../..
+    cmds:
+      - go vet ./...
+
+  test-state:
+    dir: ../../..
+    cmds:
+      - go test -count=1 -run 'TestState_(NewState|Add|Update|Remove)_Good$' .
+
+  test-detect:
+    dir: ../../..
+    cmds:
+      - go test -count=1 -run 'Test(LinuxKit_DetectImageFormat_Good|DetectImageFormat_Unknown_Bad)$' .
+
+  default:
+    deps:
+      - build
+      - test
+      - vet
