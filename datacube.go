@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 // DataCube wraps an io.Medium with per-path AES-GCM encryption keyed by the

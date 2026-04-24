@@ -4,19 +4,19 @@ go 1.26.0
 
 require (
 	dappco.re/go/core v0.8.0-alpha.1
-	dappco.re/go/core/config v0.2.3
-	dappco.re/go/core/i18n v0.2.0
-	dappco.re/go/core/io v0.4.1
-	dappco.re/go/core/log v0.1.2
-	forge.lthn.ai/core/cli v0.3.7
+	dappco.re/go/config v0.8.0-alpha.1
+	dappco.re/go/i18n v0.8.0-alpha.1
+	dappco.re/go/io v0.8.0-alpha.1
+	dappco.re/go/log v0.8.0-alpha.1
+	dappco.re/go/cli v0.8.0-alpha.1
 	gopkg.in/yaml.v3 v3.0.1 // Note: LinuxKit config YAML parse; no core.* YAML equivalent.
 )
 
 require (
-	forge.lthn.ai/core/go v0.3.3 // indirect
-	forge.lthn.ai/core/go-i18n v0.1.7 // indirect
-	forge.lthn.ai/core/go-inference v0.1.7 // indirect
-	forge.lthn.ai/core/go-log v0.0.4 // indirect
+	dappco.re/go/core v0.8.0-alpha.1 // indirect
+	dappco.re/go/i18n v0.8.0-alpha.1 // indirect
+	dappco.re/go/inference v0.8.0-alpha.1 // indirect
+	dappco.re/go/log v0.8.0-alpha.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/bubbletea v1.3.10 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect

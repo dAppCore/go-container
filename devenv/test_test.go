@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 func TestDetectTestCommand_ComposerJSON_Good(t *testing.T) {

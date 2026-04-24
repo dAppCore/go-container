@@ -4,7 +4,7 @@ import (
 	"bytes"
 
 	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 	"reflect"
 	"testing"
 )

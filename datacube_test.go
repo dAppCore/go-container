@@ -3,7 +3,7 @@ package container
 import (
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 	"reflect"
 	"testing"
 )

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 // DataNode wraps a TIM container with a Borg identity and lifecycle. Each

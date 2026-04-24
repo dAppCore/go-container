@@ -8,8 +8,8 @@ import (
 
 	core "dappco.re/go/core"
 	"dappco.re/go/container"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/coreutil"
 )

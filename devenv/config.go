@@ -1,8 +1,8 @@
 package devenv
 
 import (
-	"dappco.re/go/core/config"
-	"dappco.re/go/core/io"
+	"dappco.re/go/config"
+	"dappco.re/go/io"
 
 	core "dappco.re/go/core"
 

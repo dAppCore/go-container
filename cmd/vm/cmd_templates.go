@@ -8,10 +8,10 @@ import (
 	"dappco.re/go/container"
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/container/internal/proc"
-	"dappco.re/go/core/i18n"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/i18n"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+	"dappco.re/go/cli/pkg/cli"
 )
 
 // addVMTemplatesCommand adds the 'templates' command under vm.

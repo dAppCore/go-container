@@ -4,7 +4,7 @@ package sources
 import (
 	"context"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // ImageSource defines the interface for downloading dev images.

@@ -8,7 +8,7 @@ import (
 	"dappco.re/go/container/internal/proc"
 	core "dappco.re/go/core"
 
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 	"reflect"
 	"runtime"
 	"syscall"

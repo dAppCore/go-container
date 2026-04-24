@@ -1,7 +1,7 @@
 package container
 
 import (
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 )
 
 // WithGPU requests Metal (Apple) or NVIDIA (Linux) GPU passthrough for the

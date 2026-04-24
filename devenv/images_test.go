@@ -6,7 +6,7 @@ import (
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/container/sources"
 	"dappco.re/go/core"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 	"errors"
 	"reflect"
 	"testing"
