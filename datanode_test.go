@@ -1,10 +1,9 @@
 package container
 
 import (
+	"dappco.re/go/core"
+	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // stubProvider is a minimal Provider used to exercise DataNode without
@@ -45,15 +44,19 @@ func (s *stubProvider) Decrypt(encrypted *EncryptedImage, key []byte) (*Image, e
 func TestDataNode_NewDataNode_Good(t *testing.T) {
 	p := &stubProvider{}
 	node := NewDataNode("worker-01", p)
-
-	assert.Equal(t, "worker-01", node.ID)
-	assert.Same(t, p, node.Provider)
+	if got, want := node.ID, "worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := node.Provider, p; got != want {
+		t.Fatalf("want same instance")
+	}
 }
 
 func TestDataNode_WithSigil_Good(t *testing.T) {
 	node := NewDataNode("n1", &stubProvider{}).WithSigil([]byte("sigil"))
-
-	assert.Equal(t, []byte("sigil"), node.Sigil)
+	if got, want := node.Sigil, []byte("sigil"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDataNode_Build_Start_Good(t *testing.T) {
@@ -61,54 +64,87 @@ func TestDataNode_Build_Start_Good(t *testing.T) {
 	node := NewDataNode("worker-01", p)
 
 	img, err := node.Build(ContainerConfig{Source: "./Containerfile"})
-	require.NoError(t, err)
-	assert.Equal(t, "worker-01", p.built.Name, "node id becomes image name when name empty")
-	assert.Same(t, img, node.Image)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := p.built.Name, "worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := node.Image, img; got != want {
+		t.Fatalf("want same instance")
+	}
 
 	ctr, err := node.Start(img)
-	require.NoError(t, err)
-	assert.Equal(t, StatusRunning, ctr.Status)
-	assert.Same(t, ctr, node.Container)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ctr.Status, StatusRunning; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := node.Container, ctr; got != want {
+		t.Fatalf("want same instance")
+	}
 }
 
 func TestDataNode_Start_WithoutImage_Bad(t *testing.T) {
 	node := NewDataNode("n1", &stubProvider{})
 
 	_, err := node.Start(nil)
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestDataNode_Stop_Ugly(t *testing.T) {
 	// Stop on a node that was never started must surface an error; Stop on
 	// a live node must transition the in-memory status.
 	node := NewDataNode("n1", &stubProvider{})
-	assert.Error(t, node.Stop())
+	if err := node.Stop(); err == nil {
+		t.Fatal("expected error")
+	}
 
 	_, err := node.Build(ContainerConfig{Source: "x"})
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, err = node.Start(node.Image)
-	require.NoError(t, err)
-
-	require.NoError(t, node.Stop())
-	assert.Equal(t, StatusStopped, node.Container.Status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := node.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := node.Container.Status, StatusStopped; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDataNode_Seal_Good(t *testing.T) {
 	node := NewDataNode("worker-01", &stubProvider{})
 	_, err := node.Build(ContainerConfig{Source: "/tmp/img"})
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	stim, err := node.Seal([]byte("workspace-key"))
-	require.NoError(t, err)
-	assert.Equal(t, "worker-01", stim.ID)
-	assert.Equal(t, "stim", stim.Scheme)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stim.ID, "worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := stim.Scheme, "stim"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDataNode_Info_Good(t *testing.T) {
 	node := NewDataNode("worker-01", &stubProvider{})
 	info := node.Info()
-
-	assert.Contains(t, info, "worker-01")
-	assert.Contains(t, info, "not started")
+	if s, sub := info, "worker-01"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := info, "not started"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }

@@ -1,23 +1,25 @@
 package container
 
 import (
-	"testing"
-	"time"
-
+	"dappco.re/go/container/internal/coreutil"
 	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
-
-	"dappco.re/go/container/internal/coreutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"reflect"
+	"testing"
+	"time"
 )
 
 func TestState_NewState_Good(t *testing.T) {
 	state := NewState("/tmp/test-state.json")
-
-	assert.NotNil(t, state)
-	assert.NotNil(t, state.Containers)
-	assert.Equal(t, "/tmp/test-state.json", state.FilePath())
+	if state == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if state.Containers == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := state.FilePath(), "/tmp/test-state.json"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestLoadState_NewFile_Good(t *testing.T) {
@@ -26,10 +28,15 @@ func TestLoadState_NewFile_Good(t *testing.T) {
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 
 	state, err := LoadState(statePath)
-
-	require.NoError(t, err)
-	assert.NotNil(t, state)
-	assert.Empty(t, state.Containers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got := state.Containers; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestLoadState_ExistingFile_Good(t *testing.T) {
@@ -50,17 +57,28 @@ func TestLoadState_ExistingFile_Good(t *testing.T) {
 		}
 	}`
 	err := io.Local.Write(statePath, content)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	state, err := LoadState(statePath)
-
-	require.NoError(t, err)
-	assert.Len(t, state.Containers, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(state.Containers), 1; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
 
 	c, ok := state.Get("abc12345")
-	assert.True(t, ok)
-	assert.Equal(t, "test-container", c.Name)
-	assert.Equal(t, StatusRunning, c.Status)
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if got, want := c.Name, "test-container"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := c.Status, StatusRunning; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestLoadState_InvalidJSON_Bad(t *testing.T) {
@@ -69,10 +87,14 @@ func TestLoadState_InvalidJSON_Bad(t *testing.T) {
 
 	// Create invalid JSON
 	err := io.Local.Write(statePath, "invalid json{")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = LoadState(statePath)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestState_Add_Good(t *testing.T) {
@@ -90,15 +112,24 @@ func TestState_Add_Good(t *testing.T) {
 	}
 
 	err := state.Add(container)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify it's in memory
 	c, ok := state.Get("abc12345")
-	assert.True(t, ok)
-	assert.Equal(t, container.Name, c.Name)
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if got, want := c.Name, container.Name; !reflect.DeepEqual(
 
-	// Verify file was created
-	assert.True(t, io.Local.IsFile(statePath))
+		// Verify file was created
+		got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(io.Local.IsFile(statePath)) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestState_Update_Good(t *testing.T) {
@@ -115,12 +146,18 @@ func TestState_Update_Good(t *testing.T) {
 	// Update status
 	container.Status = StatusStopped
 	err := state.Update(container)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify update
 	c, ok := state.Get("abc12345")
-	assert.True(t, ok)
-	assert.Equal(t, StatusStopped, c.Status)
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if got, want := c.Status, StatusStopped; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestState_Remove_Good(t *testing.T) {
@@ -134,17 +171,23 @@ func TestState_Remove_Good(t *testing.T) {
 	_ = state.Add(container)
 
 	err := state.Remove("abc12345")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, ok := state.Get("abc12345")
-	assert.False(t, ok)
+	if ok {
+		t.Fatal("expected false")
+	}
 }
 
 func TestState_Get_NotFound_Bad(t *testing.T) {
 	state := NewState("/tmp/test-state.json")
 
 	_, ok := state.Get("nonexistent")
-	assert.False(t, ok)
+	if ok {
+		t.Fatal("expected false")
+	}
 }
 
 func TestState_All_Good(t *testing.T) {
@@ -157,7 +200,9 @@ func TestState_All_Good(t *testing.T) {
 	_ = state.Add(&Container{ID: "ccc33333"})
 
 	all := state.All()
-	assert.Len(t, all, 3)
+	if got, want := len(all), 3; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
 }
 
 func TestState_SaveState_CreatesDirectory_Good(t *testing.T) {
@@ -168,54 +213,89 @@ func TestState_SaveState_CreatesDirectory_Good(t *testing.T) {
 	_ = state.Add(&Container{ID: "abc12345"})
 
 	err := state.SaveState()
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify directory was created
-	assert.True(t, io.Local.IsDir(core.PathDir(nestedPath)))
+	if !io.Local.IsDir(core.PathDir(nestedPath)) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestState_DefaultStateDir_Good(t *testing.T) {
 	dir, err := DefaultStateDir()
-	require.NoError(t, err)
-	assert.Contains(t, dir, ".core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, sub := dir, ".core"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestState_DefaultStatePath_Good(t *testing.T) {
 	path, err := DefaultStatePath()
-	require.NoError(t, err)
-	assert.Contains(t, path, "containers.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, sub := path, "containers.json"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestState_DefaultLogsDir_Good(t *testing.T) {
 	dir, err := DefaultLogsDir()
-	require.NoError(t, err)
-	assert.Contains(t, dir, "logs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, sub := dir, "logs"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestState_LogPath_Good(t *testing.T) {
 	path, err := LogPath("abc12345")
-	require.NoError(t, err)
-	assert.Contains(t, path, "abc12345.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, sub := path, "abc12345.log"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestState_EnsureLogsDir_Good(t *testing.T) {
 	// This test creates real directories - skip in CI if needed
 	err := EnsureLogsDir()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	logsDir, _ := DefaultLogsDir()
-	assert.True(t, io.Local.IsDir(logsDir))
+	if !(io.Local.IsDir(logsDir)) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestState_GenerateID_Good(t *testing.T) {
 	id1, err := GenerateID()
-	require.NoError(t, err)
-	assert.Len(t, id1, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(id1), 8; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
 
 	id2, err := GenerateID()
-	require.NoError(t, err)
-	assert.Len(t, id2, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(id2), 8; got !=
 
-	// IDs should be different
-	assert.NotEqual(t, id1, id2)
+		// IDs should be different
+		want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
+	if got, want := id2, id1; reflect.DeepEqual(got, want) {
+		t.Fatalf("did not expect %v", got)
+	}
 }

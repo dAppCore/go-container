@@ -1,9 +1,8 @@
 package sources
 
 import (
+	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestGitHubSource_Available_Good(t *testing.T) {
@@ -22,7 +21,9 @@ func TestGitHubSource_Available_Good(t *testing.T) {
 
 func TestGitHubSource_Name_Good(t *testing.T) {
 	src := NewGitHubSource(SourceConfig{})
-	assert.Equal(t, "github", src.Name())
+	if got, want := src.Name(), "github"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestGitHubSource_Config_Good(t *testing.T) {
@@ -33,19 +34,30 @@ func TestGitHubSource_Config_Good(t *testing.T) {
 	src := NewGitHubSource(cfg)
 
 	// Verify the config is stored
-	assert.Equal(t, "owner/repo", src.config.GitHubRepo)
-	assert.Equal(t, "test-image.qcow2", src.config.ImageName)
+	if got, want := src.config.GitHubRepo, "owner/repo"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := src.config.ImageName, "test-image.qcow2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestGitHubSource_Multiple_Good(t *testing.T) {
 	// Test creating multiple sources with different configs
 	src1 := NewGitHubSource(SourceConfig{GitHubRepo: "org1/repo1", ImageName: "img1.qcow2"})
 	src2 := NewGitHubSource(SourceConfig{GitHubRepo: "org2/repo2", ImageName: "img2.qcow2"})
-
-	assert.Equal(t, "org1/repo1", src1.config.GitHubRepo)
-	assert.Equal(t, "org2/repo2", src2.config.GitHubRepo)
-	assert.Equal(t, "github", src1.Name())
-	assert.Equal(t, "github", src2.Name())
+	if got, want := src1.config.GitHubRepo, "org1/repo1"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := src2.config.GitHubRepo, "org2/repo2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := src1.Name(), "github"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := src2.Name(), "github"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestGitHub_NewGitHubSource_Good(t *testing.T) {
@@ -57,9 +69,15 @@ func TestGitHub_NewGitHubSource_Good(t *testing.T) {
 	}
 
 	src := NewGitHubSource(cfg)
-	assert.NotNil(t, src)
-	assert.Equal(t, "github", src.Name())
-	assert.Equal(t, cfg.GitHubRepo, src.config.GitHubRepo)
+	if src == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := src.Name(), "github"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := src.config.GitHubRepo, cfg.GitHubRepo; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestGitHubSource_InterfaceCompliance_Good(t *testing.T) {

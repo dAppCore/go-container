@@ -2,21 +2,24 @@ package container
 
 import (
 	"bytes"
-	"testing"
-
-	"dappco.re/go/core/io"
 
 	"dappco.re/go/container/internal/coreutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/core/io"
+	"reflect"
+	"testing"
 )
 
 func TestTIM_NewTIMBundle_Good(t *testing.T) {
 	bundle := NewTIMBundle("worker-01", "/var/tim/worker-01")
-
-	assert.Equal(t, "worker-01", bundle.ID)
-	assert.Equal(t, "/var/tim/worker-01", bundle.Root)
-	assert.Equal(t, []string{TIMLayerBase, TIMLayerApp, TIMLayerData}, bundle.Layers)
+	if got, want := bundle.ID, "worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := bundle.Root, "/var/tim/worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := bundle.Layers, []string{TIMLayerBase, TIMLayerApp, TIMLayerData}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestTIM_SaveTIM_LoadTIM_Good(t *testing.T) {
@@ -32,26 +35,36 @@ func TestTIM_SaveTIM_LoadTIM_Good(t *testing.T) {
 	}
 
 	err := SaveTIM(io.Local, bundle)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	loaded, err := LoadTIM(io.Local, root)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"/app/server"}, loaded.Config.EntryPoint)
-	assert.True(t, loaded.Config.ReadOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := loaded.Config.EntryPoint, []string{"/app/server"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(loaded.Config.ReadOnly) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestTIM_SaveTIM_MissingBundle_Bad(t *testing.T) {
 	err := SaveTIM(io.Local, nil)
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestTIM_LoadTIM_MissingConfig_Bad(t *testing.T) {
 	tmp := t.TempDir()
 
 	_, err := LoadTIM(io.Local, tmp)
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestTIM_EncryptTIM_DecryptSTIM_Good(t *testing.T) {
@@ -61,22 +74,35 @@ func TestTIM_EncryptTIM_DecryptSTIM_Good(t *testing.T) {
 	key := []byte("workspace-key-32-bytes-xxxxxxxxxx")
 
 	stim, err := EncryptTIM(bundle, key)
-	require.NoError(t, err)
-	assert.Equal(t, "stim", stim.Scheme)
-	assert.Len(t, stim.Layers, len(bundle.Layers))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stim.Scheme, "stim"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := len(stim.Layers), len(bundle.Layers); got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
 
 	out, err := DecryptSTIM(stim, key)
-	require.NoError(t, err)
-	assert.Equal(t, bundle.ID, out.ID)
-	assert.Equal(t, bundle.Layers, out.Layers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := out.ID, bundle.ID; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := out.Layers, bundle.Layers; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestTIM_EncryptTIM_MissingKey_Bad(t *testing.T) {
 	bundle := NewTIMBundle("a", "/tmp/a")
 
 	_, err := EncryptTIM(bundle, nil)
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestTIM_EncryptLayer_DecryptLayer_Good(t *testing.T) {
@@ -85,20 +111,29 @@ func TestTIM_EncryptLayer_DecryptLayer_Good(t *testing.T) {
 	plain := []byte("hello TIM layer")
 
 	ct, err := EncryptLayer(key, "worker-01", TIMLayerApp, plain)
-	require.NoError(t, err)
-	assert.NotEqual(t, plain, ct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ct, plain; reflect.DeepEqual(got, want) {
+		t.Fatalf("did not expect %v", got)
+	}
 
 	pt, err := DecryptLayer(key, "worker-01", TIMLayerApp, ct)
-	require.NoError(t, err)
-	assert.True(t, bytes.Equal(plain, pt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(bytes.Equal(plain, pt)) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestTIM_DecryptLayer_ShortCiphertext_Bad(t *testing.T) {
 	key := []byte("workspace-key-32-bytes-xxxxxxxxxx")
 
 	_, err := DecryptLayer(key, "worker-01", TIMLayerApp, []byte("x"))
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestTIM_DecryptLayer_WrongKey_Ugly(t *testing.T) {
@@ -106,11 +141,14 @@ func TestTIM_DecryptLayer_WrongKey_Ugly(t *testing.T) {
 	keyA := []byte("key-a-32-bytes-xxxxxxxxxxxxxxxxx")
 	keyB := []byte("key-b-32-bytes-xxxxxxxxxxxxxxxxx")
 	ct, err := EncryptLayer(keyA, "worker-01", TIMLayerApp, []byte("secret"))
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = DecryptLayer(keyB, "worker-01", TIMLayerApp, ct)
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestTIM_EncryptTIMOnMedium_DecryptSTIMOnMedium_Good(t *testing.T) {
@@ -118,37 +156,58 @@ func TestTIM_EncryptTIMOnMedium_DecryptSTIMOnMedium_Good(t *testing.T) {
 	// verify DecryptSTIMOnMedium restores the payload.
 	tmp := t.TempDir()
 	sandbox, err := io.NewSandboxed(tmp)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	root := "bundle-01"
 	appDir := coreutil.JoinPath(root, "rootfs", TIMLayerApp)
-	require.NoError(t, sandbox.EnsureDir(appDir))
-	require.NoError(t, sandbox.Write(coreutil.JoinPath(appDir, "server.bin"), "hello server"))
+	if err := sandbox.EnsureDir(appDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.Write(coreutil.JoinPath(appDir, "server.bin"), "hello server"); err != nil {
+		t.Fatal(err)
+	}
 
 	bundle := NewTIMBundle("worker-01", root)
 	key := []byte("workspace-key-32-bytes-xxxxxxxxx")
 
 	stim, err := EncryptTIMOnMedium(sandbox, bundle, key)
-	require.NoError(t, err)
-	assert.Equal(t, "stim", stim.Scheme)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stim.Scheme, "stim"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 	sealedPath := coreutil.JoinPath(root, "rootfs", TIMLayerApp+".stim")
-	assert.True(t, sandbox.IsFile(sealedPath), "sealed layer artefact must exist on disk")
+	if !(sandbox.IsFile(sealedPath)) {
+		t.Fatal("expected true")
+	}
 
 	// Remove plaintext — decryption must recreate it.
-	require.NoError(t, sandbox.DeleteAll(appDir))
+	if err := sandbox.DeleteAll(appDir); err != nil {
+		t.Fatal(err)
+	}
 
 	out, err := DecryptSTIMOnMedium(sandbox, stim, key)
-	require.NoError(t, err)
-	assert.Equal(t, "worker-01", out.ID)
-	assert.True(t, sandbox.IsDir(appDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := out.ID, "worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(sandbox.IsDir(appDir)) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestTIM_EncryptTIMOnMedium_MissingMedium_Bad(t *testing.T) {
 	bundle := NewTIMBundle("worker-01", "/tmp/x")
 
 	_, err := EncryptTIMOnMedium(nil, bundle, []byte("k"))
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestTIM_DecryptSTIMOnMedium_WrongKey_Ugly(t *testing.T) {
@@ -156,17 +215,27 @@ func TestTIM_DecryptSTIMOnMedium_WrongKey_Ugly(t *testing.T) {
 	// must not leak under key mismatch.
 	tmp := t.TempDir()
 	sandbox, err := io.NewSandboxed(tmp)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	root := "bundle-01"
 	appDir := coreutil.JoinPath(root, "rootfs", TIMLayerApp)
-	require.NoError(t, sandbox.EnsureDir(appDir))
-	require.NoError(t, sandbox.Write(coreutil.JoinPath(appDir, "server.bin"), "hello"))
+	if err := sandbox.EnsureDir(appDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.Write(coreutil.JoinPath(appDir, "server.bin"), "hello"); err != nil {
+		t.Fatal(err)
+	}
 
 	bundle := NewTIMBundle("worker-01", root)
 	stim, err := EncryptTIMOnMedium(sandbox, bundle, []byte("key-a-32-bytes-xxxxxxxxxxxxxxxxx"))
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = DecryptSTIMOnMedium(sandbox, stim, []byte("key-b-32-bytes-xxxxxxxxxxxxxxxxx"))
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }

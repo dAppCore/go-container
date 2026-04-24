@@ -1,26 +1,35 @@
 package devenv
 
 import (
+	"dappco.re/go/container/internal/coreutil"
+	"dappco.re/go/core"
+	"dappco.re/go/core/io"
+	"reflect"
 	"syscall"
 	"testing"
-
-	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_DefaultConfig_Good(t *testing.T) {
 	cfg := DefaultConfig()
-	assert.Equal(t, 1, cfg.Version)
-	assert.Equal(t, "auto", cfg.Images.Source)
-	assert.Equal(t, "host-uk/core-images", cfg.Images.GitHub.Repo)
+	if got, want := cfg.Version, 1; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.Source, "auto"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.GitHub.Repo, "host-uk/core-images"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestConfig_ConfigPath_Good(t *testing.T) {
 	path, err := ConfigPath()
-	assert.NoError(t, err)
-	assert.Contains(t, path, ".core/config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, sub := path, ".core/config.yaml"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestConfig_LoadConfig_Good(t *testing.T) {
@@ -30,8 +39,12 @@ func TestConfig_LoadConfig_Good(t *testing.T) {
 		t.Setenv("HOME", tempHome)
 
 		cfg, err := LoadConfig(io.Local)
-		assert.NoError(t, err)
-		assert.Equal(t, DefaultConfig(), cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := cfg, DefaultConfig(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("want %v, got %v", want, got)
+		}
 	})
 
 	t.Run("loads existing config", func(t *testing.T) {
@@ -40,7 +53,9 @@ func TestConfig_LoadConfig_Good(t *testing.T) {
 
 		coreDir := coreutil.JoinPath(tempHome, ".core")
 		err := io.Local.EnsureDir(coreDir)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		configData := `
 version: 2
@@ -50,13 +65,23 @@ images:
     url: https://cdn.example.com
 `
 		err = io.Local.Write(coreutil.JoinPath(coreDir, "config.yaml"), configData)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		cfg, err := LoadConfig(io.Local)
-		assert.NoError(t, err)
-		assert.Equal(t, 2, cfg.Version)
-		assert.Equal(t, "cdn", cfg.Images.Source)
-		assert.Equal(t, "https://cdn.example.com", cfg.Images.CDN.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := cfg.Version, 2; !reflect.DeepEqual(got, want) {
+			t.Fatalf("want %v, got %v", want, got)
+		}
+		if got, want := cfg.Images.Source, "cdn"; !reflect.DeepEqual(got, want) {
+			t.Fatalf("want %v, got %v", want, got)
+		}
+		if got, want := cfg.Images.CDN.URL, "https://cdn.example.com"; !reflect.DeepEqual(got, want) {
+			t.Fatalf("want %v, got %v", want, got)
+		}
 	})
 }
 
@@ -67,13 +92,19 @@ func TestConfig_LoadConfig_Bad(t *testing.T) {
 
 		coreDir := coreutil.JoinPath(tempHome, ".core")
 		err := io.Local.EnsureDir(coreDir)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		err = io.Local.Write(coreutil.JoinPath(coreDir, "config.yaml"), "invalid: yaml: :")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		_, err = LoadConfig(io.Local)
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
 	})
 }
 
@@ -93,20 +124,40 @@ func TestConfig_Struct_Good(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, 2, cfg.Version)
-	assert.Equal(t, "github", cfg.Images.Source)
-	assert.Equal(t, "owner/repo", cfg.Images.GitHub.Repo)
-	assert.Equal(t, "ghcr.io/owner/image", cfg.Images.Registry.Image)
-	assert.Equal(t, "https://cdn.example.com", cfg.Images.CDN.URL)
+	if got, want := cfg.Version, 2; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.Source, "github"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.GitHub.Repo, "owner/repo"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.Registry.Image, "ghcr.io/owner/image"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.CDN.URL, "https://cdn.example.com"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDefaultConfig_Complete_Good(t *testing.T) {
 	cfg := DefaultConfig()
-	assert.Equal(t, 1, cfg.Version)
-	assert.Equal(t, "auto", cfg.Images.Source)
-	assert.Equal(t, "host-uk/core-images", cfg.Images.GitHub.Repo)
-	assert.Equal(t, "ghcr.io/host-uk/core-devops", cfg.Images.Registry.Image)
-	assert.Empty(t, cfg.Images.CDN.URL)
+	if got, want := cfg.Version, 1; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.Source, "auto"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.GitHub.Repo, "host-uk/core-images"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.Registry.Image, "ghcr.io/host-uk/core-devops"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got := cfg.Images.CDN.URL; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestLoadConfig_PartialConfig_Good(t *testing.T) {
@@ -115,7 +166,9 @@ func TestLoadConfig_PartialConfig_Good(t *testing.T) {
 
 	coreDir := coreutil.JoinPath(tempHome, ".core")
 	err := io.Local.EnsureDir(coreDir)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Config only specifies source, should merge with defaults
 	configData := `
@@ -124,14 +177,24 @@ images:
   source: github
 `
 	err = io.Local.Write(coreutil.JoinPath(coreDir, "config.yaml"), configData)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg, err := LoadConfig(io.Local)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, cfg.Version)
-	assert.Equal(t, "github", cfg.Images.Source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := cfg.Version, 1; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 	// Default values should be preserved
-	assert.Equal(t, "host-uk/core-images", cfg.Images.GitHub.Repo)
+	if got, want := cfg.Images.Source, "github"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.Images.GitHub.Repo, "host-uk/core-images"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestLoadConfig_AllSourceTypes_Good(t *testing.T) {
@@ -150,8 +213,12 @@ images:
     repo: custom/repo
 `,
 			check: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, "github", cfg.Images.Source)
-				assert.Equal(t, "custom/repo", cfg.Images.GitHub.Repo)
+				if got, want := cfg.Images.Source, "github"; !reflect.DeepEqual(got, want) {
+					t.Fatalf("want %v, got %v", want, got)
+				}
+				if got, want := cfg.Images.GitHub.Repo, "custom/repo"; !reflect.DeepEqual(got, want) {
+					t.Fatalf("want %v, got %v", want, got)
+				}
 			},
 		},
 		{
@@ -164,8 +231,12 @@ images:
     url: https://custom-cdn.com
 `,
 			check: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, "cdn", cfg.Images.Source)
-				assert.Equal(t, "https://custom-cdn.com", cfg.Images.CDN.URL)
+				if got, want := cfg.Images.Source, "cdn"; !reflect.DeepEqual(got, want) {
+					t.Fatalf("want %v, got %v", want, got)
+				}
+				if got, want := cfg.Images.CDN.URL, "https://custom-cdn.com"; !reflect.DeepEqual(got, want) {
+					t.Fatalf("want %v, got %v", want, got)
+				}
 			},
 		},
 		{
@@ -178,8 +249,12 @@ images:
     image: docker.io/custom/image
 `,
 			check: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, "registry", cfg.Images.Source)
-				assert.Equal(t, "docker.io/custom/image", cfg.Images.Registry.Image)
+				if got, want := cfg.Images.Source, "registry"; !reflect.DeepEqual(got, want) {
+					t.Fatalf("want %v, got %v", want, got)
+				}
+				if got, want := cfg.Images.Registry.Image, "docker.io/custom/image"; !reflect.DeepEqual(got, want) {
+					t.Fatalf("want %v, got %v", want, got)
+				}
 			},
 		},
 	}
@@ -191,13 +266,19 @@ images:
 
 			coreDir := coreutil.JoinPath(tempHome, ".core")
 			err := io.Local.EnsureDir(coreDir)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			err = io.Local.Write(coreutil.JoinPath(coreDir, "config.yaml"), tt.config)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			cfg, err := LoadConfig(io.Local)
-			assert.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			tt.check(t, cfg)
 		})
 	}
@@ -208,23 +289,33 @@ func TestImagesConfig_Struct_Good(t *testing.T) {
 		Source: "auto",
 		GitHub: GitHubConfig{Repo: "test/repo"},
 	}
-	assert.Equal(t, "auto", ic.Source)
-	assert.Equal(t, "test/repo", ic.GitHub.Repo)
+	if got, want := ic.Source, "auto"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := ic.GitHub.Repo, "test/repo"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestGitHubConfig_Struct_Good(t *testing.T) {
 	gc := GitHubConfig{Repo: "owner/repo"}
-	assert.Equal(t, "owner/repo", gc.Repo)
+	if got, want := gc.Repo, "owner/repo"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestRegistryConfig_Struct_Good(t *testing.T) {
 	rc := RegistryConfig{Image: "ghcr.io/owner/image:latest"}
-	assert.Equal(t, "ghcr.io/owner/image:latest", rc.Image)
+	if got, want := rc.Image, "ghcr.io/owner/image:latest"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestCDNConfig_Struct_Good(t *testing.T) {
 	cc := CDNConfig{URL: "https://cdn.example.com/images"}
-	assert.Equal(t, "https://cdn.example.com/images", cc.URL)
+	if got, want := cc.URL, "https://cdn.example.com/images"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestLoadConfig_UnreadableFile_Bad(t *testing.T) {
@@ -239,15 +330,22 @@ func TestLoadConfig_UnreadableFile_Bad(t *testing.T) {
 
 	coreDir := coreutil.JoinPath(tempHome, ".core")
 	err := io.Local.EnsureDir(coreDir)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	configPath := coreutil.JoinPath(coreDir, "config.yaml")
 	err = io.Local.WriteMode(configPath, "version: 1", 0000)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = LoadConfig(io.Local)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
 
-	// Restore permissions so cleanup works
+		// Restore permissions so cleanup works
+	}
+
 	_ = syscall.Chmod(configPath, 0644)
 }

@@ -1,9 +1,8 @@
 package container
 
 import (
+	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestProvider_ApplyRunOptions_Good(t *testing.T) {
@@ -15,20 +14,32 @@ func TestProvider_ApplyRunOptions_Good(t *testing.T) {
 		WithPorts(map[int]int{8080: 80}),
 		WithVolumes(map[string]string{"/data": "/app/data"}),
 	)
-
-	assert.Equal(t, "api", opts.Name)
-	assert.Equal(t, 2048, opts.Memory)
-	assert.Equal(t, 4, opts.CPUs)
-	assert.True(t, opts.Detach)
-	assert.Equal(t, 80, opts.Ports[8080])
-	assert.Equal(t, "/app/data", opts.Volumes["/data"])
+	if got, want := opts.Name, "api"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Memory, 2048; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.CPUs, 4; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(opts.Detach) {
+		t.Fatal("expected true")
+	}
+	if got, want := opts.Ports[8080], 80; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Volumes["/data"], "/app/data"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestProvider_ApplyRunOptions_NilOption_Bad(t *testing.T) {
 	// Nil options must be skipped without panicking.
 	opts := ApplyRunOptions(nil, WithName("ok"), nil)
-
-	assert.Equal(t, "ok", opts.Name)
+	if got, want := opts.Name, "ok"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestProvider_ApplyRunOptions_OverwriteAndMerge_Ugly(t *testing.T) {
@@ -39,26 +50,34 @@ func TestProvider_ApplyRunOptions_OverwriteAndMerge_Ugly(t *testing.T) {
 		WithPorts(map[int]int{8080: 80}),
 		WithPorts(map[int]int{9090: 90}),
 	)
-
-	assert.Equal(t, 4096, opts.Memory)
-	assert.Equal(t, 80, opts.Ports[8080])
-	assert.Equal(t, 90, opts.Ports[9090])
+	if got, want := opts.Memory, 4096; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Ports[8080], 80; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Ports[9090], 90; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestProvider_WithGPU_Good(t *testing.T) {
 	opts := ApplyRunOptions(WithGPU(true))
-
-	assert.True(t, opts.GPU)
+	if !(opts.GPU) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestProvider_WithGPU_Disabled_Bad(t *testing.T) {
 	opts := ApplyRunOptions(WithGPU(false))
-
-	assert.False(t, opts.GPU)
+	if opts.GPU {
+		t.Fatal("expected false")
+	}
 }
 
 func TestProvider_WithGPU_OverriddenByLater_Ugly(t *testing.T) {
 	opts := ApplyRunOptions(WithGPU(true), WithGPU(false))
-
-	assert.False(t, opts.GPU)
+	if opts.GPU {
+		t.Fatal("expected false")
+	}
 }

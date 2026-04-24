@@ -1,33 +1,38 @@
 package container
 
 import (
-	"testing"
-
-	"dappco.re/go/core/io"
-
 	"dappco.re/go/container/internal/coreutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/core"
+	"dappco.re/go/core/io"
+	"reflect"
+	"testing"
 )
 
 func TestDataCube_NewDataCube_Good(t *testing.T) {
 	cube, err := NewDataCube(io.Local, []byte("workspace-key"), "worker-01")
-
-	require.NoError(t, err)
-	assert.Equal(t, "worker-01", cube.ContainerID)
-	assert.NotNil(t, cube.Medium)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := cube.ContainerID, "worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if cube.Medium == nil {
+		t.Fatal("expected non-nil value")
+	}
 }
 
 func TestDataCube_NewDataCube_MissingMedium_Bad(t *testing.T) {
 	_, err := NewDataCube(nil, []byte("k"), "n1")
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestDataCube_NewDataCube_MissingKey_Bad(t *testing.T) {
 	_, err := NewDataCube(io.Local, nil, "n1")
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestDataCube_Write_Read_Good(t *testing.T) {
@@ -35,20 +40,34 @@ func TestDataCube_Write_Read_Good(t *testing.T) {
 	// must differ from the plaintext and Read must recover the original.
 	tmp := t.TempDir()
 	sandbox, err := io.NewSandboxed(tmp)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cube, err := NewDataCube(sandbox, []byte("workspace-key"), "worker-01")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	err = cube.Write("app/config.yml", "port: 8080")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	raw, err := sandbox.Read("app/config.yml")
-	require.NoError(t, err)
-	assert.NotEqual(t, "port: 8080", raw, "on-disk content should be ciphertext")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := raw, "port: 8080"; reflect.DeepEqual(got, want) {
+		t.Fatalf("did not expect %v", got)
+	}
 
 	out, err := cube.Read("app/config.yml")
-	require.NoError(t, err)
-	assert.Equal(t, "port: 8080", out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := out, "port: 8080"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDataCube_Read_WrongKey_Ugly(t *testing.T) {
@@ -56,45 +75,69 @@ func TestDataCube_Read_WrongKey_Ugly(t *testing.T) {
 	// than silently returning garbled plaintext.
 	tmp := t.TempDir()
 	sandbox, err := io.NewSandboxed(tmp)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	writer, err := NewDataCube(sandbox, []byte("key-A"), "worker-01")
-	require.NoError(t, err)
-	require.NoError(t, writer.Write("secrets/key", "hunter2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Write("secrets/key", "hunter2"); err != nil {
+		t.Fatal(err)
+	}
 
 	reader, err := NewDataCube(sandbox, []byte("key-B"), "worker-01")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = reader.Read("secrets/key")
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestDataCube_Rename_Good(t *testing.T) {
 	// Rename re-seals under the new path key so Read continues to work.
 	tmp := t.TempDir()
 	sandbox, err := io.NewSandboxed(tmp)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cube, err := NewDataCube(sandbox, []byte("workspace-key"), "worker-01")
-	require.NoError(t, err)
-
-	require.NoError(t, cube.Write("drafts/note.txt", "hello"))
-	require.NoError(t, cube.Rename("drafts/note.txt", "archive/note.txt"))
-	assert.False(t, sandbox.IsFile(coreutil.JoinPath("drafts", "note.txt")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cube.Write("drafts/note.txt", "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cube.Rename("drafts/note.txt", "archive/note.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if sandbox.IsFile(coreutil.JoinPath("drafts", "note.txt")) {
+		t.Fatal("expected false")
+	}
 
 	out, err := cube.Read("archive/note.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "hello", out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := out, "hello"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDataCube_Describe_Good(t *testing.T) {
 	cube, err := NewDataCube(io.Local, []byte("k"), "n1")
-	require.NoError(t, err)
-
-	assert.Contains(t, cube.Describe(), "n1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, sub := cube.Describe(), "n1"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestDataCube_ImplementsMedium_Good(t *testing.T) {
 	// Compile-time check: DataCube must implement io.Medium.
-	var m io.Medium = (*DataCube)(nil)
-
-	assert.Nil(t, m)
+	var _ io.Medium = (*DataCube)(nil)
 }

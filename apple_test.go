@@ -2,34 +2,41 @@ package container
 
 import (
 	"context"
+	"reflect"
 	"runtime"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestApple_IsAppleAvailable_Good(t *testing.T) {
 	got := IsAppleAvailable()
 
 	// Function must not panic and must return a bool regardless of platform.
-	assert.IsType(t, true, got)
+	if got, want := reflect.TypeOf(got), reflect.TypeOf(true); got != want {
+		t.Fatalf("want type %v, got %v", want, got)
+	}
 	if runtime.GOOS != "darwin" {
-		assert.False(t, got)
+		if got {
+			t.Fatal("expected false")
+		}
 	}
 }
 
 func TestApple_NewAppleProvider_Good(t *testing.T) {
 	p := NewAppleProvider()
-
-	assert.NotNil(t, p)
-	assert.Equal(t, "container", p.Binary)
+	if p == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := p.Binary, "container"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestApple_Available_Bad(t *testing.T) {
 	// A bogus binary name must fail Available().
 	p := &AppleProvider{Binary: "nonexistent-apple-container-binary-xyz"}
-
-	assert.False(t, p.Available())
+	if p.Available() {
+		t.Fatal("expected false")
+	}
 }
 
 func TestApple_Build_MissingSource_Bad(t *testing.T) {
@@ -39,8 +46,9 @@ func TestApple_Build_MissingSource_Bad(t *testing.T) {
 	}
 
 	_, err := p.Build(ContainerConfig{})
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestApple_Run_NilImage_Bad(t *testing.T) {
@@ -50,8 +58,9 @@ func TestApple_Run_NilImage_Bad(t *testing.T) {
 	}
 
 	_, err := p.Run(nil)
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestApple_Encrypt_Decrypt_Ugly(t *testing.T) {
@@ -61,15 +70,29 @@ func TestApple_Encrypt_Decrypt_Ugly(t *testing.T) {
 	key := []byte("workspace-key")
 
 	enc, err := p.Encrypt(img, key)
-	assert.NoError(t, err)
-	assert.NotNil(t, enc)
-	assert.Equal(t, "stim", enc.Scheme)
-	assert.Equal(t, "/tmp/example.qcow2.stim", enc.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if enc == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := enc.Scheme, "stim"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := enc.Path, "/tmp/example.qcow2.stim"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 
 	out, err := p.Decrypt(enc, key)
-	assert.NoError(t, err)
-	assert.NotNil(t, out)
-	assert.Equal(t, "/tmp/example.qcow2", out.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := out.Path, "/tmp/example.qcow2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestApple_Encrypt_MissingKey_Bad(t *testing.T) {
@@ -77,8 +100,9 @@ func TestApple_Encrypt_MissingKey_Bad(t *testing.T) {
 	img := &Image{Path: "/tmp/foo"}
 
 	_, err := p.Encrypt(img, nil)
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestApple_Decrypt_MissingKey_Bad(t *testing.T) {
@@ -86,22 +110,25 @@ func TestApple_Decrypt_MissingKey_Bad(t *testing.T) {
 	enc := &EncryptedImage{Path: "/tmp/foo.stim"}
 
 	_, err := p.Decrypt(enc, nil)
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestApple_Tracked_Empty_Good(t *testing.T) {
 	p := NewAppleProvider()
-
-	assert.Empty(t, p.Tracked(), "a fresh provider tracks no containers")
+	if got := p.Tracked(); len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestApple_Wait_UnknownID_Bad(t *testing.T) {
 	p := NewAppleProvider()
 
 	err := p.Wait(context.Background(), "no-such-container")
-
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestApple_AvailableOnNonDarwin_Ugly(t *testing.T) {
@@ -111,6 +138,8 @@ func TestApple_AvailableOnNonDarwin_Ugly(t *testing.T) {
 	p := &AppleProvider{Binary: "container"}
 
 	if runtime.GOOS != "darwin" {
-		assert.False(t, p.Available())
+		if p.Available() {
+			t.Fatal("expected false")
+		}
 	}
 }

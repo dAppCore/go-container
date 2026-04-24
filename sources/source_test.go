@@ -1,17 +1,24 @@
 package sources
 
 import (
+	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSourceConfig_Empty_Good(t *testing.T) {
 	cfg := SourceConfig{}
-	assert.Empty(t, cfg.GitHubRepo)
-	assert.Empty(t, cfg.RegistryImage)
-	assert.Empty(t, cfg.CDNURL)
-	assert.Empty(t, cfg.ImageName)
+	if got := cfg.GitHubRepo; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
+	if got := cfg.RegistryImage; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
+	if got := cfg.CDNURL; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
+	if got := cfg.ImageName; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestSourceConfig_Complete_Good(t *testing.T) {
@@ -21,11 +28,18 @@ func TestSourceConfig_Complete_Good(t *testing.T) {
 		CDNURL:        "https://cdn.example.com/images",
 		ImageName:     "my-image-darwin-arm64.qcow2",
 	}
-
-	assert.Equal(t, "owner/repo", cfg.GitHubRepo)
-	assert.Equal(t, "ghcr.io/owner/image:v1", cfg.RegistryImage)
-	assert.Equal(t, "https://cdn.example.com/images", cfg.CDNURL)
-	assert.Equal(t, "my-image-darwin-arm64.qcow2", cfg.ImageName)
+	if got, want := cfg.GitHubRepo, "owner/repo"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.RegistryImage, "ghcr.io/owner/image:v1"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.CDNURL, "https://cdn.example.com/images"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.ImageName, "my-image-darwin-arm64.qcow2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestImageSource_Interface_Good(t *testing.T) {

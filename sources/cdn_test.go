@@ -2,15 +2,16 @@ package sources
 
 import (
 	"context"
+
+	"dappco.re/go/container/internal/coreutil"
+	core "dappco.re/go/core"
+
+	"dappco.re/go/core/io"
 	goio "io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
-
-	core "dappco.re/go/core"
-	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCDNSource_Available_Good(t *testing.T) {
@@ -18,17 +19,21 @@ func TestCDNSource_Available_Good(t *testing.T) {
 		CDNURL:    "https://images.example.com",
 		ImageName: "core-devops-darwin-arm64.qcow2",
 	})
-
-	assert.Equal(t, "cdn", src.Name())
-	assert.True(t, src.Available())
+	if got, want := src.Name(), "cdn"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(src.Available()) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestCDNSource_NoURL_Bad(t *testing.T) {
 	src := NewCDNSource(SourceConfig{
 		ImageName: "core-devops-darwin-arm64.qcow2",
 	})
-
-	assert.False(t, src.Available())
+	if src.Available() {
+		t.Fatal("expected false")
+	}
 }
 
 func TestCDNSource_LatestVersion_Good(t *testing.T) {
@@ -48,8 +53,13 @@ func TestCDNSource_LatestVersion_Good(t *testing.T) {
 	})
 
 	version, err := src.LatestVersion(context.Background())
-	assert.NoError(t, err)
-	assert.Equal(t, "latest", version) // Current impl always returns "latest"
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := version, "latest"; !reflect.DeepEqual( // Current impl always returns "latest"
+		got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestCDNSource_Download_Good(t *testing.T) {
@@ -75,14 +85,22 @@ func TestCDNSource_Download_Good(t *testing.T) {
 	err := src.Download(context.Background(), io.Local, dest, func(downloaded, total int64) {
 		progressCalled = true
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(progressCalled) {
+		t.Fatal("expected true")
 
-	assert.NoError(t, err)
-	assert.True(t, progressCalled)
+		// Verify file content
+	}
 
-	// Verify file content
 	data, err := io.Local.Read(coreutil.JoinPath(dest, imageName))
-	assert.NoError(t, err)
-	assert.Equal(t, content, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := data, content; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestCDNSource_Download_Bad(t *testing.T) {
@@ -99,8 +117,12 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 		})
 
 		err := src.Download(context.Background(), io.Local, dest, nil)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "HTTP 500")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if s, sub := err.Error(), "HTTP 500"; !core.Contains(s, sub) {
+			t.Fatalf("expected %v to contain %v", s, sub)
+		}
 	})
 
 	t.Run("Invalid URL", func(t *testing.T) {
@@ -111,7 +133,9 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 		})
 
 		err := src.Download(context.Background(), io.Local, dest, nil)
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
 	})
 }
 
@@ -127,8 +151,13 @@ func TestCDNSource_LatestVersion_NoManifest_Bad(t *testing.T) {
 	})
 
 	version, err := src.LatestVersion(context.Background())
-	assert.NoError(t, err) // Should not error, just return "latest"
-	assert.Equal(t, "latest", version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Should not error, just return "latest"
+	if got, want := version, "latest"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestCDNSource_LatestVersion_ServerError_Bad(t *testing.T) {
@@ -143,8 +172,13 @@ func TestCDNSource_LatestVersion_ServerError_Bad(t *testing.T) {
 	})
 
 	version, err := src.LatestVersion(context.Background())
-	assert.NoError(t, err) // Falls back to "latest"
-	assert.Equal(t, "latest", version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Falls back to "latest"
+	if got, want := version, "latest"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestCDNSource_Download_NoProgress_Good(t *testing.T) {
@@ -164,11 +198,17 @@ func TestCDNSource_Download_NoProgress_Good(t *testing.T) {
 
 	// nil progress callback should be handled gracefully
 	err := src.Download(context.Background(), io.Local, dest, nil)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	data, err := io.Local.Read(coreutil.JoinPath(dest, "test.img"))
-	assert.NoError(t, err)
-	assert.Equal(t, content, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := data, content; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestCDNSource_Download_LargeFile_Good(t *testing.T) {
@@ -197,10 +237,16 @@ func TestCDNSource_Download_LargeFile_Good(t *testing.T) {
 		progressCalls++
 		lastDownloaded = downloaded
 	})
-
-	assert.NoError(t, err)
-	assert.Greater(t, progressCalls, 1) // Should be called multiple times for large file
-	assert.Equal(t, int64(len(content)), lastDownloaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := progressCalls, 1; got <= // Should be called multiple times for large file
+		want {
+		t.Fatalf("want greater than %v, got %v", want, got)
+	}
+	if got, want := lastDownloaded, int64(len(content)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestCDNSource_Download_HTTPErrorCodes_Bad(t *testing.T) {
@@ -229,8 +275,12 @@ func TestCDNSource_Download_HTTPErrorCodes_Bad(t *testing.T) {
 			})
 
 			err := src.Download(context.Background(), io.Local, dest, nil)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), core.Sprintf("HTTP %d", tc.statusCode))
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if s, sub := err.Error(), core.Sprintf("HTTP %d", tc.statusCode); !core.Contains(s, sub) {
+				t.Fatalf("expected %v to contain %v", s, sub)
+			}
 		})
 	}
 }
@@ -246,9 +296,12 @@ func TestCDNSource_Config_Good(t *testing.T) {
 		ImageName: "my-image.qcow2",
 	}
 	src := NewCDNSource(cfg)
-
-	assert.Equal(t, "https://cdn.example.com", src.config.CDNURL)
-	assert.Equal(t, "my-image.qcow2", src.config.ImageName)
+	if got, want := src.config.CDNURL, "https://cdn.example.com"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := src.config.ImageName, "my-image.qcow2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestCDN_NewCDNSource_Good(t *testing.T) {
@@ -260,9 +313,15 @@ func TestCDN_NewCDNSource_Good(t *testing.T) {
 	}
 
 	src := NewCDNSource(cfg)
-	assert.NotNil(t, src)
-	assert.Equal(t, "cdn", src.Name())
-	assert.Equal(t, cfg.CDNURL, src.config.CDNURL)
+	if src == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := src.Name(), "cdn"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := src.config.CDNURL, cfg.CDNURL; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestCDNSource_Download_CreatesDestDir_Good(t *testing.T) {
@@ -283,12 +342,18 @@ func TestCDNSource_Download_CreatesDestDir_Good(t *testing.T) {
 	})
 
 	err := src.Download(context.Background(), io.Local, dest, nil)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify nested dir was created
 	info, err := io.Local.Stat(dest)
-	assert.NoError(t, err)
-	assert.True(t, info.IsDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(info.IsDir()) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestSourceConfig_Struct_Good(t *testing.T) {
@@ -298,9 +363,16 @@ func TestSourceConfig_Struct_Good(t *testing.T) {
 		CDNURL:        "https://cdn.example.com",
 		ImageName:     "image.qcow2",
 	}
-
-	assert.Equal(t, "owner/repo", cfg.GitHubRepo)
-	assert.Equal(t, "ghcr.io/owner/image", cfg.RegistryImage)
-	assert.Equal(t, "https://cdn.example.com", cfg.CDNURL)
-	assert.Equal(t, "image.qcow2", cfg.ImageName)
+	if got, want := cfg.GitHubRepo, "owner/repo"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.RegistryImage, "ghcr.io/owner/image"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.CDNURL, "https://cdn.example.com"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := cfg.ImageName, "image.qcow2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }

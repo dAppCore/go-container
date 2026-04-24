@@ -1,104 +1,145 @@
 package devenv
 
 import (
-	"testing"
-
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
+	"reflect"
+	"testing"
 )
 
 func TestDetectServeCommand_Laravel_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "artisan"), "#!/usr/bin/env php")
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
-	assert.Equal(t, "php artisan octane:start --host=0.0.0.0 --port=8000", cmd)
+	if got, want := cmd, "php artisan octane:start --host=0.0.0.0 --port=8000"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDetectServeCommand_NodeDev_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	packageJSON := `{"scripts":{"dev":"vite","start":"node index.js"}}`
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), packageJSON)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
-	assert.Equal(t, "npm run dev -- --host 0.0.0.0", cmd)
+	if got, want := cmd, "npm run dev -- --host 0.0.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDetectServeCommand_NodeStart_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	packageJSON := `{"scripts":{"start":"node server.js"}}`
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "package.json"), packageJSON)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
-	assert.Equal(t, "npm start", cmd)
+	if got, want := cmd, "npm start"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDetectServeCommand_PHP_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `{"require":{}}`)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
-	assert.Equal(t, "frankenphp php-server -l :8000", cmd)
+	if got, want := cmd, "frankenphp php-server -l :8000"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDetectServeCommand_GoMain_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "go.mod"), "module example")
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = io.Local.Write(coreutil.JoinPath(tmpDir, "main.go"), "package main")
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
-	assert.Equal(t, "go run .", cmd)
+	if got, want := cmd, "go run ."; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDetectServeCommand_GoWithoutMain_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "go.mod"), "module example")
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// No main.go, so falls through to fallback
 	cmd := DetectServeCommand(io.Local, tmpDir)
-	assert.Equal(t, "python3 -m http.server 8000", cmd)
+	if got, want := cmd, "python3 -m http.server 8000"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDetectServeCommand_Django_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "manage.py"), "#!/usr/bin/env python")
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
-	assert.Equal(t, "python manage.py runserver 0.0.0.0:8000", cmd)
+	if got, want := cmd, "python manage.py runserver 0.0.0.0:8000"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDetectServeCommand_Fallback_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
-	assert.Equal(t, "python3 -m http.server 8000", cmd)
+	if got, want := cmd, "python3 -m http.server 8000"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDetectServeCommand_Priority_Good(t *testing.T) {
 	// Laravel (artisan) should take priority over PHP (composer.json)
 	tmpDir := t.TempDir()
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "artisan"), "#!/usr/bin/env php")
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = io.Local.Write(coreutil.JoinPath(tmpDir, "composer.json"), `{"require":{}}`)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := DetectServeCommand(io.Local, tmpDir)
-	assert.Equal(t, "php artisan octane:start --host=0.0.0.0 --port=8000", cmd)
+	if got, want := cmd, "php artisan octane:start --host=0.0.0.0 --port=8000"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestServeOptions_Default_Good(t *testing.T) {
 	opts := ServeOptions{}
-	assert.Equal(t, 0, opts.Port)
-	assert.Equal(t, "", opts.Path)
+	if got, want := opts.Port, 0; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Path, ""; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestServeOptions_Custom_Good(t *testing.T) {
@@ -106,31 +147,43 @@ func TestServeOptions_Custom_Good(t *testing.T) {
 		Port: 3000,
 		Path: "public",
 	}
-	assert.Equal(t, 3000, opts.Port)
-	assert.Equal(t, "public", opts.Path)
+	if got, want := opts.Port, 3000; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Path, "public"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestServe_HasFile_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := coreutil.JoinPath(tmpDir, "test.txt")
 	err := io.Local.Write(testFile, "content")
-	assert.NoError(t, err)
-
-	assert.True(t, hasFile(io.Local, tmpDir, "test.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(hasFile(io.Local, tmpDir, "test.txt")) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestServe_HasFile_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
-
-	assert.False(t, hasFile(io.Local, tmpDir, "nonexistent.txt"))
+	if hasFile(io.Local, tmpDir, "nonexistent.txt") {
+		t.Fatal("expected false")
+	}
 }
 
 func TestHasFile_Directory_Bad(t *testing.T) {
 	tmpDir := t.TempDir()
 	subDir := coreutil.JoinPath(tmpDir, "subdir")
 	err := io.Local.EnsureDir(subDir)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// hasFile correctly returns false for directories (only true for regular files)
-	assert.False(t, hasFile(io.Local, tmpDir, "subdir"))
+	if hasFile(io.Local, tmpDir, "subdir") {
+		t.Fatal("expected false")
+	}
 }

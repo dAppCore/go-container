@@ -2,34 +2,45 @@ package devenv
 
 import (
 	"context"
+
+	"dappco.re/go/container"
+	"dappco.re/go/container/internal/coreutil"
+	"dappco.re/go/container/internal/proc"
+	core "dappco.re/go/core"
+
+	"dappco.re/go/core/io"
+	"reflect"
 	"runtime"
 	"syscall"
 	"testing"
 	"time"
-
-	core "dappco.re/go/core"
-	"dappco.re/go/container"
-	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/container/internal/proc"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func newManagedTempDir(t *testing.T, prefix string) string {
 	t.Helper()
 	dir, err := coreutil.MkdirTemp(prefix)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CORE_HOME", dir)
 	t.Cleanup(func() { _ = io.Local.DeleteAll(dir) })
 	return dir
 }
 
 func TestDevOps_ImageName_Good(t *testing.T) {
 	name := ImageName()
-	assert.Contains(t, name, "core-devops-")
-	assert.Contains(t, name, runtime.GOOS)
-	assert.Contains(t, name, runtime.GOARCH)
-	assert.True(t, (name[len(name)-6:] == ".qcow2"))
+	if s, sub := name, "core-devops-"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := name, runtime.GOOS; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := name, runtime.GOARCH; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if !(name[len(name)-6:] == ".qcow2") {
+		t.Fatal("expected true")
+	}
 }
 
 func TestDevOps_ImagesDir_Good(t *testing.T) {
@@ -37,8 +48,12 @@ func TestDevOps_ImagesDir_Good(t *testing.T) {
 		t.Setenv("CORE_IMAGES_DIR", "")
 
 		dir, err := ImagesDir()
-		assert.NoError(t, err)
-		assert.Contains(t, dir, ".core/images")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s, sub := dir, ".core/images"; !core.Contains(s, sub) {
+			t.Fatalf("expected %v to contain %v", s, sub)
+		}
 	})
 
 	t.Run("environment override", func(t *testing.T) {
@@ -46,8 +61,12 @@ func TestDevOps_ImagesDir_Good(t *testing.T) {
 		t.Setenv("CORE_IMAGES_DIR", customDir)
 
 		dir, err := ImagesDir()
-		assert.NoError(t, err)
-		assert.Equal(t, customDir, dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := dir, customDir; !reflect.DeepEqual(got, want) {
+			t.Fatalf("want %v, got %v", want, got)
+		}
 	})
 }
 
@@ -56,17 +75,29 @@ func TestDevOps_ImagePath_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", customDir)
 
 	path, err := ImagePath()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	expected := coreutil.JoinPath(customDir, ImageName())
-	assert.Equal(t, expected, path)
+	if got, want := path, expected; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDevOps_DefaultBootOptions_Good(t *testing.T) {
 	opts := DefaultBootOptions()
-	assert.Equal(t, 4096, opts.Memory)
-	assert.Equal(t, 2, opts.CPUs)
-	assert.Equal(t, "core-dev", opts.Name)
-	assert.False(t, opts.Fresh)
+	if got, want := opts.Memory, 4096; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.CPUs, 2; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Name, "core-dev"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if opts.Fresh {
+		t.Fatal("expected false")
+	}
 }
 
 func TestDevOps_IsInstalled_Bad(t *testing.T) {
@@ -77,7 +108,9 @@ func TestDevOps_IsInstalled_Bad(t *testing.T) {
 
 		// Create devops instance manually to avoid loading real config/images
 		d := &DevOps{medium: io.Local}
-		assert.False(t, d.IsInstalled())
+		if d.IsInstalled() {
+			t.Fatal("expected false")
+		}
 	})
 }
 
@@ -89,10 +122,14 @@ func TestDevOps_IsInstalled_Good(t *testing.T) {
 		// Create the image file
 		imagePath := coreutil.JoinPath(tempDir, ImageName())
 		err := io.Local.Write(imagePath, "fake image data")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		d := &DevOps{medium: io.Local}
-		assert.True(t, d.IsInstalled())
+		if !(d.IsInstalled()) {
+			t.Fatal("expected true")
+		}
 	})
 }
 
@@ -110,7 +147,9 @@ func TestDevOps_Status_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Setup mock container manager
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
@@ -134,15 +173,29 @@ func TestDevOps_Status_Good(t *testing.T) {
 		CPUs:      4,
 	}
 	err = state.Add(c)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	status, err := d.Status(context.Background())
-	assert.NoError(t, err)
-	assert.NotNil(t, status)
-	assert.True(t, status.Running)
-	assert.Equal(t, "test-id", status.ContainerID)
-	assert.Equal(t, 2048, status.Memory)
-	assert.Equal(t, 4, status.CPUs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if !(status.Running) {
+		t.Fatal("expected true")
+	}
+	if got, want := status.ContainerID, "test-id"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := status.Memory, 2048; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := status.CPUs, 4; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDevOps_Status_NotInstalled_Good(t *testing.T) {
@@ -151,7 +204,9 @@ func TestDevOps_Status_NotInstalled_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -164,11 +219,21 @@ func TestDevOps_Status_NotInstalled_Good(t *testing.T) {
 	}
 
 	status, err := d.Status(context.Background())
-	assert.NoError(t, err)
-	assert.NotNil(t, status)
-	assert.False(t, status.Installed)
-	assert.False(t, status.Running)
-	assert.Equal(t, 2222, status.SSHPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if status.Installed {
+		t.Fatal("expected false")
+	}
+	if status.Running {
+		t.Fatal("expected false")
+	}
+	if got, want := status.SSHPort, 2222; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDevOps_Status_NoContainer_Good(t *testing.T) {
@@ -178,11 +243,15 @@ func TestDevOps_Status_NoContainer_Good(t *testing.T) {
 	// Create fake image to mark as installed
 	imagePath := coreutil.JoinPath(tempDir, ImageName())
 	err := io.Local.Write(imagePath, "fake")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -195,11 +264,21 @@ func TestDevOps_Status_NoContainer_Good(t *testing.T) {
 	}
 
 	status, err := d.Status(context.Background())
-	assert.NoError(t, err)
-	assert.NotNil(t, status)
-	assert.True(t, status.Installed)
-	assert.False(t, status.Running)
-	assert.Empty(t, status.ContainerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if !(status.Installed) {
+		t.Fatal("expected true")
+	}
+	if status.Running {
+		t.Fatal("expected false")
+	}
+	if got := status.ContainerID; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestDevOps_IsRunning_Good(t *testing.T) {
@@ -208,7 +287,9 @@ func TestDevOps_IsRunning_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -228,11 +309,17 @@ func TestDevOps_IsRunning_Good(t *testing.T) {
 		StartedAt: time.Now(),
 	}
 	err = state.Add(c)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	running, err := d.IsRunning(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, running)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(running) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestDevOps_IsRunning_NotRunning_Bad(t *testing.T) {
@@ -241,7 +328,9 @@ func TestDevOps_IsRunning_NotRunning_Bad(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -254,8 +343,12 @@ func TestDevOps_IsRunning_NotRunning_Bad(t *testing.T) {
 	}
 
 	running, err := d.IsRunning(context.Background())
-	assert.NoError(t, err)
-	assert.False(t, running)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if running {
+		t.Fatal("expected false")
+	}
 }
 
 func TestDevOps_IsRunning_ContainerStopped_Bad(t *testing.T) {
@@ -264,7 +357,9 @@ func TestDevOps_IsRunning_ContainerStopped_Bad(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -284,11 +379,17 @@ func TestDevOps_IsRunning_ContainerStopped_Bad(t *testing.T) {
 		StartedAt: time.Now(),
 	}
 	err = state.Add(c)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	running, err := d.IsRunning(context.Background())
-	assert.NoError(t, err)
-	assert.False(t, running)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if running {
+		t.Fatal("expected false")
+	}
 }
 
 func TestDevOps_findContainer_Good(t *testing.T) {
@@ -297,7 +398,9 @@ func TestDevOps_findContainer_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -317,13 +420,23 @@ func TestDevOps_findContainer_Good(t *testing.T) {
 		StartedAt: time.Now(),
 	}
 	err = state.Add(c)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	found, err := d.findContainer(context.Background(), "my-container")
-	assert.NoError(t, err)
-	assert.NotNil(t, found)
-	assert.Equal(t, "test-id", found.ID)
-	assert.Equal(t, "my-container", found.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := found.ID, "test-id"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := found.Name, "my-container"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDevOps_findContainer_NotFound_Bad(t *testing.T) {
@@ -332,7 +445,9 @@ func TestDevOps_findContainer_NotFound_Bad(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -345,8 +460,12 @@ func TestDevOps_findContainer_NotFound_Bad(t *testing.T) {
 	}
 
 	found, err := d.findContainer(context.Background(), "nonexistent")
-	assert.NoError(t, err)
-	assert.Nil(t, found)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found != nil {
+		t.Fatal("expected nil")
+	}
 }
 
 func TestDevOps_Stop_NotFound_Bad(t *testing.T) {
@@ -355,7 +474,9 @@ func TestDevOps_Stop_NotFound_Bad(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -368,8 +489,12 @@ func TestDevOps_Stop_NotFound_Bad(t *testing.T) {
 	}
 
 	err = d.Stop(context.Background())
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "not found"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestBootOptions_Custom_Good(t *testing.T) {
@@ -379,10 +504,18 @@ func TestBootOptions_Custom_Good(t *testing.T) {
 		Name:   "custom-dev",
 		Fresh:  true,
 	}
-	assert.Equal(t, 8192, opts.Memory)
-	assert.Equal(t, 4, opts.CPUs)
-	assert.Equal(t, "custom-dev", opts.Name)
-	assert.True(t, opts.Fresh)
+	if got, want := opts.Memory, 8192; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.CPUs, 4; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Name, "custom-dev"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(opts.Fresh) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestDevStatus_Struct_Good(t *testing.T) {
@@ -396,14 +529,30 @@ func TestDevStatus_Struct_Good(t *testing.T) {
 		SSHPort:      2222,
 		Uptime:       time.Hour,
 	}
-	assert.True(t, status.Installed)
-	assert.True(t, status.Running)
-	assert.Equal(t, "v1.2.3", status.ImageVersion)
-	assert.Equal(t, "abc123", status.ContainerID)
-	assert.Equal(t, 4096, status.Memory)
-	assert.Equal(t, 2, status.CPUs)
-	assert.Equal(t, 2222, status.SSHPort)
-	assert.Equal(t, time.Hour, status.Uptime)
+	if !(status.Installed) {
+		t.Fatal("expected true")
+	}
+	if !(status.Running) {
+		t.Fatal("expected true")
+	}
+	if got, want := status.ImageVersion, "v1.2.3"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := status.ContainerID, "abc123"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := status.Memory, 4096; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := status.CPUs, 2; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := status.SSHPort, 2222; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := status.Uptime, time.Hour; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDevOps_Boot_NotInstalled_Bad(t *testing.T) {
@@ -412,7 +561,9 @@ func TestDevOps_Boot_NotInstalled_Bad(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -425,8 +576,12 @@ func TestDevOps_Boot_NotInstalled_Bad(t *testing.T) {
 	}
 
 	err = d.Boot(context.Background(), DefaultBootOptions())
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not installed")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "not installed"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestDevOps_Boot_AlreadyRunning_Bad(t *testing.T) {
@@ -436,11 +591,15 @@ func TestDevOps_Boot_AlreadyRunning_Bad(t *testing.T) {
 	// Create fake image
 	imagePath := coreutil.JoinPath(tempDir, ImageName())
 	err := io.Local.Write(imagePath, "fake")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -461,11 +620,17 @@ func TestDevOps_Boot_AlreadyRunning_Bad(t *testing.T) {
 		StartedAt: time.Now(),
 	}
 	err = state.Add(c)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	err = d.Boot(context.Background(), DefaultBootOptions())
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "already running")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "already running"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestDevOps_Status_WithImageVersion_Good(t *testing.T) {
@@ -475,11 +640,15 @@ func TestDevOps_Status_WithImageVersion_Good(t *testing.T) {
 	// Create fake image
 	imagePath := coreutil.JoinPath(tempDir, ImageName())
 	err := io.Local.Write(imagePath, "fake")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Manually set manifest with version info
 	mgr.manifest.Images[ImageName()] = ImageInfo{
@@ -499,9 +668,15 @@ func TestDevOps_Status_WithImageVersion_Good(t *testing.T) {
 	}
 
 	status, err := d.Status(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, status.Installed)
-	assert.Equal(t, "v1.2.3", status.ImageVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(status.Installed) {
+		t.Fatal("expected true")
+	}
+	if got, want := status.ImageVersion, "v1.2.3"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDevOps_findContainer_MultipleContainers_Good(t *testing.T) {
@@ -510,7 +685,9 @@ func TestDevOps_findContainer_MultipleContainers_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -538,15 +715,25 @@ func TestDevOps_findContainer_MultipleContainers_Good(t *testing.T) {
 		StartedAt: time.Now(),
 	}
 	err = state.Add(c1)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = state.Add(c2)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Find specific container
 	found, err := d.findContainer(context.Background(), "container-2")
-	assert.NoError(t, err)
-	assert.NotNil(t, found)
-	assert.Equal(t, "id-2", found.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := found.ID, "id-2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestDevOps_Status_ContainerWithUptime_Good(t *testing.T) {
@@ -555,7 +742,9 @@ func TestDevOps_Status_ContainerWithUptime_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -578,12 +767,20 @@ func TestDevOps_Status_ContainerWithUptime_Good(t *testing.T) {
 		CPUs:      2,
 	}
 	err = state.Add(c)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	status, err := d.Status(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, status.Running)
-	assert.GreaterOrEqual(t, status.Uptime.Hours(), float64(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(status.Running) {
+		t.Fatal("expected true")
+	}
+	if got, want := status.Uptime.Hours(), float64(1); got < want {
+		t.Fatalf("want at least %v, got %v", want, got)
+	}
 }
 
 func TestDevOps_IsRunning_DifferentContainerName_Bad(t *testing.T) {
@@ -592,7 +789,9 @@ func TestDevOps_IsRunning_DifferentContainerName_Bad(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -613,12 +812,18 @@ func TestDevOps_IsRunning_DifferentContainerName_Bad(t *testing.T) {
 		StartedAt: time.Now(),
 	}
 	err = state.Add(c)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// IsRunning looks for "core-dev", not "other-container"
 	running, err := d.IsRunning(context.Background())
-	assert.NoError(t, err)
-	assert.False(t, running)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if running {
+		t.Fatal("expected false")
+	}
 }
 
 func TestDevOps_Boot_FreshFlag_Good(t *testing.T) {
@@ -629,11 +834,15 @@ func TestDevOps_Boot_FreshFlag_Good(t *testing.T) {
 	// Create fake image
 	imagePath := coreutil.JoinPath(tempDir, ImageName())
 	err := io.Local.Write(imagePath, "fake")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -654,7 +863,9 @@ func TestDevOps_Boot_FreshFlag_Good(t *testing.T) {
 		StartedAt: time.Now(),
 	}
 	err = state.Add(c)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Boot with Fresh=true should try to stop the existing container
 	// then run a new one. The mock hypervisor "succeeds" so this won't error
@@ -666,7 +877,9 @@ func TestDevOps_Boot_FreshFlag_Good(t *testing.T) {
 	}
 	err = d.Boot(context.Background(), opts)
 	// The mock hypervisor's Run succeeds
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestDevOps_Stop_ContainerNotRunning_Bad(t *testing.T) {
@@ -675,7 +888,9 @@ func TestDevOps_Stop_ContainerNotRunning_Bad(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -696,12 +911,18 @@ func TestDevOps_Stop_ContainerNotRunning_Bad(t *testing.T) {
 		StartedAt: time.Now(),
 	}
 	err = state.Add(c)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Stop should fail because container is not running
 	err = d.Stop(context.Background())
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not running")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "not running"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestDevOps_Boot_FreshWithNoExisting_Good(t *testing.T) {
@@ -712,11 +933,15 @@ func TestDevOps_Boot_FreshWithNoExisting_Good(t *testing.T) {
 	// Create fake image
 	imagePath := coreutil.JoinPath(tempDir, ImageName())
 	err := io.Local.Write(imagePath, "fake")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -737,16 +962,26 @@ func TestDevOps_Boot_FreshWithNoExisting_Good(t *testing.T) {
 	}
 	err = d.Boot(context.Background(), opts)
 	// The mock hypervisor succeeds
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestImageName_Format_Good(t *testing.T) {
 	name := ImageName()
 	// Check format: core-devops-{os}-{arch}.qcow2
-	assert.Contains(t, name, "core-devops-")
-	assert.Contains(t, name, runtime.GOOS)
-	assert.Contains(t, name, runtime.GOARCH)
-	assert.True(t, core.PathExt(name) == ".qcow2")
+	if s, sub := name, "core-devops-"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := name, runtime.GOOS; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := name, runtime.GOARCH; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if !(core.PathExt(name) == ".qcow2") {
+		t.Fatal("expected true")
+	}
 }
 
 func TestDevOps_Install_Delegates_Good(t *testing.T) {
@@ -756,7 +991,9 @@ func TestDevOps_Install_Delegates_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	d := &DevOps{medium: io.Local,
 		images: mgr,
@@ -764,7 +1001,9 @@ func TestDevOps_Install_Delegates_Good(t *testing.T) {
 
 	// This will fail because no source is available, but it tests delegation
 	err = d.Install(context.Background(), nil)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestDevOps_CheckUpdate_Delegates_Good(t *testing.T) {
@@ -774,7 +1013,9 @@ func TestDevOps_CheckUpdate_Delegates_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	d := &DevOps{medium: io.Local,
 		images: mgr,
@@ -782,7 +1023,9 @@ func TestDevOps_CheckUpdate_Delegates_Good(t *testing.T) {
 
 	// This will fail because image not installed, but it tests delegation
 	_, _, _, err = d.CheckUpdate(context.Background())
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestDevOps_Boot_Success_Good(t *testing.T) {
@@ -793,11 +1036,15 @@ func TestDevOps_Boot_Success_Good(t *testing.T) {
 	// Create fake image
 	imagePath := coreutil.JoinPath(tempDir, ImageName())
 	err := io.Local.Write(imagePath, "fake")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -812,7 +1059,9 @@ func TestDevOps_Boot_Success_Good(t *testing.T) {
 	// Boot without Fresh flag and no existing container
 	opts := DefaultBootOptions()
 	err = d.Boot(context.Background(), opts)
-	assert.NoError(t, err) // Mock hypervisor succeeds
+	if err != nil {
+		t.Fatal(err)
+	} // Mock hypervisor succeeds
 }
 
 func TestDevOps_Config_Good(t *testing.T) {
@@ -821,13 +1070,18 @@ func TestDevOps_Config_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	d := &DevOps{medium: io.Local,
 		config: cfg,
 		images: mgr,
 	}
-
-	assert.NotNil(t, d.config)
-	assert.Equal(t, "auto", d.config.Images.Source)
+	if d.config == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := d.config.Images.Source, "auto"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }

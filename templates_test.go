@@ -1,74 +1,112 @@
 package container
 
 import (
-	"testing"
-
+	"dappco.re/go/container/internal/coreutil"
 	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
-
-	"dappco.re/go/container/internal/coreutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"reflect"
+	"slices"
+	"testing"
 )
 
 func TestTemplates_ListTemplates_Good(t *testing.T) {
 	templates := ListTemplates()
 
 	// Should have at least the builtin templates
-	assert.GreaterOrEqual(t, len(templates), 2)
+	if got, want := len(templates), 2; got < want {
+		t.Fatalf("want at least %v, got %v", want, got)
+	}
 
 	// Find the core-dev template
+
 	var found bool
 	for _, tmpl := range templates {
 		if tmpl.Name == "core-dev" {
 			found = true
-			assert.NotEmpty(t, tmpl.Description)
-			assert.NotEmpty(t, tmpl.Path)
+			if got := tmpl.Description; len(got) == 0 {
+				t.Fatal("expected non-empty value")
+			}
+			if got := tmpl.Path; len(got) == 0 {
+				t.Fatal("expected non-empty value")
+			}
 			break
 		}
 	}
-	assert.True(t, found, "core-dev template should exist")
+	if !(found) {
+		t.Fatal("expected true")
+	}
 
 	// Find the server-php template
 	found = false
 	for _, tmpl := range templates {
 		if tmpl.Name == "server-php" {
 			found = true
-			assert.NotEmpty(t, tmpl.Description)
-			assert.NotEmpty(t, tmpl.Path)
+			if got := tmpl.Description; len(got) == 0 {
+				t.Fatal("expected non-empty value")
+			}
+			if got := tmpl.Path; len(got) == 0 {
+				t.Fatal("expected non-empty value")
+			}
 			break
 		}
 	}
-	assert.True(t, found, "server-php template should exist")
+	if !(found) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestGetTemplate_CoreDev_Good(t *testing.T) {
 	content, err := GetTemplate("core-dev")
-
-	require.NoError(t, err)
-	assert.NotEmpty(t, content)
-	assert.Contains(t, content, "kernel:")
-	assert.Contains(t, content, "linuxkit/kernel")
-	assert.Contains(t, content, "${SSH_KEY}")
-	assert.Contains(t, content, "services:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := content; len(got) == 0 {
+		t.Fatal("expected non-empty value")
+	}
+	if s, sub := content, "kernel:"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := content, "linuxkit/kernel"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := content, "${SSH_KEY}"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := content, "services:"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestGetTemplate_ServerPhp_Good(t *testing.T) {
 	content, err := GetTemplate("server-php")
-
-	require.NoError(t, err)
-	assert.NotEmpty(t, content)
-	assert.Contains(t, content, "kernel:")
-	assert.Contains(t, content, "frankenphp")
-	assert.Contains(t, content, "${SSH_KEY}")
-	assert.Contains(t, content, "${DOMAIN:-localhost}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := content; len(got) == 0 {
+		t.Fatal("expected non-empty value")
+	}
+	if s, sub := content, "kernel:"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := content, "frankenphp"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := content, "${SSH_KEY}"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := content, "${DOMAIN:-localhost}"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestGetTemplate_NotFound_Bad(t *testing.T) {
 	_, err := GetTemplate("nonexistent-template")
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "template not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "template not found"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestApplyVariables_SimpleSubstitution_Good(t *testing.T) {
@@ -79,9 +117,12 @@ func TestApplyVariables_SimpleSubstitution_Good(t *testing.T) {
 	}
 
 	result, err := ApplyVariables(content, vars)
-
-	require.NoError(t, err)
-	assert.Equal(t, "Hello World, welcome to Core!", result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := result, "Hello World, welcome to Core!"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestApplyVariables_WithDefaults_Good(t *testing.T) {
@@ -92,9 +133,12 @@ func TestApplyVariables_WithDefaults_Good(t *testing.T) {
 	}
 
 	result, err := ApplyVariables(content, vars)
-
-	require.NoError(t, err)
-	assert.Equal(t, "Memory: 2048MB, CPUs: 2", result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := result, "Memory: 2048MB, CPUs: 2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestApplyVariables_AllDefaults_Good(t *testing.T) {
@@ -102,9 +146,12 @@ func TestApplyVariables_AllDefaults_Good(t *testing.T) {
 	vars := map[string]string{} // No vars provided
 
 	result, err := ApplyVariables(content, vars)
-
-	require.NoError(t, err)
-	assert.Equal(t, "localhost:8080", result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := result, "localhost:8080"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestApplyVariables_MixedSyntax_Good(t *testing.T) {
@@ -119,11 +166,18 @@ memory: ${MEMORY:-512}
 	}
 
 	result, err := ApplyVariables(content, vars)
-
-	require.NoError(t, err)
-	assert.Contains(t, result, "hostname: custom-host")
-	assert.Contains(t, result, "ssh_key: ssh-rsa AAAA...")
-	assert.Contains(t, result, "memory: 512")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, sub := result, "hostname: custom-host"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := result, "ssh_key: ssh-rsa AAAA..."; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := result, "memory: 512"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestApplyVariables_EmptyDefault_Good(t *testing.T) {
@@ -131,9 +185,12 @@ func TestApplyVariables_EmptyDefault_Good(t *testing.T) {
 	vars := map[string]string{}
 
 	result, err := ApplyVariables(content, vars)
-
-	require.NoError(t, err)
-	assert.Equal(t, "value: ", result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := result, "value: "; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestApplyVariables_MissingRequired_Bad(t *testing.T) {
@@ -141,10 +198,15 @@ func TestApplyVariables_MissingRequired_Bad(t *testing.T) {
 	vars := map[string]string{} // Missing required SSH_KEY
 
 	_, err := ApplyVariables(content, vars)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "missing required variables")
-	assert.Contains(t, err.Error(), "SSH_KEY")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "missing required variables"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := err.Error(), "SSH_KEY"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestApplyVariables_MultipleMissing_Bad(t *testing.T) {
@@ -154,12 +216,19 @@ func TestApplyVariables_MultipleMissing_Bad(t *testing.T) {
 	}
 
 	_, err := ApplyVariables(content, vars)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "missing required variables"; !core.
+		// Should mention both missing vars
+		Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "missing required variables")
-	// Should mention both missing vars
 	errStr := err.Error()
-	assert.True(t, core.Contains(errStr, "VAR1") || core.Contains(errStr, "VAR3"))
+	if !(core.Contains(errStr, "VAR1") || core.Contains(errStr, "VAR3")) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestTemplates_ApplyTemplate_Good(t *testing.T) {
@@ -168,12 +237,21 @@ func TestTemplates_ApplyTemplate_Good(t *testing.T) {
 	}
 
 	result, err := ApplyTemplate("core-dev", vars)
-
-	require.NoError(t, err)
-	assert.NotEmpty(t, result)
-	assert.Contains(t, result, "ssh-rsa AAAA... user@host")
-	// Default values should be applied
-	assert.Contains(t, result, "core-dev") // HOSTNAME default
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result; len(got) == 0 {
+		t.Fatal("expected non-empty value")
+	}
+	if s, sub := result, "ssh-rsa AAAA... user@host"; !core.
+		// Default values should be applied
+		Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := result, "core-dev"; !core. // HOSTNAME default
+						Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestApplyTemplate_TemplateNotFound_Bad(t *testing.T) {
@@ -182,9 +260,12 @@ func TestApplyTemplate_TemplateNotFound_Bad(t *testing.T) {
 	}
 
 	_, err := ApplyTemplate("nonexistent", vars)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "template not found")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "template not found"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestApplyTemplate_MissingVariable_Bad(t *testing.T) {
@@ -192,9 +273,12 @@ func TestApplyTemplate_MissingVariable_Bad(t *testing.T) {
 	vars := map[string]string{} // Missing required SSH_KEY
 
 	_, err := ApplyTemplate("server-php", vars)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "missing required variables")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "missing required variables"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestTemplates_ExtractVariables_Good(t *testing.T) {
@@ -204,39 +288,63 @@ ssh_key: ${SSH_KEY}
 memory: ${MEMORY:-1024}
 cpus: ${CPUS:-2}
 api_key: ${API_KEY}
-`
+	`
 	required, optional := ExtractVariables(content)
 
 	// Required variables (no default)
-	assert.Contains(t, required, "SSH_KEY")
-	assert.Contains(t, required, "API_KEY")
-	assert.Len(t, required, 2)
+	if s, sub := required, "SSH_KEY"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := required, "API_KEY"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 
 	// Optional variables (with defaults)
-	assert.Equal(t, "myhost", optional["HOSTNAME"])
-	assert.Equal(t, "1024", optional["MEMORY"])
-	assert.Equal(t, "2", optional["CPUS"])
-	assert.Len(t, optional, 3)
+	if got, want := len(required), 2; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
+	if got, want := optional["HOSTNAME"], "myhost"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := optional["MEMORY"], "1024"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := optional["CPUS"], "2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := len(optional), 3; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
 }
 
 func TestExtractVariables_NoVariables_Good(t *testing.T) {
 	content := "This has no variables at all"
 
 	required, optional := ExtractVariables(content)
-
-	assert.Empty(t, required)
-	assert.Empty(t, optional)
+	if got := required; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
+	if got := optional; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestExtractVariables_OnlyDefaults_Good(t *testing.T) {
 	content := "${A:-default1} ${B:-default2}"
 
 	required, optional := ExtractVariables(content)
-
-	assert.Empty(t, required)
-	assert.Len(t, optional, 2)
-	assert.Equal(t, "default1", optional["A"])
-	assert.Equal(t, "default2", optional["B"])
+	if got := required; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
+	if got, want := len(optional), 2; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
+	if got, want := optional["A"], "default1"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := optional["B"], "default2"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestTemplates_ScanUserTemplates_Good(t *testing.T) {
@@ -250,17 +358,26 @@ kernel:
   image: linuxkit/kernel:6.6
 `
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "custom.yml"), templateContent)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a non-template file (should be ignored)
 	err = io.Local.Write(coreutil.JoinPath(tmpDir, "readme.txt"), "Not a template")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	templates := scanUserTemplates(tmpDir)
-
-	assert.Len(t, templates, 1)
-	assert.Equal(t, "custom", templates[0].Name)
-	assert.Equal(t, "My Custom Template", templates[0].Description)
+	if got, want := len(templates), 1; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
+	if got, want := templates[0].Name, "custom"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := templates[0].Description, "My Custom Template"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestScanUserTemplates_MultipleTemplates_Good(t *testing.T) {
@@ -268,35 +385,48 @@ func TestScanUserTemplates_MultipleTemplates_Good(t *testing.T) {
 
 	// Create multiple template files
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "web.yml"), "# Web Server\nkernel:")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = io.Local.Write(coreutil.JoinPath(tmpDir, "db.yaml"), "# Database Server\nkernel:")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	templates := scanUserTemplates(tmpDir)
+	if got, want := len(templates), 2; got !=
 
-	assert.Len(t, templates, 2)
+		// Check names are extracted correctly
+		want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
 
-	// Check names are extracted correctly
 	names := make(map[string]bool)
 	for _, tmpl := range templates {
 		names[tmpl.Name] = true
 	}
-	assert.True(t, names["web"])
-	assert.True(t, names["db"])
+	if !(names["web"]) {
+		t.Fatal("expected true")
+	}
+	if !(names["db"]) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestScanUserTemplates_EmptyDirectory_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	templates := scanUserTemplates(tmpDir)
-
-	assert.Empty(t, templates)
+	if got := templates; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestScanUserTemplates_NonexistentDirectory_Bad(t *testing.T) {
 	templates := scanUserTemplates("/nonexistent/path/to/templates")
-
-	assert.Empty(t, templates)
+	if got := templates; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestTemplates_ExtractTemplateDescription_Good(t *testing.T) {
@@ -309,11 +439,14 @@ kernel:
   image: test
 `
 	err := io.Local.Write(path, content)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	desc := extractTemplateDescription(path)
-
-	assert.Equal(t, "My Template Description", desc)
+	if got, want := desc, "My Template Description"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestExtractTemplateDescription_NoComments_Good(t *testing.T) {
@@ -324,17 +457,21 @@ func TestExtractTemplateDescription_NoComments_Good(t *testing.T) {
   image: test
 `
 	err := io.Local.Write(path, content)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	desc := extractTemplateDescription(path)
-
-	assert.Empty(t, desc)
+	if got := desc; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestExtractTemplateDescription_FileNotFound_Bad(t *testing.T) {
 	desc := extractTemplateDescription("/nonexistent/file.yml")
-
-	assert.Empty(t, desc)
+	if got := desc; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
 }
 
 func TestTemplates_VariablePatternEdgeCases_Good(t *testing.T) {
@@ -379,8 +516,12 @@ func TestTemplates_VariablePatternEdgeCases_Good(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := ApplyVariables(tt.content, tt.vars)
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := result, tt.expected; !reflect.DeepEqual(got, want) {
+				t.Fatalf("want %v, got %v", want, got)
+			}
 		})
 	}
 }
@@ -390,17 +531,25 @@ func TestScanUserTemplates_SkipsBuiltinNames_Good(t *testing.T) {
 
 	// Create a template with a builtin name (should be skipped)
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "core-dev.yml"), "# Duplicate\nkernel:")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a unique template
 	err = io.Local.Write(coreutil.JoinPath(tmpDir, "unique.yml"), "# Unique\nkernel:")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	templates := scanUserTemplates(tmpDir)
 
 	// Should only have the unique template, not the builtin name
-	assert.Len(t, templates, 1)
-	assert.Equal(t, "unique", templates[0].Name)
+	if got, want := len(templates), 1; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
+	if got, want := templates[0].Name, "unique"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestScanUserTemplates_SkipsDirectories_Good(t *testing.T) {
@@ -408,16 +557,23 @@ func TestScanUserTemplates_SkipsDirectories_Good(t *testing.T) {
 
 	// Create a subdirectory (should be skipped)
 	err := io.Local.EnsureDir(coreutil.JoinPath(tmpDir, "subdir"))
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a valid template
 	err = io.Local.Write(coreutil.JoinPath(tmpDir, "valid.yml"), "# Valid\nkernel:")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	templates := scanUserTemplates(tmpDir)
-
-	assert.Len(t, templates, 1)
-	assert.Equal(t, "valid", templates[0].Name)
+	if got, want := len(templates), 1; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
+	if got, want := templates[0].Name, "valid"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestScanUserTemplates_YamlExtension_Good(t *testing.T) {
@@ -425,20 +581,29 @@ func TestScanUserTemplates_YamlExtension_Good(t *testing.T) {
 
 	// Create templates with both extensions
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "template1.yml"), "# Template 1\nkernel:")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = io.Local.Write(coreutil.JoinPath(tmpDir, "template2.yaml"), "# Template 2\nkernel:")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	templates := scanUserTemplates(tmpDir)
-
-	assert.Len(t, templates, 2)
+	if got, want := len(templates), 2; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
 
 	names := make(map[string]bool)
 	for _, tmpl := range templates {
 		names[tmpl.Name] = true
 	}
-	assert.True(t, names["template1"])
-	assert.True(t, names["template2"])
+	if !(names["template1"]) {
+		t.Fatal("expected true")
+	}
+	if !(names["template2"]) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestExtractTemplateDescription_EmptyComment_Good(t *testing.T) {
@@ -452,11 +617,14 @@ kernel:
   image: test
 `
 	err := io.Local.Write(path, content)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	desc := extractTemplateDescription(path)
-
-	assert.Equal(t, "Actual description here", desc)
+	if got, want := desc, "Actual description here"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestExtractTemplateDescription_MultipleEmptyComments_Good(t *testing.T) {
@@ -472,11 +640,14 @@ kernel:
   image: test
 `
 	err := io.Local.Write(path, content)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	desc := extractTemplateDescription(path)
-
-	assert.Equal(t, "Real description", desc)
+	if got, want := desc, "Real description"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestScanUserTemplates_DefaultDescription_Good(t *testing.T) {
@@ -487,10 +658,15 @@ func TestScanUserTemplates_DefaultDescription_Good(t *testing.T) {
   image: test
 `
 	err := io.Local.Write(coreutil.JoinPath(tmpDir, "nocomment.yml"), content)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	templates := scanUserTemplates(tmpDir)
-
-	assert.Len(t, templates, 1)
-	assert.Equal(t, "User-defined template", templates[0].Description)
+	if got, want := len(templates), 1; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
+	if got, want := templates[0].Description, "User-defined template"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
