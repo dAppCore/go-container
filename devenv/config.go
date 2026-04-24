@@ -6,7 +6,7 @@ import (
 
 	core "dappco.re/go/core"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 )
 
 // Config holds global devops configuration from ~/.core/config.yaml.

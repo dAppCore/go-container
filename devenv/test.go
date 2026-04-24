@@ -8,7 +8,7 @@ import (
 	coreerr "dappco.re/go/core/log"
 	"gopkg.in/yaml.v3"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 )
 
 // TestConfig holds test configuration from .core/test.yaml.

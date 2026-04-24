@@ -9,7 +9,7 @@ import (
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 )
 
 // CDNSource downloads images from a CDN or S3 bucket.

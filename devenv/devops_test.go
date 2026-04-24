@@ -8,9 +8,9 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/container"
-	"dappco.re/go/core/container/internal/coreutil"
-	"dappco.re/go/core/container/internal/proc"
+	"dappco.re/go/container"
+	"dappco.re/go/container/internal/coreutil"
+	"dappco.re/go/container/internal/proc"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

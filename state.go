@@ -4,7 +4,7 @@ import (
 	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 )
 
 var stateMutex = core.New().Lock("container.state").Mutex

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 )

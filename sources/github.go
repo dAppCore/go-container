@@ -7,7 +7,7 @@ import (
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 
-	"dappco.re/go/core/container/internal/proc"
+	"dappco.re/go/container/internal/proc"
 )
 
 // GitHubSource downloads images from GitHub Releases.

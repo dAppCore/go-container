@@ -1,4 +1,4 @@
-module dappco.re/go/core/container
+module dappco.re/go/container
 
 go 1.26.0
 

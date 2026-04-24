@@ -5,7 +5,7 @@ import (
 
 	core "dappco.re/go/core"
 
-	"dappco.re/go/core/container/internal/proc"
+	"dappco.re/go/container/internal/proc"
 )
 
 // RuntimeType identifies a container runtime backend detected on the host.

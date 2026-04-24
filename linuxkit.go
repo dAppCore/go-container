@@ -11,7 +11,7 @@ import (
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 
-	"dappco.re/go/core/container/internal/proc"
+	"dappco.re/go/container/internal/proc"
 )
 
 // LinuxKitManager implements the Manager interface for LinuxKit VMs.

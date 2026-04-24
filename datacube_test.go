@@ -5,7 +5,7 @@ import (
 
 	"dappco.re/go/core/io"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

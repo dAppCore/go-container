@@ -6,11 +6,11 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/container/sources"
+	"dappco.re/go/container/sources"
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 )
 
 // ImageManager handles image downloads and updates.

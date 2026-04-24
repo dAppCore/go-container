@@ -7,7 +7,7 @@ import (
 	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 
-	"dappco.re/go/core/container/internal/proc"
+	"dappco.re/go/container/internal/proc"
 )
 
 var appleProviderLock = core.New().Lock("container.apple.provider").Mutex

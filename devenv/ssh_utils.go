@@ -7,8 +7,8 @@ import (
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 
-	"dappco.re/go/core/container/internal/coreutil"
-	"dappco.re/go/core/container/internal/proc"
+	"dappco.re/go/container/internal/coreutil"
+	"dappco.re/go/container/internal/proc"
 )
 
 // ensureHostKey ensures that the host key for the dev environment is in the known hosts file.

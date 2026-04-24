@@ -9,7 +9,7 @@ import (
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 )
 
 type fdProvider interface {

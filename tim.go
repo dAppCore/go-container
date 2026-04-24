@@ -10,7 +10,7 @@ import (
 	"dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 )
 
 // TIMConfig defines the OCI-compatible configuration for a TIM container.
