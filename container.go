@@ -5,9 +5,9 @@ package container
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"io"
+	"crypto/rand"  // Note: crypto primitive - no core equivalent yet.
+	"encoding/hex" // Note: encoding primitive - no core equivalent yet.
+	goio "io"      // Note: interface type only - no core equivalent yet.
 	"time"
 )
 
@@ -78,7 +78,7 @@ type Manager interface {
 	List(ctx context.Context) ([]*Container, error)
 	// Logs returns a reader for the container's log output.
 	// If follow is true, the reader will continue to stream new log entries.
-	Logs(ctx context.Context, id string, follow bool) (io.ReadCloser, error)
+	Logs(ctx context.Context, id string, follow bool) (goio.ReadCloser, error)
 	// Exec executes a command inside the container via SSH.
 	Exec(ctx context.Context, id string, cmd []string) error
 }
@@ -89,11 +89,25 @@ type Manager interface {
 //
 //	id, err := GenerateID()
 func GenerateID() (string, error) {
-	bytes := make([]byte, 4)
-	if _, err := rand.Read(bytes); err != nil {
+	bytes, err := randomBytes(4)
+	if err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(bytes), nil
+	return hexID(bytes), nil
+}
+
+func randomBytes(length int) ([]byte, error) {
+	bytes := make([]byte, length)
+	// Note: crypto primitive - no core equivalent yet.
+	if _, err := rand.Read(bytes); err != nil {
+		return nil, err
+	}
+	return bytes, nil
+}
+
+func hexID(bytes []byte) string {
+	// Note: encoding primitive - no core equivalent yet.
+	return hex.EncodeToString(bytes)
 }
 
 // ImageFormat represents the format of a LinuxKit image.
