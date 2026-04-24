@@ -9,7 +9,7 @@ require (
 	dappco.re/go/core/io v0.4.1
 	dappco.re/go/core/log v0.1.2
 	forge.lthn.ai/core/cli v0.3.7
-	gopkg.in/yaml.v3 v3.0.1
+	gopkg.in/yaml.v3 v3.0.1 // Note: LinuxKit config YAML parse; no core.* YAML equivalent.
 )
 
 require (
