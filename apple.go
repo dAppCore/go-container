@@ -2,8 +2,6 @@ package container
 
 import (
 	"context"
-	"runtime"
-	"sync"
 	"time"
 
 	core "dappco.re/go/core"
@@ -11,6 +9,8 @@ import (
 
 	"dappco.re/go/core/container/internal/proc"
 )
+
+var appleProviderLock = core.New().Lock("container.apple.provider").Mutex
 
 // IsAppleAvailable checks whether Apple's Containerisation framework (the
 // `container` CLI shipped with macOS 26+) is present on the current system.
@@ -21,7 +21,7 @@ import (
 //	    provider = container.NewAppleProvider()
 //	}
 func IsAppleAvailable() bool {
-	if runtime.GOOS != "darwin" {
+	if discoverHostOS() != "darwin" {
 		return false
 	}
 	_, err := proc.LookPath("container")
@@ -43,7 +43,6 @@ type AppleProvider struct {
 	// Version is the detected framework version (populated when known).
 	Version string
 
-	mu       sync.Mutex
 	tracked  map[string]*appleTracked
 }
 
@@ -72,7 +71,7 @@ func NewAppleProvider() *AppleProvider {
 //
 //	if provider.Available() { provider.Run(img) }
 func (a *AppleProvider) Available() bool {
-	if runtime.GOOS != "darwin" {
+	if discoverHostOS() != "darwin" {
 		return false
 	}
 	if a.Binary == "" {
@@ -196,24 +195,24 @@ func (a *AppleProvider) track(ctr *Container, cmd *proc.Command) {
 	if cmd == nil {
 		return
 	}
-	a.mu.Lock()
+	appleProviderLock.Lock()
 	if a.tracked == nil {
 		a.tracked = make(map[string]*appleTracked)
 	}
 	entry := &appleTracked{Container: ctr, Cmd: cmd, Done: make(chan struct{})}
 	a.tracked[ctr.ID] = entry
-	a.mu.Unlock()
+	appleProviderLock.Unlock()
 
 	go func() {
 		err := cmd.Wait()
-		a.mu.Lock()
+		appleProviderLock.Lock()
 		if err != nil {
 			ctr.Status = StatusError
 		} else {
 			ctr.Status = StatusStopped
 		}
 		close(entry.Done)
-		a.mu.Unlock()
+		appleProviderLock.Unlock()
 	}()
 }
 
@@ -224,8 +223,8 @@ func (a *AppleProvider) track(ctr *Container, cmd *proc.Command) {
 //
 //	for _, c := range p.Tracked() { core.Println(c.ID, c.Status) }
 func (a *AppleProvider) Tracked() []*Container {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	appleProviderLock.Lock()
+	defer appleProviderLock.Unlock()
 	out := make([]*Container, 0, len(a.tracked))
 	for _, t := range a.tracked {
 		// Return a shallow copy so callers cannot race the tracker goroutine.
@@ -242,9 +241,9 @@ func (a *AppleProvider) Tracked() []*Container {
 //
 //	err := p.Wait(ctx, ctr.ID)
 func (a *AppleProvider) Wait(ctx context.Context, id string) error {
-	a.mu.Lock()
+	appleProviderLock.Lock()
 	entry, ok := a.tracked[id]
-	a.mu.Unlock()
+	appleProviderLock.Unlock()
 	if !ok {
 		return coreerr.E("AppleProvider.Wait", "container not tracked: "+id, nil)
 	}

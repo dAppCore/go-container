@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"runtime"
 
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
@@ -10,6 +9,16 @@ import (
 
 	"dappco.re/go/core/container/internal/proc"
 )
+
+const hostOSDefault = "linux"
+
+func discoverHostOS() string {
+	goos := core.Env("GOOS")
+	if goos != "" {
+		return goos
+	}
+	return hostOSDefault
+}
 
 // Hypervisor defines the interface for VM hypervisors.
 type Hypervisor interface {
@@ -121,8 +130,8 @@ func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *H
 		shareID++
 	}
 
-	// Check if KVM is available on Linux, remove -enable-kvm if not
-	if runtime.GOOS != "linux" || !isKVMAvailable() {
+// Check if KVM is available on Linux, remove -enable-kvm if not
+	if discoverHostOS() != "linux" || !isKVMAvailable() {
 		// Remove -enable-kvm from args
 		newArgs := make([]string, 0, len(args))
 		for _, arg := range args {
@@ -133,7 +142,7 @@ func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *H
 		args = newArgs
 
 		// On macOS, use HVF acceleration if available
-		if runtime.GOOS == "darwin" {
+		if discoverHostOS() == "darwin" {
 			args = append(args, "-accel", "hvf")
 		}
 	}
@@ -170,7 +179,7 @@ func (h *HyperkitHypervisor) Name() string {
 
 // Available checks if Hyperkit is installed and accessible.
 func (h *HyperkitHypervisor) Available() bool {
-	if runtime.GOOS != "darwin" {
+	if discoverHostOS() != "darwin" {
 		return false
 	}
 	_, err := proc.LookPath(h.Binary)
@@ -250,7 +259,7 @@ func DetectImageFormat(path string) ImageFormat {
 //	hv, err := DetectHypervisor()
 func DetectHypervisor() (Hypervisor, error) {
 	// On macOS, prefer Hyperkit if available, fall back to QEMU
-	if runtime.GOOS == "darwin" {
+	if discoverHostOS() == "darwin" {
 		hk := NewHyperkitHypervisor()
 		if hk.Available() {
 			return hk, nil
