@@ -1,21 +1,19 @@
 package container
 
 import (
-	"io/fs"
-	"sync"
-
 	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
 
 	"dappco.re/go/core/container/internal/coreutil"
 )
 
+var stateMutex = core.New().Lock("container.state").Mutex
+
 // State manages persistent container state.
 type State struct {
 	// Containers is a map of container ID to Container.
 	Containers map[string]*Container `json:"containers"`
 
-	mu       sync.RWMutex
 	filePath string
 }
 
@@ -79,11 +77,12 @@ func NewState(filePath string) *State {
 func LoadState(filePath string) (*State, error) {
 	state := NewState(filePath)
 
+	if !io.Local.Exists(filePath) {
+		return state, nil
+	}
+
 	dataStr, err := io.Local.Read(filePath)
 	if err != nil {
-		if core.Is(err, fs.ErrNotExist) {
-			return state, nil
-		}
 		return nil, err
 	}
 
@@ -97,8 +96,8 @@ func LoadState(filePath string) (*State, error) {
 
 // SaveState persists the state to the configured file path.
 func (s *State) SaveState() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	stateMutex.RLock()
+	defer stateMutex.RUnlock()
 
 	// Ensure the directory exists
 	dir := core.PathDir(s.filePath)
@@ -116,9 +115,9 @@ func (s *State) SaveState() error {
 
 // Add adds a container to the state and persists it.
 func (s *State) Add(c *Container) error {
-	s.mu.Lock()
+	stateMutex.Lock()
 	s.Containers[c.ID] = c
-	s.mu.Unlock()
+	stateMutex.Unlock()
 
 	return s.SaveState()
 }
@@ -126,8 +125,8 @@ func (s *State) Add(c *Container) error {
 // Get retrieves a copy of a container by ID.
 // Returns a copy to prevent data races when the container is modified.
 func (s *State) Get(id string) (*Container, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	stateMutex.RLock()
+	defer stateMutex.RUnlock()
 
 	c, ok := s.Containers[id]
 	if !ok {
@@ -140,18 +139,18 @@ func (s *State) Get(id string) (*Container, bool) {
 
 // Update updates a container in the state and persists it.
 func (s *State) Update(c *Container) error {
-	s.mu.Lock()
+	stateMutex.Lock()
 	s.Containers[c.ID] = c
-	s.mu.Unlock()
+	stateMutex.Unlock()
 
 	return s.SaveState()
 }
 
 // Remove removes a container from the state and persists it.
 func (s *State) Remove(id string) error {
-	s.mu.Lock()
+	stateMutex.Lock()
 	delete(s.Containers, id)
-	s.mu.Unlock()
+	stateMutex.Unlock()
 
 	return s.SaveState()
 }
@@ -159,8 +158,8 @@ func (s *State) Remove(id string) error {
 // All returns copies of all containers in the state.
 // Returns copies to prevent data races when containers are modified.
 func (s *State) All() []*Container {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	stateMutex.RLock()
+	defer stateMutex.RUnlock()
 
 	containers := make([]*Container, 0, len(s.Containers))
 	for _, c := range s.Containers {
