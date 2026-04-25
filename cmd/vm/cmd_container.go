@@ -1,18 +1,22 @@
 package vm
 
 import (
+	// Note: AX-6 — context.Context is structural because container manager APIs use it for cancellation; no core primitive.
 	"context"
+	// Note: AX-6 — io.Copy is structural for streaming process log output to stdout without buffering; core.io Copy is medium/path based.
 	goio "io"
+	// Note: AX-6 — text/tabwriter is structural for CLI table formatting; no core primitive.
 	"text/tabwriter"
+	// Note: AX-6 — time is structural for elapsed container duration formatting; no core primitive.
 	"time"
 
-	core "dappco.re/go/core"
+	"dappco.re/go/cli/pkg/cli"
 	"dappco.re/go/container"
 	"dappco.re/go/container/internal/proc"
+	core "dappco.re/go/core"
 	"dappco.re/go/i18n"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
-	"dappco.re/go/cli/pkg/cli"
 )
 
 var (
