@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/rand"  // Note: crypto primitive - no core equivalent yet.
 	"encoding/hex" // Note: encoding primitive - no core equivalent yet.
-	goio "io"      // Note: interface type only - no core equivalent yet.
 	"time"
 )
 
@@ -68,6 +67,12 @@ type RunOptions struct {
 	GPU bool
 }
 
+// ReadCloser is the stream contract returned by Manager.Logs.
+type ReadCloser interface {
+	Read(p []byte) (n int, err error)
+	Close() error
+}
+
 // Manager defines the interface for container lifecycle management.
 type Manager interface {
 	// Run starts a new container from the given image.
@@ -78,7 +83,7 @@ type Manager interface {
 	List(ctx context.Context) ([]*Container, error)
 	// Logs returns a reader for the container's log output.
 	// If follow is true, the reader will continue to stream new log entries.
-	Logs(ctx context.Context, id string, follow bool) (goio.ReadCloser, error)
+	Logs(ctx context.Context, id string, follow bool) (ReadCloser, error)
 	// Exec executes a command inside the container via SSH.
 	Exec(ctx context.Context, id string, cmd []string) error
 }

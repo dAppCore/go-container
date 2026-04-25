@@ -319,7 +319,7 @@ func isProcessRunning(pid int) bool {
 }
 
 // Logs returns a reader for the container's log output.
-func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) (goio.ReadCloser, error) {
+func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) (ReadCloser, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -346,7 +346,7 @@ func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) (goi
 	return newFollowReader(ctx, m.medium, logPath)
 }
 
-// followReader implements goio.ReadCloser for following log files.
+// followReader implements ReadCloser for following log files.
 type followReader struct {
 	file    fs.File
 	ctx     context.Context
