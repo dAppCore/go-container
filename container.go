@@ -5,8 +5,9 @@ package container
 
 import (
 	"context"
-	"crypto/rand"  // Note: crypto primitive - no core equivalent yet.
-	"encoding/hex" // Note: encoding primitive - no core equivalent yet.
+	"crypto/rand" // Note: crypto primitive - no core equivalent yet.
+	// Note: AX-6 — encoding/hex is structural here because container IDs are exposed as stable hex strings and no core primitive exists for this conversion yet.
+	"encoding/hex"
 	"time"
 )
 
