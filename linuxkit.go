@@ -142,6 +142,8 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 		Ports:     opts.Ports,
 		Memory:    opts.Memory,
 		CPUs:      opts.CPUs,
+		SSHPort:   opts.SSHPort,
+		SSHKey:    opts.SSHKey,
 	}
 
 	if opts.Detach {
@@ -437,8 +439,11 @@ func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) err
 		return coreerr.E("LinuxKitManager.Exec", "container is not running: "+id, nil)
 	}
 
-	// Default SSH port
-	sshPort := 2222
+	// Use the container's configured SSH port, falling back to the default.
+	sshPort := container.SSHPort
+	if sshPort <= 0 {
+		sshPort = 2222
+	}
 
 	// Build SSH command
 	sshArgs := []string{
@@ -446,8 +451,11 @@ func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) err
 		"-o", "StrictHostKeyChecking=yes",
 		"-o", "UserKnownHostsFile=~/.core/known_hosts",
 		"-o", "LogLevel=ERROR",
-		"root@localhost",
 	}
+	if container.SSHKey != "" {
+		sshArgs = append(sshArgs, "-i", container.SSHKey)
+	}
+	sshArgs = append(sshArgs, "root@localhost")
 	sshArgs = append(sshArgs, cmd...)
 
 	sshCmd := proc.NewCommandContext(ctx, "ssh", sshArgs...)
