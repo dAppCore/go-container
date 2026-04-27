@@ -1,26 +1,16 @@
 // Package vm provides LinuxKit VM management commands.
-//
-// Commands register on the shared Core instance via path-based routing:
-//
-//	vm             → group (no action)
-//	vm/run         → start a VM from image or template
-//	vm/ps          → list running containers
-//	vm/stop        → stop a container by id
-//	vm/logs        → view container logs
-//	vm/exec        → execute a command inside a container over SSH
-//	vm/templates   → list available templates
 package vm
 
 import (
-	"dappco.re/go/core"
-	"dappco.re/go/core/cli/pkg/cli"
+	"dappco.re/go/i18n"
+	"dappco.re/go/cli/pkg/cli"
 )
 
 func init() {
 	cli.RegisterCommands(AddVMCommands)
 }
 
-// Style aliases from shared package.
+// Style aliases from shared
 var (
 	repoNameStyle = cli.RepoStyle
 	successStyle  = cli.SuccessStyle
@@ -28,23 +18,29 @@ var (
 	dimStyle      = cli.DimStyle
 )
 
-// VM-specific styles.
+// VM-specific styles
 var (
 	varStyle     = cli.NewStyle().Foreground(cli.ColourAmber500)
 	defaultStyle = cli.NewStyle().Foreground(cli.ColourGray500).Italic()
 )
 
-// AddVMCommands registers the vm command tree on the Core instance.
+// AddVMCommands adds container-related commands under 'vm' to the CLI.
 //
-//	vm.AddVMCommands(c)
-func AddVMCommands(c *core.Core) {
-	// Group placeholder (no Action). Sub-commands below set their own Actions.
-	c.Command("vm", core.Command{Description: "cmd.vm.long"})
+// Usage:
+//
+//	AddVMCommands(root)
+func AddVMCommands(root *cli.Command) {
+	vmCmd := &cli.Command{
+		Use:   "vm",
+		Short: i18n.T("cmd.vm.short"),
+		Long:  i18n.T("cmd.vm.long"),
+	}
 
-	addVMRunCommand(c)
-	addVMPsCommand(c)
-	addVMStopCommand(c)
-	addVMLogsCommand(c)
-	addVMExecCommand(c)
-	addVMTemplatesCommand(c)
+	root.AddCommand(vmCmd)
+	addVMRunCommand(vmCmd)
+	addVMPsCommand(vmCmd)
+	addVMStopCommand(vmCmd)
+	addVMLogsCommand(vmCmd)
+	addVMExecCommand(vmCmd)
+	addVMTemplatesCommand(vmCmd)
 }

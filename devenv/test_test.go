@@ -3,8 +3,8 @@ package devenv
 import (
 	"testing"
 
-	"dappco.re/go/core/container/internal/coreutil"
-	"dappco.re/go/core/io"
+	"dappco.re/go/container/internal/coreutil"
+	"dappco.re/go/io"
 )
 
 func TestDetectTestCommand_ComposerJSON_Good(t *testing.T) {

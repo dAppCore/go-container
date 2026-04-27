@@ -1,664 +1,233 @@
 package container
 
-import (
-	"context"
-	"encoding/json"
-	"math"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
-
-	core "dappco.re/go/core"
-	"dappco.re/go/core/container/internal/coreutil"
-	"dappco.re/go/core/container/internal/proc"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
-)
-
-// Provider defines a generic image lifecycle interface.
+// Provider abstracts the container backend (LinuxKit, TIM, Apple Containers).
+// Each provider implements a consistent lifecycle: build an image from a
+// declarative config, run it, and optionally encrypt/decrypt the image.
+//
+// Usage:
+//
+//	p := container.NewAppleProvider()
+//	img, err := p.Build(container.ContainerConfig{EntryPoint: []string{"/app"}})
+//	ctr, err := p.Run(img, container.WithMemory(4096))
 type Provider interface {
+	// Build produces an Image from a declarative container configuration.
+	//
+	// Example: img, _ := p.Build(container.ContainerConfig{Name: "api"})
 	Build(config ContainerConfig) (*Image, error)
+
+	// Run boots an Image and returns the running Container record.
+	//
+	// Example: ctr, _ := p.Run(img, container.WithMemory(2048))
 	Run(image *Image, opts ...RunOption) (*Container, error)
+
+	// Encrypt wraps an Image with an encryption key producing an EncryptedImage.
+	//
+	// Example: enc, _ := p.Encrypt(img, workspaceKey)
 	Encrypt(image *Image, key []byte) (*EncryptedImage, error)
+
+	// Decrypt unwraps an EncryptedImage back into a plaintext Image.
+	//
+	// Example: img, _ := p.Decrypt(enc, workspaceKey)
 	Decrypt(encrypted *EncryptedImage, key []byte) (*Image, error)
 }
 
-// ContainerConfig is a generic input config used by providers.
+// ContainerConfig is the declarative build input for a Provider.
+// Different providers map this to their native format (LinuxKit YAML,
+// TIM config.json, Apple Containers spec).
+//
+// Usage:
+//
+//	cfg := container.ContainerConfig{
+//	    Name:       "api",
+//	    EntryPoint: []string{"/app/server"},
+//	    Env:        []string{"CORE_ENV=production"},
+//	}
 type ContainerConfig struct {
-	Name     string
-	Path     string
-	Source   string
-	Content  string
-	Runtime  string
-	Metadata map[string]string
+	// Name is an optional identifier for the image.
+	Name string
+	// EntryPoint is the process executed on start (argv[0..]).
+	EntryPoint []string
+	// Env is the container environment in KEY=VALUE form.
+	Env []string
+	// WorkDir is the initial working directory.
+	WorkDir string
+	// Mounts describes host→container filesystem mappings.
+	Mounts []Mount
+	// Capabilities lists Linux capabilities granted to the container.
+	Capabilities []string
+	// ReadOnly mounts the root filesystem read-only.
+	ReadOnly bool
+	// Memory requests memory allocation in MB. Zero uses provider defaults.
+	Memory int
+	// CPUs requests CPU allocation. Zero uses provider defaults.
+	CPUs int
+	// Ports maps host ports to container ports.
+	Ports map[int]int
+	// Format is the requested output format (iso, qcow2, raw, vmdk, ami).
+	// Empty uses the provider default.
+	Format string
+	// Source is the source image reference (LinuxKit YAML path, TIM bundle path, etc).
+	Source string
 }
 
-// Image is a provider-produced image artifact.
+// Mount describes a single filesystem mount into a container.
+//
+// Usage:
+//
+//	mount := container.Mount{Source: "/data", Target: "/app/data", ReadOnly: true}
+type Mount struct {
+	// Source is the host-side path.
+	Source string
+	// Target is the container-side mount point.
+	Target string
+	// ReadOnly mounts the path read-only.
+	ReadOnly bool
+}
+
+// Image is the built container artefact returned by Provider.Build.
+// The concrete on-disk layout depends on the Provider type.
+//
+// Usage:
+//
+//	img, _ := p.Build(config)
+//	fmt.Println(img.Path, img.Format)
 type Image struct {
-	ID       string
-	Name     string
-	Path     string
-	Runtime  string
-	Metadata map[string]string
+	// ID is a unique image identifier (8 character hex).
+	ID string
+	// Name is an optional human-readable identifier.
+	Name string
+	// Path is the on-disk location of the built artefact.
+	Path string
+	// Format identifies the image format (iso, qcow2, raw, vmdk, tim).
+	Format ImageFormat
+	// Provider names the backend that produced this image.
+	Provider string
+	// Digest is an optional content digest (e.g. sha256:...).
+	Digest string
+	// Size is the image size in bytes.
+	Size int64
 }
 
-// EncryptedImage is a provider-produced encrypted image artifact.
+// EncryptedImage is an Image with its payload encrypted by a Provider.
+// The concrete encryption scheme depends on the Provider:
+//   - LinuxKit uses dm-crypt wrapping the writable volume.
+//   - TIM uses Enchantrix sigil-chain (STIM).
+//   - Apple Containers uses host FileVault plus optional STIM.
+//
+// Usage:
+//
+//	enc, _ := p.Encrypt(img, key)
+//	img, _  = p.Decrypt(enc, key)
 type EncryptedImage struct {
-	ID       string
-	Name     string
-	Path     string
-	Runtime  string
-	Metadata map[string]string
+	// ID is a unique encrypted image identifier.
+	ID string
+	// Path is the on-disk location of the encrypted artefact.
+	Path string
+	// Provider names the backend that produced this encryption.
+	Provider string
+	// Scheme names the encryption scheme (dm-crypt, stim, filevault).
+	Scheme string
+	// KeyHint is an optional non-secret key identifier.
+	KeyHint string
+	// Size is the encrypted image size in bytes.
+	Size int64
 }
 
-type runConfig struct {
-	name    string
-	detach  bool
-	memory  int
-	cpus    int
-	ports   map[int]int
-	volumes map[string]string
-	sshPort int
-	sshKey  string
-	gpu     bool
-}
+// RunOption configures a Provider.Run call. Options compose functionally so
+// providers can ignore options they do not support without error.
+//
+// Usage:
+//
+//	ctr, _ := p.Run(img, container.WithMemory(4096), container.WithGPU(true))
+type RunOption func(*RunOptions)
 
-// RunOption configures container run behaviour.
-type RunOption func(*runConfig)
-
-// WithName sets the container name.
+// WithName assigns a human-readable name to the running container.
+//
+// Usage:
+//
+//	p.Run(img, container.WithName("api"))
 func WithName(name string) RunOption {
-	return func(cfg *runConfig) {
-		cfg.name = name
+	return func(o *RunOptions) {
+		o.Name = name
 	}
 }
 
-// WithDetach enables/disable detached mode.
-func WithDetach(detach bool) RunOption {
-	return func(cfg *runConfig) {
-		cfg.detach = detach
-	}
-}
-
-// WithMemory sets container memory in human-readable form.
+// WithMemory sets the memory allocation in MB for the container.
 //
-// Supported values: "1024", "1024M", "2G", "4g", "512m".
-func WithMemory(size string) RunOption {
-	return func(cfg *runConfig) {
-		cfg.memory = parseMemorySize(size)
+// Usage:
+//
+//	p.Run(img, container.WithMemory(4096))
+func WithMemory(mb int) RunOption {
+	return func(o *RunOptions) {
+		o.Memory = mb
 	}
 }
 
-// WithMemoryMB sets container memory directly in MiB.
-func WithMemoryMB(mb int) RunOption {
-	return func(cfg *runConfig) {
-		cfg.memory = mb
-	}
-}
-
-// WithCPUs sets container CPU count.
+// WithCPUs sets the CPU allocation for the container.
+//
+// Usage:
+//
+//	p.Run(img, container.WithCPUs(4))
 func WithCPUs(cpus int) RunOption {
-	return func(cfg *runConfig) {
-		cfg.cpus = cpus
+	return func(o *RunOptions) {
+		o.CPUs = cpus
 	}
 }
 
-// WithPorts sets host:guest port forwarding.
+// WithDetach starts the container in the background.
+//
+// Usage:
+//
+//	p.Run(img, container.WithDetach(true))
+func WithDetach(detach bool) RunOption {
+	return func(o *RunOptions) {
+		o.Detach = detach
+	}
+}
+
+// WithPorts adds host→container port forwards to the RunOptions.
+//
+// Usage:
+//
+//	p.Run(img, container.WithPorts(map[int]int{8080: 80}))
 func WithPorts(ports map[int]int) RunOption {
-	return func(cfg *runConfig) {
-		cfg.ports = ports
-	}
-}
-
-// WithVolumes sets host:container volume mapping.
-func WithVolumes(volumes map[string]string) RunOption {
-	return func(cfg *runConfig) {
-		cfg.volumes = volumes
-	}
-}
-
-// WithSSHPort sets the forwarded SSH port.
-func WithSSHPort(port int) RunOption {
-	return func(cfg *runConfig) {
-		cfg.sshPort = port
-	}
-}
-
-// WithSSHKey sets SSH key path for exec/management.
-func WithSSHKey(path string) RunOption {
-	return func(cfg *runConfig) {
-		cfg.sshKey = path
-	}
-}
-
-// WithGPU requests GPU passthrough.
-func WithGPU(enabled bool) RunOption {
-	return func(cfg *runConfig) {
-		cfg.gpu = enabled
-	}
-}
-
-func defaultRunConfig() *runConfig {
-	return &runConfig{
-		ports:   map[int]int{},
-		volumes: map[string]string{},
-	}
-}
-
-func parseMemorySize(value string) int {
-	v := strings.TrimSpace(value)
-	if v == "" {
-		return 0
-	}
-
-	upper := strings.ToUpper(v)
-	last := upper[len(upper)-1]
-	switch last {
-	case 'K', 'M', 'G', 'T':
-		number := strings.TrimSpace(upper[:len(upper)-1])
-		magnitude, err := strconv.ParseFloat(number, 64)
-		if err != nil {
-			return 0
+	return func(o *RunOptions) {
+		if o.Ports == nil {
+			o.Ports = make(map[int]int, len(ports))
 		}
-		switch last {
-		case 'K':
-			return int(math.Ceil(magnitude / 1024))
-		case 'M':
-			return int(math.Ceil(magnitude))
-		case 'G':
-			return int(math.Ceil(magnitude * 1024))
-		case 'T':
-			return int(math.Ceil(magnitude * 1024 * 1024))
+		for h, c := range ports {
+			o.Ports[h] = c
 		}
 	}
-
-	parsed, err := strconv.Atoi(upper)
-	if err != nil {
-		return 0
-	}
-	return parsed
 }
 
-func resolveRunConfig(opts ...RunOption) *runConfig {
-	cfg := defaultRunConfig()
-	for _, o := range opts {
-		o(cfg)
-	}
-	return cfg
-}
-
-func normalizeMetadata(metadata map[string]string) map[string]string {
-	if metadata == nil {
-		return map[string]string{}
-	}
-	copyMetadata := make(map[string]string, len(metadata))
-	for key, value := range metadata {
-		copyMetadata[key] = value
-	}
-	return copyMetadata
-}
-
-func isImageConfigPath(path string) bool {
-	ext := core.Lower(core.PathExt(path))
-	return ext == ".yml" || ext == ".yaml"
-}
-
-func findBuiltImage(basePath string) string {
-	extensions := []string{".ami", ".qcow2", ".raw", ".vmdk", ".iso", "-bios.iso"}
-
-	for _, ext := range extensions {
-		candidate := core.Concat(basePath, ext)
-		if io.Local.IsFile(candidate) {
-			return candidate
-		}
-	}
-
-	base := filepath.Base(basePath)
-	dir := filepath.Dir(basePath)
-	entries, err := io.Local.List(dir)
-	if err != nil {
-		return ""
-	}
-
-	for _, entry := range entries {
-		name := entry.Name()
-		if !core.HasPrefix(name, base) {
-			continue
-		}
-		for _, ext := range extensions {
-			if core.HasSuffix(name, ext) {
-				return coreutil.JoinPath(dir, name)
-			}
-		}
-	}
-
-	return ""
-}
-
-func lookupLinuxKit() (string, error) {
-	if path, err := proc.LookPath("linuxkit"); err == nil {
-		return path, nil
-	}
-
-	paths := []string{"/usr/local/bin/linuxkit", "/opt/homebrew/bin/linuxkit"}
-	for _, p := range paths {
-		if io.Local.Exists(p) {
-			return p, nil
-		}
-	}
-
-	return "", coreerr.E("lookupLinuxKit", "linuxkit executable not found", nil)
-}
-
-// NewProvider returns a provider by runtime name.
+// WithVolumes adds host→container volume mounts to the RunOptions.
 //
-// Supported runtime values: "linuxkit" (default), "apple", "tim".
-func NewProvider(runtimeName string, m io.Medium) (Provider, error) {
-	target := strings.TrimSpace(strings.ToLower(runtimeName))
-	if target == "" {
-		target = "linuxkit"
-	}
-	if target == "auto" {
-		rt := Detect()
-		target = rt.Type
-	}
-
-	switch target {
-	case "", "linuxkit":
-		return NewLinuxKitProvider(m)
-	case "apple":
-		provider := NewAppleProvider()
-		if provider == nil || provider.runtime == "" {
-			return nil, coreerr.E("NewProvider", "apple runtime not available", nil)
-		}
-		return provider, nil
-	case "tim":
-		return NewTIMProvider(), nil
-	case RuntimeTypeDocker:
-		return nil, coreerr.E("NewProvider", "docker provider not implemented", nil)
-	case RuntimeTypePodman:
-		return nil, coreerr.E("NewProvider", "podman provider not implemented", nil)
-	default:
-		return nil, coreerr.E("NewProvider", "unsupported runtime: "+target, nil)
-	}
-}
-
-// LinuxKitProvider implements Provider for LinuxKit images.
-type LinuxKitProvider struct {
-	m     io.Medium
-	hv    Hypervisor
-	state *State
-}
-
-// Compile-time interface check.
-var _ Provider = (*LinuxKitProvider)(nil)
-
-// NewLinuxKitProvider creates a LinuxKit provider.
-func NewLinuxKitProvider(m io.Medium) (*LinuxKitProvider, error) {
-	statePath, err := DefaultStatePath()
-	if err != nil {
-		return nil, coreerr.E("NewLinuxKitProvider", "failed to determine state path", err)
-	}
-
-	state, err := LoadState(statePath)
-	if err != nil {
-		return nil, coreerr.E("NewLinuxKitProvider", "failed to load state", err)
-	}
-
-	hypervisor, err := DetectHypervisor()
-	if err != nil {
-		return nil, err
-	}
-
-	return &LinuxKitProvider{
-		m:     m,
-		hv:    hypervisor,
-		state: state,
-	}, nil
-}
-
-// NewLinuxKitProviderWithHypervisor injects custom dependencies.
-func NewLinuxKitProviderWithHypervisor(m io.Medium, state *State, hv Hypervisor) *LinuxKitProvider {
-	return &LinuxKitProvider{
-		m:     m,
-		hv:    hv,
-		state: state,
-	}
-}
-
-// Build returns a LinuxKit image from config.
-func (p *LinuxKitProvider) Build(config ContainerConfig) (*Image, error) {
-	if p == nil {
-		return nil, coreerr.E("LinuxKitProvider.Build", "provider is nil", nil)
-	}
-
-	cfgPath := strings.TrimSpace(config.Path)
-	if cfgPath == "" {
-		cfgPath = strings.TrimSpace(config.Source)
-	}
-	if cfgPath == "" {
-		if config.Content == "" {
-			return nil, coreerr.E("LinuxKitProvider.Build", "missing config content or path", nil)
-		}
-
-		tmpDir, err := coreutil.MkdirTemp("core-lk-config-")
-		if err != nil {
-			return nil, coreerr.E("LinuxKitProvider.Build", "create config temp dir", err)
-		}
-
-		name := strings.TrimSpace(config.Name)
-		if name == "" {
-			name = "container"
-		}
-		cfgPath = coreutil.JoinPath(tmpDir, core.Concat(name, ".yml"))
-		if err := io.Local.Write(cfgPath, config.Content); err != nil {
-			return nil, coreerr.E("LinuxKitProvider.Build", "write config", err)
-		}
-	}
-
-	if !isImageConfigPath(cfgPath) && DetectImageFormat(cfgPath) != FormatUnknown {
-		imageID, err := GenerateID()
-		if err != nil {
-			return nil, coreerr.E("LinuxKitProvider.Build", "generate image id", err)
-		}
-		return &Image{
-			ID:       imageID,
-			Name:     strings.TrimSpace(config.Name),
-			Path:     cfgPath,
-			Runtime:  "linuxkit",
-			Metadata: normalizeMetadata(config.Metadata),
-		}, nil
-	}
-
-	lkPath, err := lookupLinuxKit()
-	if err != nil {
-		return nil, err
-	}
-
-	tmpBuildDir, err := coreutil.MkdirTemp("core-lk-build-")
-	if err != nil {
-		return nil, coreerr.E("LinuxKitProvider.Build", "create build temp dir", err)
-	}
-
-	imageID, err := GenerateID()
-	if err != nil {
-		return nil, coreerr.E("LinuxKitProvider.Build", "generate image id", err)
-	}
-
-	baseName := strings.TrimSpace(config.Name)
-	if baseName == "" {
-		baseName = core.PathBase(cfgPath)
-		baseName = strings.TrimSuffix(baseName, core.PathExt(baseName))
-		if baseName == "" {
-			baseName = "container"
-		}
-	}
-
-	outputPath := coreutil.JoinPath(tmpBuildDir, core.Concat(baseName, "-", imageID[:4]))
-
-	cmd := proc.NewCommand(lkPath, "build", "--format", "qcow2", "--name", outputPath, cfgPath)
-	cmd.Stdout = proc.Stdout
-	cmd.Stderr = proc.Stderr
-	if err := cmd.Run(); err != nil {
-		return nil, coreerr.E("LinuxKitProvider.Build", "linuxkit build", err)
-	}
-
-	imagePath := findBuiltImage(outputPath)
-	if imagePath == "" {
-		return nil, coreerr.E("LinuxKitProvider.Build", "no image produced", nil)
-	}
-
-	return &Image{
-		ID:       imageID,
-		Name:     strings.TrimSpace(config.Name),
-		Path:     imagePath,
-		Runtime:  "linuxkit",
-		Metadata: normalizeMetadata(config.Metadata),
-	}, nil
-}
-
-// Run executes a LinuxKit image.
-func (p *LinuxKitProvider) Run(image *Image, opts ...RunOption) (*Container, error) {
-	if p == nil || p.state == nil {
-		return nil, coreerr.E("LinuxKitProvider.Run", "provider not initialised", nil)
-	}
-	if image == nil {
-		return nil, coreerr.E("LinuxKitProvider.Run", "missing image", nil)
-	}
-	if image.Path == "" {
-		return nil, coreerr.E("LinuxKitProvider.Run", "image path missing", nil)
-	}
-
-	cfg := resolveRunConfig(opts...)
-	if cfg.gpu {
-		return nil, coreerr.E("LinuxKitProvider.Run", "GPU passthrough is not implemented for LinuxKit provider", nil)
-	}
-
-	manager := &LinuxKitManager{
-		state:      p.state,
-		hypervisor: p.hv,
-		medium:     p.m,
-	}
-
-	container, err := manager.Run(context.Background(), image.Path, RunOptions{
-		Name:    cfg.name,
-		Detach:  cfg.detach,
-		Memory:  cfg.memory,
-		CPUs:    cfg.cpus,
-		Ports:   cfg.ports,
-		Volumes: cfg.volumes,
-		SSHPort: cfg.sshPort,
-		SSHKey:  cfg.sshKey,
-	})
-	if err != nil {
-		return nil, coreerr.E("LinuxKitProvider.Run", "run linuxkit image", err)
-	}
-
-	return container, nil
-}
-
-// Encrypt is not currently supported for LinuxKit images.
-func (p *LinuxKitProvider) Encrypt(_ *Image, _ []byte) (*EncryptedImage, error) {
-	return nil, coreerr.E("LinuxKitProvider.Encrypt", "linuxkit encryption is not supported in this package", nil)
-}
-
-// Decrypt is not currently supported for LinuxKit images.
-func (p *LinuxKitProvider) Decrypt(_ *EncryptedImage, _ []byte) (*Image, error) {
-	return nil, coreerr.E("LinuxKitProvider.Decrypt", "linuxkit decryption is not supported in this package", nil)
-}
-
-// AppleProvider implements Provider for Apple Containers.
-type AppleProvider struct {
-	runtime string
-	version string
-}
-
-// Compile-time interface check.
-var _ Provider = (*AppleProvider)(nil)
-
-// NewAppleProvider creates a provider backed by Apple Containers.
-func NewAppleProvider() *AppleProvider {
-	rt := DetectAll()
-	for _, candidate := range rt {
-		if candidate.Type == "apple" {
-			return &AppleProvider{runtime: candidate.Path, version: candidate.Version}
-		}
-	}
-	return &AppleProvider{}
-}
-
-// Build validates an Apple container config and returns an image wrapper.
-func (a *AppleProvider) Build(config ContainerConfig) (*Image, error) {
-	if a == nil || a.runtime == "" {
-		return nil, coreerr.E("AppleProvider.Build", "apple provider unavailable", nil)
-	}
-
-	cfgPath := strings.TrimSpace(config.Path)
-	if cfgPath == "" {
-		cfgPath = strings.TrimSpace(config.Source)
-	}
-	if cfgPath == "" {
-		if config.Content == "" {
-			return nil, coreerr.E("AppleProvider.Build", "missing config content or path", nil)
-		}
-		tmpDir, err := coreutil.MkdirTemp("core-apple-config-")
-		if err != nil {
-			return nil, coreerr.E("AppleProvider.Build", "create config temp dir", err)
-		}
-		name := strings.TrimSpace(config.Name)
-		if name == "" {
-			name = "container"
-		}
-		cfgPath = coreutil.JoinPath(tmpDir, core.Concat(name, ".yml"))
-		if err := io.Local.Write(cfgPath, config.Content); err != nil {
-			return nil, coreerr.E("AppleProvider.Build", "write config", err)
-		}
-	}
-
-	id, err := GenerateID()
-	if err != nil {
-		return nil, coreerr.E("AppleProvider.Build", "generate image id", err)
-	}
-
-	return &Image{
-		ID:       id,
-		Name:     strings.TrimSpace(config.Name),
-		Path:     cfgPath,
-		Runtime:  "apple",
-		Metadata: normalizeMetadata(config.Metadata),
-	}, nil
-}
-
-// Run starts an Apple container image by invoking the detected `container`
-// CLI shipped with the Apple Containerisation framework (macOS 26+).
+// Usage:
 //
-// The image.Path may be a bundle directory/file or a named image reference
-// understood by the Apple runtime. RunOptions map to CLI flags:
-//
-//	WithName(n)     → --name n
-//	WithDetach(t)   → --detach when true
-//	WithMemoryMB(m) → --memory mMiB
-//	WithCPUs(n)     → --cpus n
-//	WithPorts(map)  → repeated --publish host:guest
-//	WithVolumes(m)  → repeated --volume host:guest
-//	WithGPU(true)   → refused (Apple does not expose Metal passthrough)
-//
-//	provider := container.NewAppleProvider()
-//	ctr, err := provider.Run(image, container.WithMemoryMB(4096), container.WithDetach(true))
-func (a *AppleProvider) Run(image *Image, opts ...RunOption) (*Container, error) {
-	if a == nil || a.runtime == "" {
-		return nil, coreerr.E("AppleProvider.Run", "apple provider unavailable", nil)
-	}
-	if image == nil {
-		return nil, coreerr.E("AppleProvider.Run", "missing image", nil)
-	}
-	if image.Path == "" {
-		return nil, coreerr.E("AppleProvider.Run", "image path missing", nil)
-	}
-
-	cfg := resolveRunConfig(opts...)
-
-	if cfg.gpu {
-		return nil, coreerr.E("AppleProvider.Run", "Apple provider does not expose GPU capability", nil)
-	}
-
-	id, err := GenerateID()
-	if err != nil {
-		return nil, coreerr.E("AppleProvider.Run", "generate container id", err)
-	}
-
-	args := []string{"run"}
-	if cfg.detach {
-		args = append(args, "--detach")
-	}
-	name := strings.TrimSpace(cfg.name)
-	if name == "" {
-		name = id[:8]
-	}
-	args = append(args, "--name", name)
-	if cfg.memory > 0 {
-		args = append(args, "--memory", core.Sprintf("%dMiB", cfg.memory))
-	}
-	if cfg.cpus > 0 {
-		args = append(args, "--cpus", core.Sprintf("%d", cfg.cpus))
-	}
-	for host, guest := range cfg.ports {
-		args = append(args, "--publish", core.Sprintf("%d:%d", host, guest))
-	}
-	for host, guest := range cfg.volumes {
-		args = append(args, "--volume", core.Sprintf("%s:%s", host, guest))
-	}
-	args = append(args, image.Path)
-
-	cmd := proc.NewCommand(a.runtime, args...)
-	cmd.Stdout = proc.Stdout
-	cmd.Stderr = proc.Stderr
-
-	if cfg.detach {
-		if err := cmd.Start(); err != nil {
-			return nil, coreerr.E("AppleProvider.Run", "start apple container", err)
+//	p.Run(img, container.WithVolumes(map[string]string{"/data": "/app/data"}))
+func WithVolumes(vols map[string]string) RunOption {
+	return func(o *RunOptions) {
+		if o.Volumes == nil {
+			o.Volumes = make(map[string]string, len(vols))
 		}
-		return &Container{
-			ID:        id,
-			Name:      name,
-			Image:     image.Path,
-			Status:    StatusRunning,
-			StartedAt: time.Now(),
-			Ports:     cfg.ports,
-			Memory:    cfg.memory,
-			CPUs:      cfg.cpus,
-			SSHPort:   cfg.sshPort,
-			SSHKey:    cfg.sshKey,
-			PID:       cmd.Process.Pid,
-		}, nil
+		for h, c := range vols {
+			o.Volumes[h] = c
+		}
 	}
-
-	if err := cmd.Run(); err != nil {
-		return &Container{
-			ID:        id,
-			Name:      name,
-			Image:     image.Path,
-			Status:    StatusError,
-			StartedAt: time.Now(),
-		}, coreerr.E("AppleProvider.Run", "apple container exited with error", err)
-	}
-
-	return &Container{
-		ID:        id,
-		Name:      name,
-		Image:     image.Path,
-		Status:    StatusStopped,
-		StartedAt: time.Now(),
-	}, nil
 }
 
-// Encrypt is not yet supported for Apple container images.
-func (a *AppleProvider) Encrypt(_ *Image, _ []byte) (*EncryptedImage, error) {
-	return nil, coreerr.E("AppleProvider.Encrypt", "apple encryption is delegated to STIM workflow", nil)
-}
-
-// Decrypt is not yet supported for Apple container images.
-func (a *AppleProvider) Decrypt(_ *EncryptedImage, _ []byte) (*Image, error) {
-	return nil, coreerr.E("AppleProvider.Decrypt", "apple decryption is delegated to STIM workflow", nil)
-}
-
-// MarshalImageJSON marshals image metadata for external persistence.
-func MarshalImageJSON(image *Image) ([]byte, error) {
-	if image == nil {
-		return nil, coreerr.E("MarshalImageJSON", "missing image", nil)
+// ApplyRunOptions folds a slice of RunOption functions into a RunOptions.
+//
+// Usage:
+//
+//	opts := container.ApplyRunOptions(container.WithMemory(2048), container.WithCPUs(2))
+func ApplyRunOptions(opts ...RunOption) RunOptions {
+	var o RunOptions
+	for _, apply := range opts {
+		if apply != nil {
+			apply(&o)
+		}
 	}
-	return json.Marshal(image)
-}
-
-// ParseImageJSON parses an image from JSON bytes.
-func ParseImageJSON(data []byte) (*Image, error) {
-	if len(data) == 0 {
-		return nil, coreerr.E("ParseImageJSON", "empty image payload", nil)
-	}
-	var image Image
-	if err := json.Unmarshal(data, &image); err != nil {
-		return nil, coreerr.E("ParseImageJSON", "decode image", err)
-	}
-	return &image, nil
+	return o
 }

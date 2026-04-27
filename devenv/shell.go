@@ -4,9 +4,9 @@ import (
 	"context"
 
 	core "dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 
-	"dappco.re/go/core/container/internal/proc"
+	"dappco.re/go/container/internal/proc"
 )
 
 // ShellOptions configures the shell connection.

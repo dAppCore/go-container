@@ -2,11 +2,11 @@ package container
 
 import (
 	"context"
+	"dappco.re/go/core"
+	"reflect"
 	"runtime"
+	"slices"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestQemuHypervisor_Available_Good(t *testing.T) {
@@ -17,7 +17,9 @@ func TestQemuHypervisor_Available_Good(t *testing.T) {
 
 	// We just verify it returns a boolean without error
 	// The actual availability depends on the system
-	assert.IsType(t, true, available)
+	if got, want := reflect.TypeOf(available), reflect.TypeOf(true); got != want {
+		t.Fatalf("want type %v, got %v", want, got)
+	}
 }
 
 func TestQemuHypervisor_Available_InvalidBinary_Bad(t *testing.T) {
@@ -26,8 +28,9 @@ func TestQemuHypervisor_Available_InvalidBinary_Bad(t *testing.T) {
 	}
 
 	available := q.Available()
-
-	assert.False(t, available)
+	if available {
+		t.Fatal("expected false")
+	}
 }
 
 func TestHyperkitHypervisor_Available_Good(t *testing.T) {
@@ -37,10 +40,14 @@ func TestHyperkitHypervisor_Available_Good(t *testing.T) {
 
 	// On non-darwin systems, should always be false
 	if runtime.GOOS != "darwin" {
-		assert.False(t, available)
+		if available {
+			t.Fatal("expected false")
+		}
 	} else {
 		// On darwin, just verify it returns a boolean
-		assert.IsType(t, true, available)
+		if got, want := reflect.TypeOf(available), reflect.TypeOf(true); got != want {
+			t.Fatalf("want type %v, got %v", want, got)
+		}
 	}
 }
 
@@ -52,8 +59,9 @@ func TestHyperkitHypervisor_Available_NotDarwin_Bad(t *testing.T) {
 	h := NewHyperkitHypervisor()
 
 	available := h.Available()
-
-	assert.False(t, available, "Hyperkit should not be available on non-darwin systems")
+	if available {
+		t.Fatal("expected false")
+	}
 }
 
 func TestHyperkitHypervisor_Available_InvalidBinary_Bad(t *testing.T) {
@@ -62,8 +70,9 @@ func TestHyperkitHypervisor_Available_InvalidBinary_Bad(t *testing.T) {
 	}
 
 	available := h.Available()
-
-	assert.False(t, available)
+	if available {
+		t.Fatal("expected false")
+	}
 }
 
 func TestHypervisor_IsKVMAvailable_Good(t *testing.T) {
@@ -73,10 +82,14 @@ func TestHypervisor_IsKVMAvailable_Good(t *testing.T) {
 
 	// On non-linux systems, should be false
 	if runtime.GOOS != "linux" {
-		assert.False(t, result, "KVM should not be available on non-linux systems")
+		if result {
+			t.Fatal("expected false")
+		}
 	} else {
 		// On linux, just verify it returns a boolean
-		assert.IsType(t, true, result)
+		if got, want := reflect.TypeOf(result), reflect.TypeOf(true); got != want {
+			t.Fatalf("want type %v, got %v", want, got)
+		}
 	}
 }
 
@@ -87,11 +100,19 @@ func TestHypervisor_DetectHypervisor_Good(t *testing.T) {
 	// This test may pass or fail depending on system configuration
 	// If no hypervisor is available, it should return an error
 	if err != nil {
-		assert.Nil(t, hv)
-		assert.Contains(t, err.Error(), "no hypervisor available")
+		if hv != nil {
+			t.Fatal("expected nil")
+		}
+		if s, sub := err.Error(), "no hypervisor available"; !core.Contains(s, sub) {
+			t.Fatalf("expected %v to contain %v", s, sub)
+		}
 	} else {
-		assert.NotNil(t, hv)
-		assert.NotEmpty(t, hv.Name())
+		if hv == nil {
+			t.Fatal("expected non-nil value")
+		}
+		if got := hv.Name(); len(got) == 0 {
+			t.Fatal("expected non-empty value")
+		}
 	}
 }
 
@@ -100,10 +121,16 @@ func TestGetHypervisor_Qemu_Good(t *testing.T) {
 
 	// Depends on whether qemu is installed
 	if err != nil {
-		assert.Contains(t, err.Error(), "not available")
+		if s, sub := err.Error(), "not available"; !core.Contains(s, sub) {
+			t.Fatalf("expected %v to contain %v", s, sub)
+		}
 	} else {
-		assert.NotNil(t, hv)
-		assert.Equal(t, "qemu", hv.Name())
+		if hv == nil {
+			t.Fatal("expected non-nil value")
+		}
+		if got, want := hv.Name(), "qemu"; !reflect.DeepEqual(got, want) {
+			t.Fatalf("want %v, got %v", want, got)
+		}
 	}
 }
 
@@ -112,10 +139,16 @@ func TestGetHypervisor_QemuUppercase_Good(t *testing.T) {
 
 	// Depends on whether qemu is installed
 	if err != nil {
-		assert.Contains(t, err.Error(), "not available")
+		if s, sub := err.Error(), "not available"; !core.Contains(s, sub) {
+			t.Fatalf("expected %v to contain %v", s, sub)
+		}
 	} else {
-		assert.NotNil(t, hv)
-		assert.Equal(t, "qemu", hv.Name())
+		if hv == nil {
+			t.Fatal("expected non-nil value")
+		}
+		if got, want := hv.Name(), "qemu"; !reflect.DeepEqual(got, want) {
+			t.Fatalf("want %v, got %v", want, got)
+		}
 	}
 }
 
@@ -124,24 +157,40 @@ func TestGetHypervisor_Hyperkit_Good(t *testing.T) {
 
 	// On non-darwin systems, should always fail
 	if runtime.GOOS != "darwin" {
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not available")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if s, sub := err.Error(), "not available"; !core.Contains(
+
+			// On darwin, depends on whether hyperkit is installed
+			s, sub) {
+			t.Fatalf("expected %v to contain %v", s, sub)
+		}
 	} else {
-		// On darwin, depends on whether hyperkit is installed
+
 		if err != nil {
-			assert.Contains(t, err.Error(), "not available")
+			if s, sub := err.Error(), "not available"; !core.Contains(s, sub) {
+				t.Fatalf("expected %v to contain %v", s, sub)
+			}
 		} else {
-			assert.NotNil(t, hv)
-			assert.Equal(t, "hyperkit", hv.Name())
+			if hv == nil {
+				t.Fatal("expected non-nil value")
+			}
+			if got, want := hv.Name(), "hyperkit"; !reflect.DeepEqual(got, want) {
+				t.Fatalf("want %v, got %v", want, got)
+			}
 		}
 	}
 }
 
 func TestGetHypervisor_Unknown_Bad(t *testing.T) {
 	_, err := GetHypervisor("unknown-hypervisor")
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown hypervisor")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "unknown hypervisor"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestQemuHypervisor_BuildCommand_WithPortsAndVolumes_Good(t *testing.T) {
@@ -161,15 +210,28 @@ func TestQemuHypervisor_BuildCommand_WithPortsAndVolumes_Good(t *testing.T) {
 	}
 
 	cmd, err := q.BuildCommand(ctx, "/path/to/image.iso", opts)
-	require.NoError(t, err)
-	assert.NotNil(t, cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil value")
 
-	// Verify command includes all expected args
+		// Verify command includes all expected args
+	}
+
 	args := cmd.Args
-	assert.Contains(t, args, "-m")
-	assert.Contains(t, args, "2048")
-	assert.Contains(t, args, "-smp")
-	assert.Contains(t, args, "4")
+	if s, sub := args, "-m"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := args, "2048"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := args, "-smp"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := args, "4"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestQemuHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
@@ -179,7 +241,9 @@ func TestQemuHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmd, err := q.BuildCommand(ctx, "/path/to/image.qcow2", opts)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Check that the drive format is qcow2
 	found := false
@@ -189,7 +253,9 @@ func TestQemuHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 			break
 		}
 	}
-	assert.True(t, found, "Should have qcow2 drive argument")
+	if !(found) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestQemuHypervisor_BuildCommand_VMDKFormat_Good(t *testing.T) {
@@ -199,7 +265,9 @@ func TestQemuHypervisor_BuildCommand_VMDKFormat_Good(t *testing.T) {
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmd, err := q.BuildCommand(ctx, "/path/to/image.vmdk", opts)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Check that the drive format is vmdk
 	found := false
@@ -209,7 +277,9 @@ func TestQemuHypervisor_BuildCommand_VMDKFormat_Good(t *testing.T) {
 			break
 		}
 	}
-	assert.True(t, found, "Should have vmdk drive argument")
+	if !(found) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestQemuHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
@@ -219,7 +289,9 @@ func TestQemuHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmd, err := q.BuildCommand(ctx, "/path/to/image.raw", opts)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Check that the drive format is raw
 	found := false
@@ -229,7 +301,9 @@ func TestQemuHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 			break
 		}
 	}
-	assert.True(t, found, "Should have raw drive argument")
+	if !(found) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestHyperkitHypervisor_BuildCommand_WithPorts_Good(t *testing.T) {
@@ -244,15 +318,28 @@ func TestHyperkitHypervisor_BuildCommand_WithPorts_Good(t *testing.T) {
 	}
 
 	cmd, err := h.BuildCommand(ctx, "/path/to/image.iso", opts)
-	require.NoError(t, err)
-	assert.NotNil(t, cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil value")
 
-	// Verify it creates a command with memory and CPU args
+		// Verify it creates a command with memory and CPU args
+	}
+
 	args := cmd.Args
-	assert.Contains(t, args, "-m")
-	assert.Contains(t, args, "1024M")
-	assert.Contains(t, args, "-c")
-	assert.Contains(t, args, "2")
+	if s, sub := args, "-m"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := args, "1024M"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := args, "-c"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := args, "2"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestHyperkitHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
@@ -262,8 +349,12 @@ func TestHyperkitHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmd, err := h.BuildCommand(ctx, "/path/to/image.qcow2", opts)
-	require.NoError(t, err)
-	assert.NotNil(t, cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil value")
+	}
 }
 
 func TestHyperkitHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
@@ -273,8 +364,12 @@ func TestHyperkitHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmd, err := h.BuildCommand(ctx, "/path/to/image.raw", opts)
-	require.NoError(t, err)
-	assert.NotNil(t, cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil value")
+	}
 }
 
 func TestHyperkitHypervisor_BuildCommand_NoPorts_Good(t *testing.T) {
@@ -289,8 +384,12 @@ func TestHyperkitHypervisor_BuildCommand_NoPorts_Good(t *testing.T) {
 	}
 
 	cmd, err := h.BuildCommand(ctx, "/path/to/image.iso", opts)
-	require.NoError(t, err)
-	assert.NotNil(t, cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil value")
+	}
 }
 
 func TestQemuHypervisor_BuildCommand_NoSSHPort_Good(t *testing.T) {
@@ -305,8 +404,12 @@ func TestQemuHypervisor_BuildCommand_NoSSHPort_Good(t *testing.T) {
 	}
 
 	cmd, err := q.BuildCommand(ctx, "/path/to/image.iso", opts)
-	require.NoError(t, err)
-	assert.NotNil(t, cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil value")
+	}
 }
 
 func TestQemuHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
@@ -316,8 +419,12 @@ func TestQemuHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	_, err := q.BuildCommand(ctx, "/path/to/image.txt", opts)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown image format")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "unknown image format"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestHyperkitHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
@@ -327,13 +434,19 @@ func TestHyperkitHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	_, err := h.BuildCommand(ctx, "/path/to/image.unknown", opts)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown image format")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "unknown image format"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestHyperkitHypervisor_Name_Good(t *testing.T) {
 	h := NewHyperkitHypervisor()
-	assert.Equal(t, "hyperkit", h.Name())
+	if got, want := h.Name(), "hyperkit"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestHyperkitHypervisor_BuildCommand_ISOFormat_Good(t *testing.T) {
@@ -347,12 +460,24 @@ func TestHyperkitHypervisor_BuildCommand_ISOFormat_Good(t *testing.T) {
 	}
 
 	cmd, err := h.BuildCommand(ctx, "/path/to/image.iso", opts)
-	require.NoError(t, err)
-	assert.NotNil(t, cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil value")
+	}
 
 	args := cmd.Args
-	assert.Contains(t, args, "-m")
-	assert.Contains(t, args, "1024M")
-	assert.Contains(t, args, "-c")
-	assert.Contains(t, args, "2")
+	if s, sub := args, "-m"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := args, "1024M"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := args, "-c"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+	if s, sub := args, "2"; !slices.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }

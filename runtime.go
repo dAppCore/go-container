@@ -1,198 +1,283 @@
 package container
 
 import (
-	"fmt"
 	"runtime"
-	"strings"
 
-	"dappco.re/go/core/container/internal/proc"
-	"dappco.re/go/core/io"
+	core "dappco.re/go/core"
+
+	"dappco.re/go/container/internal/proc"
 )
 
-// RuntimeType identifies a discovered runtime.
+// RuntimeType identifies a container runtime backend detected on the host.
+type RuntimeType string
+
 const (
-	RuntimeTypeApple  = "apple"
-	RuntimeTypeDocker = "docker"
-	RuntimeTypePodman = "podman"
-	RuntimeTypeNone   = "none"
+	// RuntimeApple is Apple's Containerisation framework (macOS 26+).
+	RuntimeApple RuntimeType = "apple"
+	// RuntimeDocker is Docker / dockerd on any platform.
+	RuntimeDocker RuntimeType = "docker"
+	// RuntimePodman is Podman on Linux or macOS.
+	RuntimePodman RuntimeType = "podman"
+	// RuntimeLinuxKit is the bundled LinuxKit + QEMU/Hyperkit runtime.
+	RuntimeLinuxKit RuntimeType = "linuxkit"
+	// RuntimeNone signals no supported runtime was detected.
+	RuntimeNone RuntimeType = "none"
 )
 
-// Capability flags for ContainerRuntime.
+// Runtime capability bits. Providers report capabilities via the caps field
+// on ContainerRuntime so consumers can adapt behaviour without branching on
+// RuntimeType directly.
 const (
 	capGPU uint32 = 1 << iota
 	capNetworkIsolation
 	capVolumeMounts
-	capNativeEncryption
+	capEncryption
 	capHardwareIsolation
+	capSubSecondStart
 )
 
-// ContainerRuntime describes a detected container runtime.
+// ContainerRuntime describes a detected container runtime and its capabilities.
+//
+// Usage:
+//
+//	rt := container.Detect()
+//	if rt.HasGPU() {
+//	    opts = append(opts, container.WithGPU(true))
+//	}
 type ContainerRuntime struct {
-	Type    string
+	// Type is the canonical runtime identifier.
+	Type RuntimeType
+	// Version is the reported runtime version string.
 	Version string
-	Path    string
-	caps    uint32
+	// Path is the path to the runtime binary or the detection marker.
+	Path string
+	// caps is the capability bitfield set by detection.
+	caps uint32
 }
 
-func (r ContainerRuntime) HasGPU() bool {
-	return r.caps&capGPU != 0
-}
+// HasGPU reports whether the runtime can expose a GPU to the container.
+//
+// Usage:
+//
+//	if rt.HasGPU() { opts = append(opts, container.WithGPU(true)) }
+func (r ContainerRuntime) HasGPU() bool { return r.caps&capGPU != 0 }
 
-func (r ContainerRuntime) HasNetworkIsolation() bool {
-	return r.caps&capNetworkIsolation != 0
-}
+// HasNetworkIsolation reports whether network namespaces or VM networking
+// are available.
+//
+// Usage:
+//
+//	if rt.HasNetworkIsolation() { cfg.Isolate = true }
+func (r ContainerRuntime) HasNetworkIsolation() bool { return r.caps&capNetworkIsolation != 0 }
 
-func (r ContainerRuntime) HasVolumeMounts() bool {
-	return r.caps&capVolumeMounts != 0
-}
+// HasVolumeMounts reports whether the runtime supports host volume mounting.
+//
+// Usage:
+//
+//	if rt.HasVolumeMounts() { opts = append(opts, container.WithVolumes(v)) }
+func (r ContainerRuntime) HasVolumeMounts() bool { return r.caps&capVolumeMounts != 0 }
 
-func (r ContainerRuntime) HasEncryption() bool {
-	return r.caps&capNativeEncryption != 0
-}
+// HasEncryption reports whether the runtime provides native encrypted storage.
+//
+// Usage:
+//
+//	if rt.HasEncryption() { cfg.Encrypted = true }
+func (r ContainerRuntime) HasEncryption() bool { return r.caps&capEncryption != 0 }
 
-func (r ContainerRuntime) IsHardwareIsolated() bool {
-	return r.caps&capHardwareIsolation != 0
-}
+// IsHardwareIsolated reports whether the runtime uses hardware virtualisation
+// for isolation (rather than namespaces).
+//
+// Usage:
+//
+//	if rt.IsHardwareIsolated() { auditLog("hardware-isolated workload") }
+func (r ContainerRuntime) IsHardwareIsolated() bool { return r.caps&capHardwareIsolation != 0 }
 
-func (r ContainerRuntime) String() string {
-	return fmt.Sprintf("%s %s at %s", r.Type, r.Version, r.Path)
-}
+// HasSubSecondStart reports whether the runtime boots in under one second.
+//
+// Usage:
+//
+//	if rt.HasSubSecondStart() { fast = true }
+func (r ContainerRuntime) HasSubSecondStart() bool { return r.caps&capSubSecondStart != 0 }
 
-func (r ContainerRuntime) IsAvailable() bool {
-	return r.Type != RuntimeTypeNone && r.Path != ""
-}
+// Caps returns the raw capability bitfield for callers that need it.
+//
+// Usage:
+//
+//	bits := rt.Caps()
+func (r ContainerRuntime) Caps() uint32 { return r.caps }
 
-// Detect probes available runtimes and returns the highest-priority runtime.
+// Detect probes the system for available container runtimes and returns the
+// highest-priority runtime found. Priority order:
+//
+//	Apple Containers → Docker → Podman → LinuxKit → None.
+//
+// Usage:
+//
+//	rt := container.Detect()
+//	fmt.Println(rt.Type)  // "apple", "docker", "podman", "linuxkit" or "none"
 func Detect() ContainerRuntime {
-	runtimes := DetectAll()
-	if len(runtimes) == 0 {
-		return ContainerRuntime{Type: RuntimeTypeNone}
+	for _, rt := range DetectAll() {
+		return rt
 	}
-	return runtimes[0]
+	return ContainerRuntime{Type: RuntimeNone}
 }
 
-// DetectAll discovers available container runtimes in priority order.
+// DetectAll returns every container runtime found on the host ordered by
+// priority (highest first). Empty slice means no runtime is available.
+//
+// Usage:
+//
+//	for _, rt := range container.DetectAll() {
+//	    fmt.Printf("%s %s at %s\n", rt.Type, rt.Version, rt.Path)
+//	}
 func DetectAll() []ContainerRuntime {
-	runtimes := make([]ContainerRuntime, 0, 4)
+	var out []ContainerRuntime
 
-	if rt := detectAppleRuntime(); rt.Type != RuntimeTypeNone {
-		runtimes = append(runtimes, rt)
+	if rt, ok := detectApple(); ok {
+		out = append(out, rt)
+	}
+	if rt, ok := detectDocker(); ok {
+		out = append(out, rt)
+	}
+	if rt, ok := detectPodman(); ok {
+		out = append(out, rt)
+	}
+	if rt, ok := detectLinuxKit(); ok {
+		out = append(out, rt)
 	}
 
-	if rt := detectRuntimeCandidate(RuntimeTypeDocker, "docker", capNetworkIsolation|capVolumeMounts); rt.Type != RuntimeTypeNone {
-		runtimes = append(runtimes, rt)
-	}
-
-	if rt := detectRuntimeCandidate(RuntimeTypePodman, "podman", capNetworkIsolation|capVolumeMounts); rt.Type != RuntimeTypeNone {
-		runtimes = append(runtimes, rt)
-	}
-
-	return runtimes
+	return out
 }
 
-// IsAppleAvailable checks whether Apple's Containerization runtime is available.
-func IsAppleAvailable() bool {
-	return detectAppleRuntime().Type == RuntimeTypeApple
-}
-
-func detectAppleRuntime() ContainerRuntime {
+// detectApple probes for the Apple Containerisation framework CLI.
+func detectApple() (ContainerRuntime, bool) {
 	if runtime.GOOS != "darwin" {
-		return ContainerRuntime{Type: RuntimeTypeNone}
+		return ContainerRuntime{}, false
 	}
-
-	path, ok := detectRuntimePath("container", []string{
-		"/Library/Apple/usr/bin/container",
-		"/usr/local/bin/container",
-		"/usr/bin/container",
-	})
-	if !ok {
-		return ContainerRuntime{Type: RuntimeTypeNone}
-	}
-
-	version := detectRuntimeVersion(path, "--version")
-	if version == "" {
-		version = "unknown"
-	}
-
-	return ContainerRuntime{
-		Type:    RuntimeTypeApple,
-		Version: version,
-		Path:    path,
-		caps:    capNetworkIsolation | capVolumeMounts | capHardwareIsolation,
-	}
-}
-
-func detectRuntimeCandidate(name, binary string, caps uint32) ContainerRuntime {
-	path, err := proc.LookPath(binary)
+	path, err := proc.LookPath("container")
 	if err != nil {
-		return ContainerRuntime{Type: RuntimeTypeNone}
+		return ContainerRuntime{}, false
 	}
-
-	version := detectRuntimeVersion(path, "--version")
-	if version == "" {
-		version = "unknown"
-	}
-
-	return ContainerRuntime{
-		Type:    name,
-		Version: version,
+	rt := ContainerRuntime{
+		Type:    RuntimeApple,
 		Path:    path,
-		caps:    caps,
+		Version: captureVersion(path, "--version"),
 	}
+	rt.caps = capNetworkIsolation | capVolumeMounts | capHardwareIsolation | capSubSecondStart
+	return rt, true
 }
 
-func detectRuntimeVersion(path, arg string) string {
-	cmd := proc.NewCommand(path, arg)
+// detectDocker probes for the Docker CLI and daemon.
+func detectDocker() (ContainerRuntime, bool) {
+	path, err := proc.LookPath("docker")
+	if err != nil {
+		return ContainerRuntime{}, false
+	}
+	rt := ContainerRuntime{
+		Type:    RuntimeDocker,
+		Path:    path,
+		Version: captureVersion(path, "--version"),
+	}
+	rt.caps = capNetworkIsolation | capVolumeMounts
+	if runtime.GOOS == "linux" {
+		rt.caps |= capGPU
+	}
+	return rt, true
+}
+
+// detectPodman probes for the Podman CLI.
+func detectPodman() (ContainerRuntime, bool) {
+	path, err := proc.LookPath("podman")
+	if err != nil {
+		return ContainerRuntime{}, false
+	}
+	rt := ContainerRuntime{
+		Type:    RuntimePodman,
+		Path:    path,
+		Version: captureVersion(path, "--version"),
+	}
+	rt.caps = capNetworkIsolation | capVolumeMounts
+	if runtime.GOOS == "linux" {
+		rt.caps |= capGPU
+	}
+	return rt, true
+}
+
+// detectLinuxKit reports LinuxKit support when a compatible hypervisor is present.
+func detectLinuxKit() (ContainerRuntime, bool) {
+	hv, err := DetectHypervisor()
+	if err != nil {
+		return ContainerRuntime{}, false
+	}
+	rt := ContainerRuntime{
+		Type:    RuntimeLinuxKit,
+		Path:    hv.Name(),
+		Version: "", // Hypervisor-specific; intentionally left empty.
+	}
+	rt.caps = capNetworkIsolation | capVolumeMounts | capEncryption | capHardwareIsolation
+	return rt, true
+}
+
+// captureVersion invokes a runtime with the given version flag and returns the
+// first line of stdout. Errors are suppressed — detection must not panic.
+func captureVersion(path string, flag string) string {
+	cmd := proc.NewCommand(path, flag)
 	out, err := cmd.Output()
-	if err != nil {
+	if err != nil || len(out) == 0 {
 		return ""
 	}
-
-	for _, token := range strings.Fields(string(out)) {
-		candidate := strings.Trim(token, ",")
-		if isVersionCandidate(candidate) {
-			return candidate
-		}
-	}
-
-	text := strings.TrimSpace(string(out))
-	if text == "" {
+	parts := core.SplitN(string(out), "\n", 2)
+	if len(parts) == 0 {
 		return ""
 	}
-	return text
+	return parts[0]
 }
 
-func isVersionCandidate(value string) bool {
-	hasDigit := false
-	for _, r := range value {
-		switch {
-		case r >= '0' && r <= '9':
-			hasDigit = true
-		case r == '.' || r == '-' || r == '_' || r == '+' || r == 'v' || r == 'V':
-		default:
-			return false
+// ProviderFor returns a Provider matching the requested runtime type. If the
+// requested runtime is not available on the host the function returns an
+// error — callers should probe with Detect() first for auto-selection.
+//
+// Usage:
+//
+//	p, err := container.ProviderFor(container.RuntimeApple)
+func ProviderFor(rt RuntimeType) (Provider, error) {
+	switch rt {
+	case RuntimeApple:
+		p := NewAppleProvider()
+		if !p.Available() {
+			return nil, newRuntimeUnavailableError(rt)
+		}
+		return p, nil
+	default:
+		return nil, newRuntimeUnsupportedError(rt)
+	}
+}
+
+// HasRuntime reports whether a runtime of the given type is detected on the
+// host. Convenience wrapper over DetectAll for one-line conditional checks.
+//
+// Usage:
+//
+//	if container.HasRuntime(container.RuntimeApple) { ... }
+func HasRuntime(rt RuntimeType) bool {
+	for _, got := range DetectAll() {
+		if got.Type == rt {
+			return true
 		}
 	}
-	if !hasDigit {
-		return false
-	}
-	return true
+	return false
 }
 
-func detectRuntimePath(binary string, fallback []string) (string, bool) {
-	for _, path := range fallback {
-		if IsPathAvailable(path) {
-			return path, true
-		}
-	}
-	path, err := proc.LookPath(binary)
-	if err != nil {
-		return "", false
-	}
-	return path, true
+// runtimeUnavailable returns a not-available error.
+func newRuntimeUnavailableError(rt RuntimeType) error {
+	return &runtimeError{msg: "runtime not available on this host: " + string(rt)}
 }
 
-// IsPathAvailable checks whether a path exists.
-func IsPathAvailable(path string) bool {
-	return io.Local.Exists(path)
+// runtimeUnsupported returns a not-wired error.
+func newRuntimeUnsupportedError(rt RuntimeType) error {
+	return &runtimeError{msg: "no Provider implementation for runtime: " + string(rt)}
 }
+
+type runtimeError struct{ msg string }
+
+func (e *runtimeError) Error() string { return e.msg }

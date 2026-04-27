@@ -4,11 +4,11 @@ import (
 	"context"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	"gopkg.in/yaml.v3"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 )
 
 // TestConfig holds test configuration from .core/test.yaml.

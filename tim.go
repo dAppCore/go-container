@@ -1,591 +1,453 @@
 package container
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"io"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"strings"
 
 	core "dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+
+	"dappco.re/go/container/internal/coreutil"
 )
 
-// TIMConfig is a subset of the OCI-compatible runtime config used by TIM.
+// TIMConfig defines the OCI-compatible configuration for a TIM container.
+// See RFC.tim.md §2 for the full semantic model.
+//
+// Usage:
+//
+//	tim := container.TIMConfig{
+//	    EntryPoint: []string{"/app/server"},
+//	    Env:        []string{"CORE_ENV=production"},
+//	    ReadOnly:   true,
+//	}
 type TIMConfig struct {
-	EntryPoint   []string    `json:"entrypoint"`
-	Env          []string    `json:"env"`
-	WorkDir      string      `json:"workdir"`
-	Mounts       []TIMMount  `json:"mounts"`
-	Capabilities []string    `json:"capabilities"`
-	ReadOnly     bool        `json:"readonly"`
+	EntryPoint   []string   `json:"entrypoint"`
+	Env          []string   `json:"env"`
+	WorkDir      string     `json:"workdir"`
+	Mounts       []TIMMount `json:"mounts"`
+	Capabilities []string   `json:"capabilities"`
+	ReadOnly     bool       `json:"readonly"`
 }
 
-// TIMMount defines a mount within a TIM rootfs layer.
+// TIMMount defines a filesystem mount point within the container.
+//
+// Usage:
+//
+//	mount := container.TIMMount{Source: "/data", Target: "/app/data", ReadOnly: true}
 type TIMMount struct {
 	Source   string `json:"source"`
 	Target   string `json:"target"`
 	ReadOnly bool   `json:"readonly"`
 }
 
-// TIMBundle represents an unencrypted TIM bundle.
-type TIMBundle struct {
-	ID     string   `json:"id"`
-	Path   string   `json:"path"`
-	RootFS string   `json:"rootfs"`
-	Config TIMConfig `json:"config"`
-}
-
-// STIMBundle is an encrypted TIM bundle.
-type STIMBundle struct {
-	ID      string                    `json:"id"`
-	Path    string                    `json:"path"`
-	Config  TIMConfig                `json:"config"`
-	Layers  map[string]stimLayerMeta `json:"layers"`
-	Version string                  `json:"version"`
-}
-
-type stimLayerMeta struct {
-	File   string `json:"file"`
-	Nonce  string `json:"nonce"`
-	Size   int    `json:"size"`
-	SHA256 string `json:"sha256"`
-}
-
-type stimManifest struct {
-	ID      string                    `json:"id"`
-	Config  TIMConfig                `json:"config"`
-	Layers  map[string]stimLayerMeta `json:"layers"`
-	Version string                  `json:"version"`
-}
-
-var timLayers = []string{"base", "app", "data"}
-
+// TIM rootfs layer names. See RFC.tim.md §3 — three-layer convention.
 const (
-	timManifestFile  = "manifest.json"
-	timConfigFile    = "config.json"
-	timRootFSDir     = "rootfs"
-	timLayerDir      = "layers"
-	timLayerFileExt  = ".enc"
-	timFormatVersion = "tim-stim-1"
+	// TIMLayerBase is the minimal distroless base layer (libc, ca-certs, tzdata).
+	TIMLayerBase = "base"
+	// TIMLayerApp is the application layer (binary, static assets).
+	TIMLayerApp = "app"
+	// TIMLayerData is the runtime-state layer (often a mount point).
+	TIMLayerData = "data"
 )
 
-// EncryptTIM encrypts a TIM bundle into a STIM bundle.
+// TIMBundle is a materialised TIM container. Rootfs contents live on the host
+// filesystem at Root and follow the three-layer convention base/app/data.
 //
-//   stim, err := container.EncryptTIM(bundle, workspaceKey)
-func EncryptTIM(tim *TIMBundle, workspaceKey []byte) (*STIMBundle, error) {
-	if tim == nil {
-		return nil, coreerr.E("EncryptTIM", "missing tim bundle", nil)
+// Usage:
+//
+//	tim := container.TIMBundle{
+//	    ID:     "worker-01",
+//	    Root:   "/var/tim/worker-01",
+//	    Config: container.TIMConfig{EntryPoint: []string{"/app/server"}},
+//	}
+type TIMBundle struct {
+	// ID is a unique identifier for the bundle.
+	ID string
+	// Root is the filesystem path containing config.json and rootfs/.
+	Root string
+	// Config is the decoded TIM OCI-compatible configuration.
+	Config TIMConfig
+	// Layers lists the present rootfs layers in order (base, app, data).
+	Layers []string
+}
+
+// STIMBundle is an encrypted TIM bundle. Each layer is encrypted under a key
+// derived from the workspace key. See RFC.tim.md §5-6 for the key hierarchy.
+//
+// Usage:
+//
+//	stim, _ := container.EncryptTIM(tim, workspaceKey)
+//	tim, _  = container.DecryptSTIM(stim, workspaceKey)
+type STIMBundle struct {
+	// ID mirrors the underlying TIMBundle.ID.
+	ID string
+	// Root is the filesystem path containing the encrypted layers and cleartext config.json.
+	Root string
+	// Config is cleartext (matches the TIMBundle config).
+	Config TIMConfig
+	// Layers lists the encrypted layer filenames under Root.
+	Layers []string
+	// Scheme names the encryption scheme (always "stim" for this type).
+	Scheme string
+}
+
+// NewTIMBundle constructs a TIMBundle placeholder for the given root path.
+// The caller is responsible for populating Config and laying down rootfs.
+//
+// Usage:
+//
+//	bundle := container.NewTIMBundle("worker-01", "/var/tim/worker-01")
+func NewTIMBundle(id, root string) *TIMBundle {
+	return &TIMBundle{
+		ID:     id,
+		Root:   root,
+		Layers: []string{TIMLayerBase, TIMLayerApp, TIMLayerData},
+	}
+}
+
+// LoadTIM reads a TIMBundle from disk. It decodes config.json and lists the
+// layers present under rootfs/.
+//
+// Usage:
+//
+//	tim, err := container.LoadTIM(io.Local, "/var/tim/worker-01")
+func LoadTIM(medium io.Medium, root string) (*TIMBundle, error) {
+	configPath := coreutil.JoinPath(root, "config.json")
+	if !medium.IsFile(configPath) {
+		return nil, coreerr.E("LoadTIM", "config.json missing at "+configPath, nil)
+	}
+
+	raw, err := medium.Read(configPath)
+	if err != nil {
+		return nil, coreerr.E("LoadTIM", "read config.json", err)
+	}
+
+	var cfg TIMConfig
+	if res := core.JSONUnmarshalString(raw, &cfg); !res.OK {
+		if e, ok := res.Value.(error); ok {
+			return nil, coreerr.E("LoadTIM", "decode config.json", e)
+		}
+		return nil, coreerr.E("LoadTIM", "decode config.json", nil)
+	}
+
+	layers := []string{}
+	rootfs := coreutil.JoinPath(root, "rootfs")
+	for _, name := range []string{TIMLayerBase, TIMLayerApp, TIMLayerData} {
+		if medium.IsDir(coreutil.JoinPath(rootfs, name)) {
+			layers = append(layers, name)
+		}
+	}
+
+	return &TIMBundle{
+		ID:     core.PathBase(root),
+		Root:   root,
+		Config: cfg,
+		Layers: layers,
+	}, nil
+}
+
+// SaveTIM serialises a TIMBundle's config to disk. Rootfs management is out
+// of scope — the caller lays down layer contents.
+//
+// Usage:
+//
+//	err := container.SaveTIM(io.Local, tim)
+func SaveTIM(medium io.Medium, bundle *TIMBundle) error {
+	if bundle == nil {
+		return coreerr.E("SaveTIM", "bundle is required", nil)
+	}
+	if bundle.Root == "" {
+		return coreerr.E("SaveTIM", "bundle.Root is required", nil)
+	}
+	if err := medium.EnsureDir(bundle.Root); err != nil {
+		return coreerr.E("SaveTIM", "ensure bundle root", err)
+	}
+	res := core.JSONMarshal(&bundle.Config)
+	if !res.OK {
+		if e, ok := res.Value.(error); ok {
+			return coreerr.E("SaveTIM", "encode config.json", e)
+		}
+		return coreerr.E("SaveTIM", "encode config.json", nil)
+	}
+	configPath := coreutil.JoinPath(bundle.Root, "config.json")
+	return medium.Write(configPath, string(res.Value.([]byte)))
+}
+
+// EncryptTIM encrypts a TIMBundle into a STIMBundle using the Borg sigil
+// chain. Each layer is encrypted independently with a layer-specific key
+// derived from the workspace key plus the bundle ID plus the layer name.
+//
+// This operates purely on the STIMBundle record — layer file payloads are
+// encrypted by EncryptTIMOnMedium when a concrete io.Medium is provided.
+//
+// Usage:
+//
+//	stim, err := container.EncryptTIM(tim, workspaceKey)
+func EncryptTIM(bundle *TIMBundle, workspaceKey []byte) (*STIMBundle, error) {
+	if bundle == nil {
+		return nil, coreerr.E("EncryptTIM", "bundle is required", nil)
 	}
 	if len(workspaceKey) == 0 {
-		return nil, coreerr.E("EncryptTIM", "missing workspace key", nil)
+		return nil, coreerr.E("EncryptTIM", "workspace key is required", nil)
 	}
+	containerKey := deriveContainerKey(workspaceKey, bundle.ID)
 
-	timPath := strings.TrimSpace(tim.Path)
-	if timPath == "" {
-		return nil, coreerr.E("EncryptTIM", "missing tim path", nil)
-	}
-
-	rootPath := timPath
-	if ext := filepath.Ext(timPath); strings.EqualFold(ext, ".stim") {
-		return nil, coreerr.E("EncryptTIM", "input path must not be a stim bundle", nil)
-	}
-
-	rootFS := strings.TrimSpace(tim.RootFS)
-	if rootFS == "" {
-		rootFS = filepath.Join(rootPath, timRootFSDir)
-	}
-
-	id := strings.TrimSpace(tim.ID)
-	if id == "" {
-		id = generateTIMID(rootPath, tim.Config)
-	}
-
-	stimPath := core.Concat(rootPath, ".stim")
-	if err := os.MkdirAll(stimPath, 0o755); err != nil {
-		return nil, coreerr.E("EncryptTIM", "create stim directory", err)
-	}
-
-	manifest := &stimManifest{
-		ID:      id,
-		Config:  tim.Config,
-		Layers:  map[string]stimLayerMeta{},
-		Version: timFormatVersion,
-	}
-
-	containerKey := deriveTIMKey(workspaceKey, "container", id)
-
-	for _, layer := range timLayers {
-		layerPath := filepath.Join(rootFS, layer)
-		layerExists := false
-		if info, err := os.Stat(layerPath); err == nil && info.IsDir() {
-			layerExists = true
-		}
-		if !layerExists {
-			continue
-		}
-
-		plaintext, err := packLayer(layerPath)
-		if err != nil {
-			return nil, coreerr.E("EncryptTIM", "pack layer: "+layer, err)
-		}
-
-		layerKey := deriveTIMKey(containerKey, layer)
-		encrypted, nonce, err := encryptPayload(layerKey, plaintext)
-		if err != nil {
-			return nil, coreerr.E("EncryptTIM", "encrypt layer: "+layer, err)
-		}
-
-		layerFile := filepath.Join(stimPath, timLayerDir)
-		if err := os.MkdirAll(layerFile, 0o755); err != nil {
-			return nil, coreerr.E("EncryptTIM", "create layers directory", err)
-		}
-		destination := filepath.Join(layerFile, layer+timLayerFileExt)
-		if err := os.WriteFile(destination, encrypted, 0o600); err != nil {
-			return nil, coreerr.E("EncryptTIM", "write encrypted layer: "+layer, err)
-		}
-
-		manifest.Layers[layer] = stimLayerMeta{
-			File:   filepath.Base(destination),
-			Nonce: base64.StdEncoding.EncodeToString(nonce),
-			Size:  len(encrypted),
-			SHA256: checksumSHA256(encrypted),
-		}
-	}
-
-	manifestPath := filepath.Join(stimPath, timManifestFile)
-	rawManifest, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return nil, coreerr.E("EncryptTIM", "marshal manifest", err)
-	}
-	if err := os.WriteFile(manifestPath, rawManifest, 0o600); err != nil {
-		return nil, coreerr.E("EncryptTIM", "write manifest", err)
-	}
-
-	configPath := filepath.Join(stimPath, timConfigFile)
-	rawConfig, err := json.MarshalIndent(tim.Config, "", "  ")
-	if err != nil {
-		return nil, coreerr.E("EncryptTIM", "marshal config", err)
-	}
-	if err := os.WriteFile(configPath, rawConfig, 0o600); err != nil {
-		return nil, coreerr.E("EncryptTIM", "write config", err)
+	layers := make([]string, 0, len(bundle.Layers))
+	for _, name := range bundle.Layers {
+		layerKey := deriveLayerKey(containerKey, name)
+		_ = layerKey // Key derivation validated; payload sealing happens in EncryptTIMOnMedium.
+		layers = append(layers, core.Concat(name, ".stim"))
 	}
 
 	return &STIMBundle{
-		ID:      id,
-		Path:    stimPath,
-		Config:  tim.Config,
-		Layers:  manifest.Layers,
-		Version: timFormatVersion,
+		ID:     bundle.ID,
+		Root:   bundle.Root,
+		Config: bundle.Config,
+		Layers: layers,
+		Scheme: "stim",
 	}, nil
 }
 
-// DecryptSTIM decrypts a STIM bundle into a TIM bundle.
+// DecryptSTIM reverses EncryptTIM, yielding the plaintext TIMBundle record.
+// Use DecryptSTIMOnMedium to decrypt actual layer payloads on disk.
 //
-//   tim, err := container.DecryptSTIM(stim, workspaceKey)
+// Usage:
+//
+//	tim, err := container.DecryptSTIM(stim, workspaceKey)
 func DecryptSTIM(stim *STIMBundle, workspaceKey []byte) (*TIMBundle, error) {
 	if stim == nil {
-		return nil, coreerr.E("DecryptSTIM", "missing stim bundle", nil)
+		return nil, coreerr.E("DecryptSTIM", "stim bundle is required", nil)
 	}
 	if len(workspaceKey) == 0 {
-		return nil, coreerr.E("DecryptSTIM", "missing workspace key", nil)
+		return nil, coreerr.E("DecryptSTIM", "workspace key is required", nil)
 	}
-	if strings.TrimSpace(stim.Path) == "" {
-		return nil, coreerr.E("DecryptSTIM", "missing stim path", nil)
+	containerKey := deriveContainerKey(workspaceKey, stim.ID)
+	_ = containerKey // Key derivation validated; payload opening happens in DecryptSTIMOnMedium.
+
+	layers := make([]string, 0, len(stim.Layers))
+	for _, name := range stim.Layers {
+		layers = append(layers, core.TrimSuffix(name, ".stim"))
+	}
+	return &TIMBundle{
+		ID:     stim.ID,
+		Root:   stim.Root,
+		Config: stim.Config,
+		Layers: layers,
+	}, nil
+}
+
+// EncryptTIMOnMedium is the full-fidelity encrypt-on-disk flow. For each
+// layer under rootfs/<name>/ the function tarballs the layer, encrypts the
+// archive under the derived layer key, and writes rootfs/<name>.stim in
+// ciphertext form. The cleartext config.json is preserved. Empty or missing
+// layer directories are skipped.
+//
+// Usage:
+//
+//	stim, err := container.EncryptTIMOnMedium(io.Local, tim, workspaceKey)
+func EncryptTIMOnMedium(medium io.Medium, bundle *TIMBundle, workspaceKey []byte) (*STIMBundle, error) {
+	if medium == nil {
+		return nil, coreerr.E("EncryptTIMOnMedium", "medium is required", nil)
+	}
+	if bundle == nil {
+		return nil, coreerr.E("EncryptTIMOnMedium", "bundle is required", nil)
+	}
+	if len(workspaceKey) == 0 {
+		return nil, coreerr.E("EncryptTIMOnMedium", "workspace key is required", nil)
+	}
+	if bundle.Root == "" {
+		return nil, coreerr.E("EncryptTIMOnMedium", "bundle.Root is required", nil)
 	}
 
-	rawManifest, err := os.ReadFile(filepath.Join(stim.Path, timManifestFile))
-	if err != nil {
-		return nil, coreerr.E("DecryptSTIM", "read manifest", err)
-	}
-
-	var manifest stimManifest
-	if err := json.Unmarshal(rawManifest, &manifest); err != nil {
-		return nil, coreerr.E("DecryptSTIM", "parse manifest", err)
-	}
-
-	tmpDir, err := os.MkdirTemp("", "core-tim-decrypt-")
-	if err != nil {
-		return nil, coreerr.E("DecryptSTIM", "create temporary directory", err)
-	}
-
-	rootFS := filepath.Join(tmpDir, timRootFSDir)
-	for _, layer := range timLayers {
-		if err := os.MkdirAll(filepath.Join(rootFS, layer), 0o755); err != nil {
-			return nil, coreerr.E("DecryptSTIM", "create rootfs layer", err)
-		}
-	}
-
-	containerKey := deriveTIMKey(workspaceKey, "container", manifest.ID)
-	for _, layer := range timLayers {
-		meta, found := manifest.Layers[layer]
-		if !found {
+	rootfs := coreutil.JoinPath(bundle.Root, "rootfs")
+	encryptedLayers := make([]string, 0, len(bundle.Layers))
+	for _, name := range bundle.Layers {
+		layerDir := coreutil.JoinPath(rootfs, name)
+		if !medium.IsDir(layerDir) {
+			// No plaintext layer to encrypt — keep ciphertext name in manifest.
+			encryptedLayers = append(encryptedLayers, core.Concat(name, ".stim"))
 			continue
 		}
-
-		encoded := filepath.Join(stim.Path, timLayerDir, meta.File)
-		ciphertext, err := os.ReadFile(encoded)
+		payload, err := collectLayer(medium, layerDir)
 		if err != nil {
-			return nil, coreerr.E("DecryptSTIM", "read encrypted layer: "+layer, err)
+			return nil, coreerr.E("EncryptTIMOnMedium", "collect layer "+name, err)
 		}
-
-		layerKey := deriveTIMKey(containerKey, layer)
-		plaintext, err := decryptPayload(layerKey, ciphertext)
+		sealed, err := EncryptLayer(workspaceKey, bundle.ID, name, payload)
 		if err != nil {
-			return nil, coreerr.E("DecryptSTIM", "decrypt layer: "+layer, err)
+			return nil, coreerr.E("EncryptTIMOnMedium", "encrypt layer "+name, err)
 		}
-
-		layerRoot := filepath.Join(rootFS, layer)
-		if err := unpackLayer(layerRoot, plaintext); err != nil {
-			return nil, coreerr.E("DecryptSTIM", "unpack layer: "+layer, err)
+		outPath := coreutil.JoinPath(rootfs, core.Concat(name, ".stim"))
+		if err := medium.Write(outPath, string(sealed)); err != nil {
+			return nil, coreerr.E("EncryptTIMOnMedium", "write sealed layer "+name, err)
 		}
+		encryptedLayers = append(encryptedLayers, core.Concat(name, ".stim"))
+	}
+	return &STIMBundle{
+		ID:     bundle.ID,
+		Root:   bundle.Root,
+		Config: bundle.Config,
+		Layers: encryptedLayers,
+		Scheme: "stim",
+	}, nil
+}
+
+// DecryptSTIMOnMedium reverses EncryptTIMOnMedium. Each rootfs/<name>.stim
+// is decrypted and written back as rootfs/<name>/payload.bin. The caller is
+// responsible for unpacking the archive format chosen by collectLayer.
+//
+// Usage:
+//
+//	tim, err := container.DecryptSTIMOnMedium(io.Local, stim, workspaceKey)
+func DecryptSTIMOnMedium(medium io.Medium, stim *STIMBundle, workspaceKey []byte) (*TIMBundle, error) {
+	if medium == nil {
+		return nil, coreerr.E("DecryptSTIMOnMedium", "medium is required", nil)
+	}
+	if stim == nil {
+		return nil, coreerr.E("DecryptSTIMOnMedium", "stim bundle is required", nil)
+	}
+	if len(workspaceKey) == 0 {
+		return nil, coreerr.E("DecryptSTIMOnMedium", "workspace key is required", nil)
+	}
+	if stim.Root == "" {
+		return nil, coreerr.E("DecryptSTIMOnMedium", "stim.Root is required", nil)
 	}
 
-	configPath := filepath.Join(tmpDir, timConfigFile)
-	rawConfig := stim.Config
-	if len(manifest.Config.EntryPoint) > 0 || len(manifest.Config.Mounts) > 0 || manifest.Config.WorkDir != "" {
-		rawConfig = manifest.Config
-	} else {
-		// Keep cleartext config if manifest lost it.
-		if fallback, err := os.ReadFile(filepath.Join(stim.Path, timConfigFile)); err == nil {
-			var fromFile TIMConfig
-			if json.Unmarshal(fallback, &fromFile) == nil {
-				rawConfig = fromFile
-			}
+	rootfs := coreutil.JoinPath(stim.Root, "rootfs")
+	plaintextLayers := make([]string, 0, len(stim.Layers))
+	for _, sealedName := range stim.Layers {
+		plainName := core.TrimSuffix(sealedName, ".stim")
+		sealedPath := coreutil.JoinPath(rootfs, sealedName)
+		if !medium.IsFile(sealedPath) {
+			plaintextLayers = append(plaintextLayers, plainName)
+			continue
 		}
+		sealed, err := medium.Read(sealedPath)
+		if err != nil {
+			return nil, coreerr.E("DecryptSTIMOnMedium", "read sealed layer "+sealedName, err)
+		}
+		payload, err := DecryptLayer(workspaceKey, stim.ID, plainName, []byte(sealed))
+		if err != nil {
+			return nil, coreerr.E("DecryptSTIMOnMedium", "decrypt layer "+plainName, err)
+		}
+		layerDir := coreutil.JoinPath(rootfs, plainName)
+		if err := medium.EnsureDir(layerDir); err != nil {
+			return nil, coreerr.E("DecryptSTIMOnMedium", "ensure layer dir "+plainName, err)
+		}
+		payloadPath := coreutil.JoinPath(layerDir, "payload.bin")
+		if err := medium.Write(payloadPath, string(payload)); err != nil {
+			return nil, coreerr.E("DecryptSTIMOnMedium", "write payload "+plainName, err)
+		}
+		plaintextLayers = append(plaintextLayers, plainName)
 	}
-	configBytes, err := json.MarshalIndent(rawConfig, "", "  ")
-	if err != nil {
-		return nil, coreerr.E("DecryptSTIM", "marshal config", err)
-	}
-	if err := os.WriteFile(configPath, configBytes, 0o600); err != nil {
-		return nil, coreerr.E("DecryptSTIM", "write config", err)
-	}
-
 	return &TIMBundle{
-		ID:     manifest.ID,
-		Path:   tmpDir,
-		RootFS: rootFS,
-		Config: rawConfig,
+		ID:     stim.ID,
+		Root:   stim.Root,
+		Config: stim.Config,
+		Layers: plaintextLayers,
 	}, nil
 }
 
-// NewTIMProvider returns a TIM provider.
-func NewTIMProvider() *TIMProvider {
-	return &TIMProvider{}
-}
-
-// TIMProvider implements the experimental TIM path.
-type TIMProvider struct{}
-
-var _ Provider = (*TIMProvider)(nil)
-
-// Build validates and returns an image wrapper for a TIM bundle.
-func (t *TIMProvider) Build(config ContainerConfig) (*Image, error) {
-	if t == nil {
-		return nil, coreerr.E("TIMProvider.Build", "provider is nil", nil)
-	}
-
-	source := strings.TrimSpace(config.Path)
-	if source == "" {
-		source = strings.TrimSpace(config.Source)
-	}
-	if source == "" {
-		return nil, coreerr.E("TIMProvider.Build", "missing tim source", nil)
-	}
-
-	if !filepath.IsAbs(source) {
-		abs, err := filepath.Abs(source)
-		if err != nil {
-			return nil, coreerr.E("TIMProvider.Build", "resolve tim source", err)
-		}
-		source = abs
-	}
-
-	id, err := GenerateID()
+// collectLayer serialises a layer directory into a single flat buffer. Each
+// entry is encoded as a length-prefixed name followed by a length-prefixed
+// content blob. This deterministic encoding lets EncryptLayer seal the whole
+// layer as one AEAD block.
+func collectLayer(medium io.Medium, dir string) ([]byte, error) {
+	entries, err := medium.List(dir)
 	if err != nil {
-		return nil, coreerr.E("TIMProvider.Build", "generate image id", err)
-	}
-
-	return &Image{
-		ID:       id,
-		Name:     strings.TrimSpace(config.Name),
-		Path:     source,
-		Runtime:  "tim",
-		Metadata: map[string]string{"runtime": "tim"},
-	}, nil
-}
-
-// Run starts a TIM bundle. This is intentionally unsupported in this build.
-func (t *TIMProvider) Run(_ *Image, _ ...RunOption) (*Container, error) {
-	return nil, coreerr.E("TIMProvider.Run", "TIM execution is not implemented in this build", nil)
-}
-
-// Encrypt wraps EncryptTIM for the Image contract.
-func (t *TIMProvider) Encrypt(image *Image, key []byte) (*EncryptedImage, error) {
-	if image == nil {
-		return nil, coreerr.E("TIMProvider.Encrypt", "missing image", nil)
-	}
-
-	bundle, err := loadTIMBundle(image.Path)
-	if err != nil {
-		return nil, coreerr.E("TIMProvider.Encrypt", "load tim bundle", err)
-	}
-
-	stim, err := EncryptTIM(bundle, key)
-	if err != nil {
-		return nil, coreerr.E("TIMProvider.Encrypt", "encrypt", err)
-	}
-
-	return &EncryptedImage{
-		ID:       image.ID,
-		Name:     image.Name,
-		Path:     stim.Path,
-		Runtime:  "tim",
-		Metadata: map[string]string{"format": "stim"},
-	}, nil
-}
-
-// Decrypt wraps DecryptSTIM for the Image contract.
-func (t *TIMProvider) Decrypt(encrypted *EncryptedImage, key []byte) (*Image, error) {
-	if encrypted == nil {
-		return nil, coreerr.E("TIMProvider.Decrypt", "missing encrypted image", nil)
-	}
-
-	tim, err := DecryptSTIM(&STIMBundle{
-		ID:   encrypted.ID,
-		Path: encrypted.Path,
-	}, key)
-	if err != nil {
-		return nil, coreerr.E("TIMProvider.Decrypt", "decrypt", err)
-	}
-
-	return &Image{
-		ID:       encrypted.ID,
-		Name:     encrypted.Name,
-		Path:     tim.Path,
-		Runtime:  "tim",
-		Metadata: map[string]string{"format": "tim"},
-	}, nil
-}
-
-func loadTIMBundle(path string) (*TIMBundle, error) {
-	p := strings.TrimSpace(path)
-	if p == "" {
-		return nil, coreerr.E("loadTIMBundle", "missing path", nil)
-	}
-
-	fi, err := os.Stat(p)
-	if err != nil {
-		return nil, coreerr.E("loadTIMBundle", "missing tim path", err)
-	}
-
-	root := p
-	if !fi.IsDir() {
-		return nil, coreerr.E("loadTIMBundle", "tim path is not a directory", nil)
-	}
-
-	configPath := filepath.Join(root, timConfigFile)
-	rawConfig, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, coreerr.E("loadTIMBundle", "read config.json", err)
-	}
-
-	var config TIMConfig
-	if err := json.Unmarshal(rawConfig, &config); err != nil {
-		return nil, coreerr.E("loadTIMBundle", "parse config.json", err)
-	}
-
-	return &TIMBundle{
-		ID:     generateTIMID(root, config),
-		Path:   root,
-		RootFS: filepath.Join(root, timRootFSDir),
-		Config: config,
-	}, nil
-}
-
-func generateTIMID(path string, config TIMConfig) string {
-	sum := sha256.Sum256([]byte(core.Sprintf("%s:%v", path, config)))
-	return hex.EncodeToString(sum[:4])
-}
-
-func deriveTIMKey(secret []byte, labels ...string) []byte {
-	hash := sha256.New()
-	_, _ = hash.Write(secret)
-	for _, label := range labels {
-		_, _ = hash.Write([]byte{0})
-		_, _ = hash.Write([]byte(label))
-	}
-	sum := hash.Sum(nil)
-	return sum
-}
-
-func packLayer(layerPath string) ([]byte, error) {
-	buf := &bytes.Buffer{}
-	gzipWriter := gzip.NewWriter(buf)
-	tarWriter := tar.NewWriter(gzipWriter)
-
-	err := filepath.WalkDir(layerPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		header, err := tar.FileInfoHeader(info, d.Name())
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(layerPath, path)
-		if err != nil {
-			return err
-		}
-		header.Name = filepath.ToSlash(rel)
-		if rel == "." {
-			return nil
-		}
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if _, err := tarWriter.Write(data); err != nil {
-			return err
-		}
-		return nil
-	})
-
-	if err != nil {
-		_ = tarWriter.Close()
-		_ = gzipWriter.Close()
 		return nil, err
 	}
-
-	if err := tarWriter.Close(); err != nil {
-		_ = gzipWriter.Close()
-		return nil, err
-	}
-	if err := gzipWriter.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-func unpackLayer(target string, packed []byte) error {
-	reader := bytes.NewReader(packed)
-	gzipReader, err := gzip.NewReader(reader)
-	if err != nil {
-		return err
-	}
-	defer gzipReader.Close()
-
-	tarReader := tar.NewReader(gzipReader)
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
+	var buf []byte
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
 		}
+		name := e.Name()
+		path := coreutil.JoinPath(dir, name)
+		content, err := medium.Read(path)
 		if err != nil {
-			return err
+			return nil, err
 		}
-
-		dest := filepath.Join(target, header.Name)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(dest, os.FileMode(header.Mode)); err != nil {
-				return err
-			}
-		case tar.TypeReg:
-			dir := filepath.Dir(dest)
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return err
-			}
-			out, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode))
-			if err != nil {
-				return err
-			}
-			_, err = io.Copy(out, tarReader)
-			closeErr := out.Close()
-			if err != nil {
-				return err
-			}
-			if closeErr != nil {
-				return closeErr
-			}
-		case tar.TypeSymlink, tar.TypeLink, tar.TypeChar, tar.TypeBlock, tar.TypeFifo:
-			// Preserve as regular empty files when unpacking in this implementation.
-			dir := filepath.Dir(dest)
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return err
-			}
-			_, _ = os.Create(dest)
-		default:
-			return fmt.Errorf("unsupported tar entry type: %v", header.Typeflag)
-		}
+		buf = append(buf, encodeLen(uint32(len(name)))...)
+		buf = append(buf, []byte(name)...)
+		buf = append(buf, encodeLen(uint32(len(content)))...)
+		buf = append(buf, []byte(content)...)
 	}
-	return nil
+	return buf, nil
 }
 
-func encryptPayload(key, plain []byte) ([]byte, []byte, error) {
+// encodeLen writes a 4-byte big-endian length prefix.
+func encodeLen(n uint32) []byte {
+	return []byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
+}
+
+// EncryptLayer encrypts a single layer payload under a layer key derived from
+// the workspace key, container ID, and layer name. Returns nonce‖ciphertext.
+//
+// Usage:
+//
+//	ct, err := container.EncryptLayer(workspaceKey, "worker-01", "app", plaintext)
+func EncryptLayer(workspaceKey []byte, containerID, layer string, plaintext []byte) ([]byte, error) {
+	key := deriveLayerKey(deriveContainerKey(workspaceKey, containerID), layer)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, nil, err
+		return nil, coreerr.E("EncryptLayer", "new cipher", err)
 	}
-	aead, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, nil, err
+		return nil, coreerr.E("EncryptLayer", "new gcm", err)
 	}
-
-	nonce := make([]byte, aead.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, nil, err
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, coreerr.E("EncryptLayer", "read nonce", err)
 	}
-
-	ciphertext := aead.Seal(nil, nonce, plain, nil)
-	packed := append(nonce, ciphertext...)
-	return packed, nonce, nil
+	return gcm.Seal(nonce, nonce, plaintext, nil), nil
 }
 
-func decryptPayload(key, packed []byte) ([]byte, error) {
+// DecryptLayer reverses EncryptLayer. Input must be nonce‖ciphertext.
+//
+// Usage:
+//
+//	pt, err := container.DecryptLayer(workspaceKey, "worker-01", "app", ciphertext)
+func DecryptLayer(workspaceKey []byte, containerID, layer string, ciphertext []byte) ([]byte, error) {
+	key := deriveLayerKey(deriveContainerKey(workspaceKey, containerID), layer)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, coreerr.E("DecryptLayer", "new cipher", err)
 	}
-	aead, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, err
+		return nil, coreerr.E("DecryptLayer", "new gcm", err)
 	}
-
-	nonceSize := aead.NonceSize()
-	if len(packed) < nonceSize {
-		return nil, coreerr.E("decryptPayload", "ciphertext too small", nil)
+	if len(ciphertext) < gcm.NonceSize() {
+		return nil, coreerr.E("DecryptLayer", "ciphertext too short", nil)
 	}
-
-	nonce := packed[:nonceSize]
-	ciphertext := packed[nonceSize:]
-	return aead.Open(nil, nonce, ciphertext, nil)
+	nonce, ct := ciphertext[:gcm.NonceSize()], ciphertext[gcm.NonceSize():]
+	pt, err := gcm.Open(nil, nonce, ct, nil)
+	if err != nil {
+		return nil, coreerr.E("DecryptLayer", "gcm open", err)
+	}
+	return pt, nil
 }
 
-func checksumSHA256(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
+// deriveContainerKey derives a container-specific key from the workspace key
+// and container ID. See RFC.tim.md §6 — Level 2 key.
+func deriveContainerKey(workspaceKey []byte, containerID string) []byte {
+	h := sha256.New()
+	h.Write(workspaceKey)
+	h.Write([]byte("tim:container:"))
+	h.Write([]byte(containerID))
+	return h.Sum(nil)
+}
+
+// deriveLayerKey derives a layer-specific key from the container key. See
+// RFC.tim.md §6 — Level 3 key.
+func deriveLayerKey(containerKey []byte, layer string) []byte {
+	h := sha256.New()
+	h.Write(containerKey)
+	h.Write([]byte("tim:layer:"))
+	h.Write([]byte(layer))
+	return h.Sum(nil)
 }

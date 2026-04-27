@@ -1,23 +1,19 @@
 package container
 
 import (
-	"io/fs"
-
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 
-	"dappco.re/go/core/container/internal/coreutil"
+	"dappco.re/go/container/internal/coreutil"
 )
 
+var stateMutex = core.New().Lock("container.state").Mutex
+
 // State manages persistent container state.
-//
-// Uses core.Registry for thread-safe container storage.
-// The Containers field is kept for JSON serialisation only.
 type State struct {
-	// Containers is used for JSON serialisation (LoadState/SaveState).
+	// Containers is a map of container ID to Container.
 	Containers map[string]*Container `json:"containers"`
 
-	registry *core.Registry[*Container]
 	filePath string
 }
 
@@ -68,7 +64,6 @@ func DefaultLogsDir() (string, error) {
 func NewState(filePath string) *State {
 	return &State{
 		Containers: make(map[string]*Container),
-		registry:   core.NewRegistry[*Container](),
 		filePath:   filePath,
 	}
 }
@@ -82,11 +77,12 @@ func NewState(filePath string) *State {
 func LoadState(filePath string) (*State, error) {
 	state := NewState(filePath)
 
+	if !io.Local.Exists(filePath) {
+		return state, nil
+	}
+
 	dataStr, err := io.Local.Read(filePath)
 	if err != nil {
-		if core.Is(err, fs.ErrNotExist) {
-			return state, nil
-		}
 		return nil, err
 	}
 
@@ -95,21 +91,13 @@ func LoadState(filePath string) (*State, error) {
 		return nil, result.Value.(error)
 	}
 
-	// Populate registry from deserialised map
-	for id, c := range state.Containers {
-		state.registry.Set(id, c)
-	}
-
 	return state, nil
 }
 
 // SaveState persists the state to the configured file path.
 func (s *State) SaveState() error {
-	// Sync registry contents to map for JSON serialisation
-	s.Containers = make(map[string]*Container)
-	s.registry.Each(func(id string, c *Container) {
-		s.Containers[id] = c
-	})
+	stateMutex.RLock()
+	defer stateMutex.RUnlock()
 
 	// Ensure the directory exists
 	dir := core.PathDir(s.filePath)
@@ -127,42 +115,57 @@ func (s *State) SaveState() error {
 
 // Add adds a container to the state and persists it.
 func (s *State) Add(c *Container) error {
-	s.registry.Set(c.ID, c)
+	stateMutex.Lock()
+	s.Containers[c.ID] = c
+	stateMutex.Unlock()
+
 	return s.SaveState()
 }
 
 // Get retrieves a copy of a container by ID.
 // Returns a copy to prevent data races when the container is modified.
 func (s *State) Get(id string) (*Container, bool) {
-	r := s.registry.Get(id)
-	if !r.OK {
+	stateMutex.RLock()
+	defer stateMutex.RUnlock()
+
+	c, ok := s.Containers[id]
+	if !ok {
 		return nil, false
 	}
 	// Return a copy to prevent data races
-	c := *r.Value.(*Container)
-	return &c, true
+	copy := *c
+	return &copy, true
 }
 
 // Update updates a container in the state and persists it.
 func (s *State) Update(c *Container) error {
-	s.registry.Set(c.ID, c)
+	stateMutex.Lock()
+	s.Containers[c.ID] = c
+	stateMutex.Unlock()
+
 	return s.SaveState()
 }
 
 // Remove removes a container from the state and persists it.
 func (s *State) Remove(id string) error {
-	s.registry.Delete(id)
+	stateMutex.Lock()
+	delete(s.Containers, id)
+	stateMutex.Unlock()
+
 	return s.SaveState()
 }
 
 // All returns copies of all containers in the state.
 // Returns copies to prevent data races when containers are modified.
 func (s *State) All() []*Container {
-	var containers []*Container
-	s.registry.Each(func(_ string, c *Container) {
-		cp := *c
-		containers = append(containers, &cp)
-	})
+	stateMutex.RLock()
+	defer stateMutex.RUnlock()
+
+	containers := make([]*Container, 0, len(s.Containers))
+	for _, c := range s.Containers {
+		copy := *c
+		containers = append(containers, &copy)
+	}
 	return containers
 }
 

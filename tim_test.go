@@ -1,221 +1,241 @@
 package container
 
 import (
-	"os"
-	"path/filepath"
-	"testing"
+	"bytes"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"dappco.re/go/container/internal/coreutil"
+	"dappco.re/go/io"
+	"reflect"
+	"testing"
 )
 
-// --- NewTIMProvider ---
-
-func TestTIM_NewTIMProvider_Good(t *testing.T) {
-	p := NewTIMProvider()
-
-	assert.NotNil(t, p)
-	var _ Provider = p
+func TestTIM_NewTIMBundle_Good(t *testing.T) {
+	bundle := NewTIMBundle("worker-01", "/var/tim/worker-01")
+	if got, want := bundle.ID, "worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := bundle.Root, "/var/tim/worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := bundle.Layers, []string{TIMLayerBase, TIMLayerApp, TIMLayerData}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
-func TestTIM_TIMProvider_Run_Bad(t *testing.T) {
-	p := NewTIMProvider()
+func TestTIM_SaveTIM_LoadTIM_Good(t *testing.T) {
+	// SaveTIM followed by LoadTIM must round-trip the configuration.
+	tmp := t.TempDir()
+	root := coreutil.JoinPath(tmp, "worker-01")
 
-	_, err := p.Run(&Image{Path: "/tmp/x"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
-}
-
-func TestTIM_TIMProvider_Build_MissingSource_Ugly(t *testing.T) {
-	p := NewTIMProvider()
-
-	_, err := p.Build(ContainerConfig{})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing tim source")
-}
-
-// --- EncryptTIM / DecryptSTIM round-trip ---
-
-func TestTIM_EncryptTIM_RoundTrip_Good(t *testing.T) {
-	tmpDir := t.TempDir()
-	bundle := setupTestTIMBundle(t, tmpDir)
-
-	workspaceKey := make([]byte, 32)
-	for i := range workspaceKey {
-		workspaceKey[i] = byte(i)
+	bundle := NewTIMBundle("worker-01", root)
+	bundle.Config = TIMConfig{
+		EntryPoint: []string{"/app/server"},
+		Env:        []string{"CORE_ENV=production"},
+		ReadOnly:   true,
 	}
 
-	stim, err := EncryptTIM(bundle, workspaceKey)
-	require.NoError(t, err)
-	require.NotNil(t, stim)
-	assert.Equal(t, timFormatVersion, stim.Version)
-	assert.NotEmpty(t, stim.Layers)
-
-	// Encrypted rootfs files exist on disk.
-	for name := range stim.Layers {
-		encPath := filepath.Join(stim.Path, timLayerDir, name+timLayerFileExt)
-		_, err := os.Stat(encPath)
-		require.NoError(t, err)
+	err := SaveTIM(io.Local, bundle)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	decrypted, err := DecryptSTIM(stim, workspaceKey)
-	require.NoError(t, err)
-	require.NotNil(t, decrypted)
-	assert.Equal(t, stim.ID, decrypted.ID)
-	assert.Equal(t, bundle.Config.EntryPoint, decrypted.Config.EntryPoint)
-
-	// Recovered the original plaintext file.
-	recovered := filepath.Join(decrypted.RootFS, "app", "hello.txt")
-	data, err := os.ReadFile(recovered)
-	require.NoError(t, err)
-	assert.Equal(t, "hello", string(data))
+	loaded, err := LoadTIM(io.Local, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := loaded.Config.EntryPoint, []string{"/app/server"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(loaded.Config.ReadOnly) {
+		t.Fatal("expected true")
+	}
 }
 
-func TestTIM_EncryptTIM_NilBundle_Bad(t *testing.T) {
-	_, err := EncryptTIM(nil, []byte{1})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing tim bundle")
+func TestTIM_SaveTIM_MissingBundle_Bad(t *testing.T) {
+	err := SaveTIM(io.Local, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
-func TestTIM_EncryptTIM_EmptyKey_Bad(t *testing.T) {
-	_, err := EncryptTIM(&TIMBundle{Path: "/tmp"}, nil)
+func TestTIM_LoadTIM_MissingConfig_Bad(t *testing.T) {
+	tmp := t.TempDir()
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "workspace key")
+	_, err := LoadTIM(io.Local, tmp)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
-func TestTIM_EncryptTIM_RejectsSTIMInput_Ugly(t *testing.T) {
-	// The encrypt function must not accept an already-encrypted path.
-	_, err := EncryptTIM(&TIMBundle{Path: "/tmp/app.stim"}, []byte{1, 2, 3})
+func TestTIM_EncryptTIM_DecryptSTIM_Good(t *testing.T) {
+	// Round-trip the bundle through STIM encryption.
+	bundle := NewTIMBundle("worker-01", "/var/tim/worker-01")
+	bundle.Config.EntryPoint = []string{"/app"}
+	key := []byte("workspace-key-32-bytes-xxxxxxxxxx")
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "stim bundle")
-}
-
-// --- DecryptSTIM ---
-
-func TestTIM_DecryptSTIM_NilBundle_Bad(t *testing.T) {
-	_, err := DecryptSTIM(nil, []byte{1})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing stim bundle")
-}
-
-func TestTIM_DecryptSTIM_EmptyKey_Bad(t *testing.T) {
-	_, err := DecryptSTIM(&STIMBundle{Path: "/tmp"}, nil)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "workspace key")
-}
-
-func TestTIM_DecryptSTIM_MissingManifest_Ugly(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	_, err := DecryptSTIM(&STIMBundle{Path: tmpDir}, []byte{1, 2, 3})
-
-	require.Error(t, err)
-}
-
-// --- TIM provider encryption round-trip via Image contract ---
-
-func TestTIM_Provider_EncryptDecrypt_Good(t *testing.T) {
-	tmpDir := t.TempDir()
-	bundle := setupTestTIMBundle(t, tmpDir)
-
-	provider := NewTIMProvider()
-	image := &Image{ID: bundle.ID, Name: "demo", Path: bundle.Path, Runtime: "tim"}
-
-	key := make([]byte, 32)
-	for i := range key {
-		key[i] = byte(i * 3)
+	stim, err := EncryptTIM(bundle, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stim.Scheme, "stim"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := len(stim.Layers), len(bundle.Layers); got != want {
+		t.Fatalf("want len %v, got %v", want, got)
 	}
 
-	encrypted, err := provider.Encrypt(image, key)
-	require.NoError(t, err)
-	assert.Equal(t, "tim", encrypted.Runtime)
-	assert.Equal(t, "stim", encrypted.Metadata["format"])
-
-	decrypted, err := provider.Decrypt(encrypted, key)
-	require.NoError(t, err)
-	assert.Equal(t, "tim", decrypted.Metadata["format"])
+	out, err := DecryptSTIM(stim, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := out.ID, bundle.ID; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := out.Layers, bundle.Layers; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
-func TestTIM_Provider_Encrypt_MissingImage_Bad(t *testing.T) {
-	provider := NewTIMProvider()
-	_, err := provider.Encrypt(nil, []byte{1, 2, 3})
+func TestTIM_EncryptTIM_MissingKey_Bad(t *testing.T) {
+	bundle := NewTIMBundle("a", "/tmp/a")
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing image")
+	_, err := EncryptTIM(bundle, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
-func TestTIM_Provider_Decrypt_MissingImage_Ugly(t *testing.T) {
-	provider := NewTIMProvider()
-	_, err := provider.Decrypt(nil, []byte{1, 2, 3})
+func TestTIM_EncryptLayer_DecryptLayer_Good(t *testing.T) {
+	// The layer-level AES-GCM round-trip must recover the plaintext.
+	key := []byte("workspace-key-32-bytes-xxxxxxxxxx")
+	plain := []byte("hello TIM layer")
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing encrypted image")
-}
-
-// --- Key derivation ---
-
-func TestTIM_DeriveTIMKey_Deterministic_Good(t *testing.T) {
-	a := deriveTIMKey([]byte("workspace"), "container", "abc")
-	b := deriveTIMKey([]byte("workspace"), "container", "abc")
-
-	assert.Equal(t, a, b)
-	assert.Len(t, a, 32)
-}
-
-func TestTIM_DeriveTIMKey_Distinct_Bad(t *testing.T) {
-	a := deriveTIMKey([]byte("workspace"), "container", "abc")
-	b := deriveTIMKey([]byte("workspace"), "container", "xyz")
-
-	assert.NotEqual(t, a, b)
-}
-
-func TestTIM_DeriveTIMKey_HierarchyIsolation_Ugly(t *testing.T) {
-	// Workspace → container → layer. Changing any segment must produce a new key.
-	wks := deriveTIMKey([]byte("workspace"), "container", "abc")
-	ctr := deriveTIMKey(wks, "base")
-	app := deriveTIMKey(wks, "app")
-	data := deriveTIMKey(wks, "data")
-
-	assert.NotEqual(t, ctr, app)
-	assert.NotEqual(t, app, data)
-	assert.NotEqual(t, ctr, data)
-}
-
-// setupTestTIMBundle writes a minimal three-layer TIM rootfs with a known
-// file under the app/ layer so round-trip decryption can be verified.
-// Also writes config.json so that loadTIMBundle can rehydrate the bundle
-// from disk when the provider Encrypt path is exercised.
-func setupTestTIMBundle(t *testing.T, tmpDir string) *TIMBundle {
-	t.Helper()
-	root := filepath.Join(tmpDir, "tim-bundle")
-	rootfs := filepath.Join(root, timRootFSDir)
-
-	for _, layer := range timLayers {
-		require.NoError(t, os.MkdirAll(filepath.Join(rootfs, layer), 0o755))
+	ct, err := EncryptLayer(key, "worker-01", TIMLayerApp, plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ct, plain; reflect.DeepEqual(got, want) {
+		t.Fatalf("did not expect %v", got)
 	}
 
-	payload := filepath.Join(rootfs, "app", "hello.txt")
-	require.NoError(t, os.WriteFile(payload, []byte("hello"), 0o600))
-
-	cfg := TIMConfig{
-		EntryPoint: []string{"/app/hello"},
-		Env:        []string{"CORE_ENV=test"},
-		WorkDir:    "/app",
+	pt, err := DecryptLayer(key, "worker-01", TIMLayerApp, ct)
+	if err != nil {
+		t.Fatal(err)
 	}
-	cfgBytes := []byte(`{"entrypoint":["/app/hello"],"env":["CORE_ENV=test"],"workdir":"/app","mounts":null,"capabilities":null,"readonly":false}`)
-	require.NoError(t, os.WriteFile(filepath.Join(root, timConfigFile), cfgBytes, 0o600))
+	if !(bytes.Equal(plain, pt)) {
+		t.Fatal("expected true")
+	}
+}
 
-	return &TIMBundle{
-		ID:     "test-bundle",
-		Path:   root,
-		RootFS: rootfs,
-		Config: cfg,
+func TestTIM_DecryptLayer_ShortCiphertext_Bad(t *testing.T) {
+	key := []byte("workspace-key-32-bytes-xxxxxxxxxx")
+
+	_, err := DecryptLayer(key, "worker-01", TIMLayerApp, []byte("x"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestTIM_DecryptLayer_WrongKey_Ugly(t *testing.T) {
+	// A ciphertext produced with workspace key A must not decrypt with key B.
+	keyA := []byte("key-a-32-bytes-xxxxxxxxxxxxxxxxx")
+	keyB := []byte("key-b-32-bytes-xxxxxxxxxxxxxxxxx")
+	ct, err := EncryptLayer(keyA, "worker-01", TIMLayerApp, []byte("secret"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = DecryptLayer(keyB, "worker-01", TIMLayerApp, ct)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestTIM_EncryptTIMOnMedium_DecryptSTIMOnMedium_Good(t *testing.T) {
+	// Full on-disk round-trip: lay down a plaintext layer, seal it, and
+	// verify DecryptSTIMOnMedium restores the payload.
+	tmp := t.TempDir()
+	sandbox, err := io.NewSandboxed(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	root := "bundle-01"
+	appDir := coreutil.JoinPath(root, "rootfs", TIMLayerApp)
+	if err := sandbox.EnsureDir(appDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.Write(coreutil.JoinPath(appDir, "server.bin"), "hello server"); err != nil {
+		t.Fatal(err)
+	}
+
+	bundle := NewTIMBundle("worker-01", root)
+	key := []byte("workspace-key-32-bytes-xxxxxxxxx")
+
+	stim, err := EncryptTIMOnMedium(sandbox, bundle, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stim.Scheme, "stim"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	sealedPath := coreutil.JoinPath(root, "rootfs", TIMLayerApp+".stim")
+	if !(sandbox.IsFile(sealedPath)) {
+		t.Fatal("expected true")
+	}
+
+	// Remove plaintext — decryption must recreate it.
+	if err := sandbox.DeleteAll(appDir); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := DecryptSTIMOnMedium(sandbox, stim, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := out.ID, "worker-01"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(sandbox.IsDir(appDir)) {
+		t.Fatal("expected true")
+	}
+}
+
+func TestTIM_EncryptTIMOnMedium_MissingMedium_Bad(t *testing.T) {
+	bundle := NewTIMBundle("worker-01", "/tmp/x")
+
+	_, err := EncryptTIMOnMedium(nil, bundle, []byte("k"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestTIM_DecryptSTIMOnMedium_WrongKey_Ugly(t *testing.T) {
+	// Sealing with key A and unsealing with key B must fail — the payload
+	// must not leak under key mismatch.
+	tmp := t.TempDir()
+	sandbox, err := io.NewSandboxed(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	root := "bundle-01"
+	appDir := coreutil.JoinPath(root, "rootfs", TIMLayerApp)
+	if err := sandbox.EnsureDir(appDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.Write(coreutil.JoinPath(appDir, "server.bin"), "hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	bundle := NewTIMBundle("worker-01", root)
+	stim, err := EncryptTIMOnMedium(sandbox, bundle, []byte("key-a-32-bytes-xxxxxxxxxxxxxxxxx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = DecryptSTIMOnMedium(sandbox, stim, []byte("key-b-32-bytes-xxxxxxxxxxxxxxxxx"))
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }

@@ -1,17 +1,24 @@
 package container
 
 import (
-	"bytes"
 	"context"
-	"os"
-	"runtime"
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 
-	"dappco.re/go/core/container/internal/proc"
+	"dappco.re/go/container/internal/proc"
 )
+
+const hostOSDefault = "linux"
+
+func discoverHostOS() string {
+	goos := core.Env("GOOS")
+	if goos != "" {
+		return goos
+	}
+	return hostOSDefault
+}
 
 // Hypervisor defines the interface for VM hypervisors.
 type Hypervisor interface {
@@ -91,8 +98,6 @@ func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *H
 		args = append(args, "-drive", core.Sprintf("file=%s,format=qcow2", image))
 	case FormatVMDK:
 		args = append(args, "-drive", core.Sprintf("file=%s,format=vmdk", image))
-	case FormatAMI:
-		args = append(args, "-drive", core.Sprintf("file=%s,format=raw", image))
 	case FormatRaw:
 		args = append(args, "-drive", core.Sprintf("file=%s,format=raw", image))
 	}
@@ -125,8 +130,8 @@ func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *H
 		shareID++
 	}
 
-	// Check if KVM is available on Linux, remove -enable-kvm if not
-	if runtime.GOOS != "linux" || !isKVMAvailable() {
+// Check if KVM is available on Linux, remove -enable-kvm if not
+	if discoverHostOS() != "linux" || !isKVMAvailable() {
 		// Remove -enable-kvm from args
 		newArgs := make([]string, 0, len(args))
 		for _, arg := range args {
@@ -137,7 +142,7 @@ func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *H
 		args = newArgs
 
 		// On macOS, use HVF acceleration if available
-		if runtime.GOOS == "darwin" {
+		if discoverHostOS() == "darwin" {
 			args = append(args, "-accel", "hvf")
 		}
 	}
@@ -174,7 +179,7 @@ func (h *HyperkitHypervisor) Name() string {
 
 // Available checks if Hyperkit is installed and accessible.
 func (h *HyperkitHypervisor) Available() bool {
-	if runtime.GOOS != "darwin" {
+	if discoverHostOS() != "darwin" {
 		return false
 	}
 	_, err := proc.LookPath(h.Binary)
@@ -202,7 +207,7 @@ func (h *HyperkitHypervisor) BuildCommand(ctx context.Context, image string, opt
 	switch format {
 	case FormatISO:
 		args = append(args, "-s", core.Sprintf("2:0,ahci-cd,%s", image))
-	case FormatQCOW2, FormatVMDK, FormatRaw, FormatAMI:
+	case FormatQCOW2, FormatVMDK, FormatRaw:
 		args = append(args, "-s", core.Sprintf("2:0,virtio-blk,%s", image))
 	}
 
@@ -232,10 +237,6 @@ func (h *HyperkitHypervisor) BuildCommand(ctx context.Context, image string, opt
 //
 //	format := DetectImageFormat("/tmp/core-dev.qcow2")
 func DetectImageFormat(path string) ImageFormat {
-	if path == "" {
-		return FormatUnknown
-	}
-
 	ext := core.Lower(core.PathExt(path))
 	switch ext {
 	case ".iso":
@@ -244,36 +245,11 @@ func DetectImageFormat(path string) ImageFormat {
 		return FormatQCOW2
 	case ".vmdk":
 		return FormatVMDK
-	case ".ami":
-		return FormatAMI
 	case ".raw", ".img":
 		return FormatRaw
 	default:
-		magic := detectImageMagic(path, 8)
-		if bytes.Equal(magic, []byte("QFI\xfb")) {
-			return FormatQCOW2
-		}
-		if bytes.HasPrefix(magic, []byte("KDMV")) {
-			return FormatVMDK
-		}
+		return FormatUnknown
 	}
-
-	return FormatUnknown
-}
-
-func detectImageMagic(path string, limit int) []byte {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	defer file.Close()
-
-	magic := make([]byte, limit)
-	n, err := file.Read(magic)
-	if err != nil || n == 0 {
-		return nil
-	}
-	return magic[:n]
 }
 
 // DetectHypervisor returns the best available hypervisor for the current platform.
@@ -283,7 +259,7 @@ func detectImageMagic(path string, limit int) []byte {
 //	hv, err := DetectHypervisor()
 func DetectHypervisor() (Hypervisor, error) {
 	// On macOS, prefer Hyperkit if available, fall back to QEMU
-	if runtime.GOOS == "darwin" {
+	if discoverHostOS() == "darwin" {
 		hk := NewHyperkitHypervisor()
 		if hk.Available() {
 			return hk, nil

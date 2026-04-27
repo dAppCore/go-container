@@ -1,24 +1,24 @@
 package container
 
 import (
-	"bufio"
 	"context"
-	goio "io"
-	"syscall"
+	goio "io" // Note: io.Reader/io.ReadCloser for external consumers; no core equivalent yet.
+	"io/fs"
+	"syscall" // Note: POSIX signal primitives; no core equivalent yet.
 	"time"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io"
-	coreerr "dappco.re/go/core/log"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 
-	"dappco.re/go/core/container/internal/proc"
+	"dappco.re/go/container/internal/proc"
 )
 
 // LinuxKitManager implements the Manager interface for LinuxKit VMs.
 type LinuxKitManager struct {
 	state      *State
 	hypervisor Hypervisor
-	medium     io.Medium
+	medium     coreio.Medium
 }
 
 // NewLinuxKitManager creates a new LinuxKit manager with auto-detected hypervisor.
@@ -26,7 +26,7 @@ type LinuxKitManager struct {
 // Usage:
 //
 //	manager, err := NewLinuxKitManager(io.Local)
-func NewLinuxKitManager(m io.Medium) (*LinuxKitManager, error) {
+func NewLinuxKitManager(m coreio.Medium) (*LinuxKitManager, error) {
 	statePath, err := DefaultStatePath()
 	if err != nil {
 		return nil, coreerr.E("NewLinuxKitManager", "failed to determine state path", err)
@@ -54,7 +54,7 @@ func NewLinuxKitManager(m io.Medium) (*LinuxKitManager, error) {
 // Usage:
 //
 //	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, hypervisor)
-func NewLinuxKitManagerWithHypervisor(m io.Medium, state *State, hypervisor Hypervisor) *LinuxKitManager {
+func NewLinuxKitManagerWithHypervisor(m coreio.Medium, state *State, hypervisor Hypervisor) *LinuxKitManager {
 	return &LinuxKitManager{
 		state:      state,
 		hypervisor: hypervisor,
@@ -127,7 +127,7 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	}
 
 	// Create log file
-	logFile, err := io.Local.Create(logPath)
+	logFile, err := coreio.Local.Create(logPath)
 	if err != nil {
 		return nil, coreerr.E("LinuxKitManager.Run", "failed to create log file", err)
 	}
@@ -259,7 +259,8 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) error {
 	}
 
 	// Find the process
-	if err := syscall.Kill(container.PID, syscall.SIGTERM); err != nil {
+	process := &proc.Process{Pid: container.PID}
+	if err := process.Signal(syscall.SIGTERM); err != nil {
 		// Process might already be gone
 		container.Status = StatusStopped
 		_ = m.state.Update(container)
@@ -268,7 +269,7 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) error {
 
 	// Honour already-cancelled contexts before waiting
 	if err := ctx.Err(); err != nil {
-		_ = syscall.Kill(container.PID, syscall.SIGKILL)
+		_ = process.Kill()
 		return err
 	}
 
@@ -279,9 +280,9 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) error {
 	for isProcessRunning(container.PID) {
 		select {
 		case <-deadline:
-			_ = syscall.Kill(container.PID, syscall.SIGKILL)
+			_ = process.Kill()
 		case <-ctx.Done():
-			_ = syscall.Kill(container.PID, syscall.SIGKILL)
+			_ = process.Kill()
 			return ctx.Err()
 		case <-ticker.C:
 		}
@@ -316,11 +317,11 @@ func isProcessRunning(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
-	return syscall.Kill(pid, syscall.Signal(0)) == nil
+	return (&proc.Process{Pid: pid}).Signal(syscall.Signal(0)) == nil
 }
 
 // Logs returns a reader for the container's log output.
-func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) (goio.ReadCloser, error) {
+func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) (ReadCloser, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -347,23 +348,22 @@ func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) (goi
 	return newFollowReader(ctx, m.medium, logPath)
 }
 
-// followReader implements goio.ReadCloser for following log files.
+// followReader implements ReadCloser for following log files.
 type followReader struct {
-	file   goio.ReadCloser
-	ctx    context.Context
-	cancel context.CancelFunc
-	reader *bufio.Reader
-	medium io.Medium
-	path   string
+	file    fs.File
+	ctx     context.Context
+	cancel  context.CancelFunc
+	medium  coreio.Medium
+	path    string
+	offset  int
+	pending []byte
 }
 
-func newFollowReader(ctx context.Context, m io.Medium, path string) (*followReader, error) {
+func newFollowReader(ctx context.Context, m coreio.Medium, path string) (*followReader, error) {
 	file, err := m.Open(path)
 	if err != nil {
 		return nil, err
 	}
-
-	// Note: We don't seek here because Medium.Open doesn't guarantee Seekability.
 
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -371,26 +371,44 @@ func newFollowReader(ctx context.Context, m io.Medium, path string) (*followRead
 		file:   file,
 		ctx:    ctx,
 		cancel: cancel,
-		reader: bufio.NewReader(file),
 		medium: m,
 		path:   path,
 	}, nil
 }
 
 func (f *followReader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
 	for {
+		if len(f.pending) > 0 {
+			n := copy(p, f.pending)
+			f.pending = f.pending[n:]
+			return n, nil
+		}
+
 		select {
 		case <-f.ctx.Done():
 			return 0, goio.EOF
 		default:
 		}
 
-		n, err := f.reader.Read(p)
-		if n > 0 {
-			return n, nil
-		}
-		if err != nil && err != goio.EOF {
+		if _, err := f.file.Stat(); err != nil {
 			return 0, err
+		}
+
+		content, err := f.medium.Read(f.path)
+		if err != nil {
+			return 0, err
+		}
+		if f.offset > len(content) {
+			f.offset = 0
+		}
+		if f.offset < len(content) {
+			f.pending = []byte(content[f.offset:])
+			f.offset = len(content)
+			continue
 		}
 
 		// No data available, wait a bit and try again
@@ -398,8 +416,6 @@ func (f *followReader) Read(p []byte) (int, error) {
 		case <-f.ctx.Done():
 			return 0, goio.EOF
 		case <-time.After(100 * time.Millisecond):
-			// Reset reader to pick up new data
-			f.reader.Reset(f.file)
 		}
 	}
 }

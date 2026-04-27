@@ -2,14 +2,15 @@ package devenv
 
 import (
 	"context"
+
+	"dappco.re/go/container/internal/coreutil"
+	"dappco.re/go/container/sources"
+	"dappco.re/go/core"
+	"dappco.re/go/io"
+	"errors"
+	"reflect"
 	"testing"
 	"time"
-
-	"dappco.re/go/core/container/internal/coreutil"
-	"dappco.re/go/core/container/sources"
-	"dappco.re/go/core/io"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestImageManager_IsInstalled_Good(t *testing.T) {
@@ -18,18 +19,26 @@ func TestImageManager_IsInstalled_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Not installed yet
-	assert.False(t, mgr.IsInstalled())
+	if mgr.IsInstalled() {
+		t.Fatal("expected false")
+	}
 
 	// Create fake image
 	imagePath := coreutil.JoinPath(tmpDir, ImageName())
 	err = io.Local.Write(imagePath, "fake")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Now installed
-	assert.True(t, mgr.IsInstalled())
+	if !mgr.IsInstalled() {
+		t.Fatal("expected true")
+	}
 }
 
 func TestImages_NewImageManager_Good(t *testing.T) {
@@ -41,10 +50,18 @@ func TestImages_NewImageManager_Good(t *testing.T) {
 		cfg.Images.Source = "cdn"
 
 		mgr, err := NewImageManager(io.Local, cfg)
-		assert.NoError(t, err)
-		assert.NotNil(t, mgr)
-		assert.Len(t, mgr.sources, 1)
-		assert.Equal(t, "cdn", mgr.sources[0].Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mgr == nil {
+			t.Fatal("expected non-nil value")
+		}
+		if got, want := len(mgr.sources), 1; got != want {
+			t.Fatalf("want len %v, got %v", want, got)
+		}
+		if got, want := mgr.sources[0].Name(), "cdn"; !reflect.DeepEqual(got, want) {
+			t.Fatalf("want %v, got %v", want, got)
+		}
 	})
 
 	t.Run("creates manager with github source", func(t *testing.T) {
@@ -55,10 +72,18 @@ func TestImages_NewImageManager_Good(t *testing.T) {
 		cfg.Images.Source = "github"
 
 		mgr, err := NewImageManager(io.Local, cfg)
-		assert.NoError(t, err)
-		assert.NotNil(t, mgr)
-		assert.Len(t, mgr.sources, 1)
-		assert.Equal(t, "github", mgr.sources[0].Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mgr == nil {
+			t.Fatal("expected non-nil value")
+		}
+		if got, want := len(mgr.sources), 1; got != want {
+			t.Fatalf("want len %v, got %v", want, got)
+		}
+		if got, want := mgr.sources[0].Name(), "github"; !reflect.DeepEqual(got, want) {
+			t.Fatalf("want %v, got %v", want, got)
+		}
 	})
 }
 
@@ -78,15 +103,23 @@ func TestManifest_Save_Good(t *testing.T) {
 	}
 
 	err := m.Save()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify file exists and has content
-	assert.True(t, io.Local.IsFile(path))
+	if !io.Local.IsFile(path) {
+		t.Fatal("expected true")
+	}
 
 	// Reload
 	m2, err := loadManifest(io.Local, path)
-	assert.NoError(t, err)
-	assert.Equal(t, "1.0.0", m2.Images["test.img"].Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := m2.Images["test.img"].Version, "1.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestImages_LoadManifest_Bad(t *testing.T) {
@@ -94,10 +127,14 @@ func TestImages_LoadManifest_Bad(t *testing.T) {
 		tmpDir := t.TempDir()
 		path := coreutil.JoinPath(tmpDir, "manifest.json")
 		err := io.Local.Write(path, "invalid json")
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		_, err = loadManifest(io.Local, path)
-		assert.Error(t, err)
+		if err == nil {
+			t.Fatal("expected error")
+		}
 	})
 }
 
@@ -108,11 +145,17 @@ func TestImages_CheckUpdate_Bad(t *testing.T) {
 
 		cfg := DefaultConfig()
 		mgr, err := NewImageManager(io.Local, cfg)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		_, _, _, err = mgr.CheckUpdate(context.Background())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "image not installed")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if s, sub := err.Error(), "image not installed"; !core.Contains(s, sub) {
+			t.Fatalf("expected %v to contain %v", s, sub)
+		}
 	})
 }
 
@@ -124,9 +167,16 @@ func TestNewImageManager_AutoSource_Good(t *testing.T) {
 	cfg.Images.Source = "auto"
 
 	mgr, err := NewImageManager(io.Local, cfg)
-	assert.NoError(t, err)
-	assert.NotNil(t, mgr)
-	assert.Len(t, mgr.sources, 2) // github and cdn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mgr == nil {
+		t.Fatal("expected non-nil value")
+	}
+	// github and cdn
+	if got, want := len(mgr.sources), 2; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
 }
 
 func TestNewImageManager_UnknownSourceFallsToAuto_Good(t *testing.T) {
@@ -137,9 +187,16 @@ func TestNewImageManager_UnknownSourceFallsToAuto_Good(t *testing.T) {
 	cfg.Images.Source = "unknown"
 
 	mgr, err := NewImageManager(io.Local, cfg)
-	assert.NoError(t, err)
-	assert.NotNil(t, mgr)
-	assert.Len(t, mgr.sources, 2) // falls to default (auto) which is github + cdn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mgr == nil {
+		t.Fatal("expected non-nil value")
+	}
+	// falls to default (auto) which is github + cdn
+	if got, want := len(mgr.sources), 2; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
 }
 
 func TestLoadManifest_Empty_Good(t *testing.T) {
@@ -147,11 +204,21 @@ func TestLoadManifest_Empty_Good(t *testing.T) {
 	path := coreutil.JoinPath(tmpDir, "nonexistent.json")
 
 	m, err := loadManifest(io.Local, path)
-	assert.NoError(t, err)
-	assert.NotNil(t, m)
-	assert.NotNil(t, m.Images)
-	assert.Empty(t, m.Images)
-	assert.Equal(t, path, m.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if m.Images == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got := m.Images; len(got) != 0 {
+		t.Fatal("expected empty value")
+	}
+	if got, want := m.path, path; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestLoadManifest_ExistingData_Good(t *testing.T) {
@@ -160,13 +227,23 @@ func TestLoadManifest_ExistingData_Good(t *testing.T) {
 
 	data := `{"images":{"test.img":{"version":"2.0.0","source":"cdn"}}}`
 	err := io.Local.Write(path, data)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	m, err := loadManifest(io.Local, path)
-	assert.NoError(t, err)
-	assert.NotNil(t, m)
-	assert.Equal(t, "2.0.0", m.Images["test.img"].Version)
-	assert.Equal(t, "cdn", m.Images["test.img"].Source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m == nil {
+		t.Fatal("expected non-nil value")
+	}
+	if got, want := m.Images["test.img"].Version, "2.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := m.Images["test.img"].Source, "cdn"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestImageInfo_Struct_Good(t *testing.T) {
@@ -176,10 +253,18 @@ func TestImageInfo_Struct_Good(t *testing.T) {
 		Downloaded: time.Now(),
 		Source:     "github",
 	}
-	assert.Equal(t, "1.0.0", info.Version)
-	assert.Equal(t, "abc123", info.SHA256)
-	assert.False(t, info.Downloaded.IsZero())
-	assert.Equal(t, "github", info.Source)
+	if got, want := info.Version, "1.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := info.SHA256, "abc123"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if info.Downloaded.IsZero() {
+		t.Fatal("expected false")
+	}
+	if got, want := info.Source, "github"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestManifest_Save_CreatesDirs_Good(t *testing.T) {
@@ -195,10 +280,14 @@ func TestManifest_Save_CreatesDirs_Good(t *testing.T) {
 
 	// Save creates parent directories automatically via io.Local.Write
 	err := m.Save()
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify file was created
-	assert.True(t, io.Local.IsFile(nestedPath))
+	if !io.Local.IsFile(nestedPath) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestManifest_Save_Overwrite_Good(t *testing.T) {
@@ -213,7 +302,9 @@ func TestManifest_Save_Overwrite_Good(t *testing.T) {
 	}
 	m1.Images["test.img"] = ImageInfo{Version: "1.0.0"}
 	err := m1.Save()
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Second save with different data
 	m2 := &Manifest{
@@ -223,14 +314,22 @@ func TestManifest_Save_Overwrite_Good(t *testing.T) {
 	}
 	m2.Images["other.img"] = ImageInfo{Version: "2.0.0"}
 	err = m2.Save()
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify second data
 	loaded, err := loadManifest(io.Local, path)
-	assert.NoError(t, err)
-	assert.Equal(t, "2.0.0", loaded.Images["other.img"].Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := loaded.Images["other.img"].Version, "2.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 	_, exists := loaded.Images["test.img"]
-	assert.False(t, exists)
+	if exists {
+		t.Fatal("expected false")
+	}
 }
 
 func TestImageManager_Install_NoSourceAvailable_Bad(t *testing.T) {
@@ -246,8 +345,12 @@ func TestImageManager_Install_NoSourceAvailable_Bad(t *testing.T) {
 	}
 
 	err := mgr.Install(context.Background(), nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no image source available")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "no image source available"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestNewImageManager_CreatesDir_Good(t *testing.T) {
@@ -257,16 +360,26 @@ func TestNewImageManager_CreatesDir_Good(t *testing.T) {
 
 	cfg := DefaultConfig()
 	mgr, err := NewImageManager(io.Local, cfg)
-	assert.NoError(t, err)
-	assert.NotNil(t, mgr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mgr == nil {
+		t.Fatal("expected non-nil value")
 
-	// Verify directory was created
+		// Verify directory was created
+	}
+
 	info, err := io.Local.Stat(imagesDir)
-	assert.NoError(t, err)
-	assert.True(t, info.IsDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(info.IsDir()) {
+		t.Fatal("expected true")
+
+		// mockImageSource is a test helper for simulating image sources
+	}
 }
 
-// mockImageSource is a test helper for simulating image sources
 type mockImageSource struct {
 	name          string
 	available     bool
@@ -307,14 +420,24 @@ func TestImageManager_Install_WithMockSource_Good(t *testing.T) {
 	}
 
 	err := mgr.Install(context.Background(), nil)
-	assert.NoError(t, err)
-	assert.True(t, mgr.IsInstalled())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(mgr.IsInstalled()) {
+		t.Fatal("expected true")
+	}
 
 	// Verify manifest was updated
 	info, ok := mgr.manifest.Images[ImageName()]
-	assert.True(t, ok)
-	assert.Equal(t, "v1.0.0", info.Version)
-	assert.Equal(t, "mock", info.Source)
+	if !(ok) {
+		t.Fatal("expected true")
+	}
+	if got, want := info.Version, "v1.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := info.Source, "mock"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestImageManager_Install_DownloadError_Bad(t *testing.T) {
@@ -325,7 +448,7 @@ func TestImageManager_Install_DownloadError_Bad(t *testing.T) {
 		name:          "mock",
 		available:     true,
 		latestVersion: "v1.0.0",
-		downloadErr:   assert.AnError,
+		downloadErr:   errors.New("test error"),
 	}
 
 	mgr := &ImageManager{
@@ -336,7 +459,9 @@ func TestImageManager_Install_DownloadError_Bad(t *testing.T) {
 	}
 
 	err := mgr.Install(context.Background(), nil)
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestImageManager_Install_VersionError_Bad(t *testing.T) {
@@ -346,7 +471,7 @@ func TestImageManager_Install_VersionError_Bad(t *testing.T) {
 	mock := &mockImageSource{
 		name:      "mock",
 		available: true,
-		latestErr: assert.AnError,
+		latestErr: errors.New("test error"),
 	}
 
 	mgr := &ImageManager{
@@ -357,8 +482,12 @@ func TestImageManager_Install_VersionError_Bad(t *testing.T) {
 	}
 
 	err := mgr.Install(context.Background(), nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get latest version")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "failed to get latest version"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestImageManager_Install_SkipsUnavailableSource_Good(t *testing.T) {
@@ -383,11 +512,15 @@ func TestImageManager_Install_SkipsUnavailableSource_Good(t *testing.T) {
 	}
 
 	err := mgr.Install(context.Background(), nil)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Should have used the available source
 	info := mgr.manifest.Images[ImageName()]
-	assert.Equal(t, "available", info.Source)
+	if got, want := info.Source, "available"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestImageManager_CheckUpdate_WithMockSource_Good(t *testing.T) {
@@ -414,10 +547,18 @@ func TestImageManager_CheckUpdate_WithMockSource_Good(t *testing.T) {
 	}
 
 	current, latest, hasUpdate, err := mgr.CheckUpdate(context.Background())
-	assert.NoError(t, err)
-	assert.Equal(t, "v1.0.0", current)
-	assert.Equal(t, "v2.0.0", latest)
-	assert.True(t, hasUpdate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := current, "v1.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := latest, "v2.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(hasUpdate) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestImageManager_CheckUpdate_NoUpdate_Good(t *testing.T) {
@@ -444,10 +585,18 @@ func TestImageManager_CheckUpdate_NoUpdate_Good(t *testing.T) {
 	}
 
 	current, latest, hasUpdate, err := mgr.CheckUpdate(context.Background())
-	assert.NoError(t, err)
-	assert.Equal(t, "v1.0.0", current)
-	assert.Equal(t, "v1.0.0", latest)
-	assert.False(t, hasUpdate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := current, "v1.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := latest, "v1.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if hasUpdate {
+		t.Fatal("expected false")
+	}
 }
 
 func TestImageManager_CheckUpdate_NoSource_Bad(t *testing.T) {
@@ -473,8 +622,12 @@ func TestImageManager_CheckUpdate_NoSource_Bad(t *testing.T) {
 	}
 
 	_, _, _, err := mgr.CheckUpdate(context.Background())
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no image source available")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "no image source available"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestImageManager_CheckUpdate_VersionError_Bad(t *testing.T) {
@@ -484,7 +637,7 @@ func TestImageManager_CheckUpdate_VersionError_Bad(t *testing.T) {
 	mock := &mockImageSource{
 		name:      "mock",
 		available: true,
-		latestErr: assert.AnError,
+		latestErr: errors.New("test error"),
 	}
 
 	mgr := &ImageManager{
@@ -501,8 +654,13 @@ func TestImageManager_CheckUpdate_VersionError_Bad(t *testing.T) {
 	}
 
 	current, _, _, err := mgr.CheckUpdate(context.Background())
-	assert.Error(t, err)
-	assert.Equal(t, "v1.0.0", current) // Current should still be returned
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got, want := current, "v1.0.0"; !reflect.DeepEqual( // Current should still be returned
+		got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
 
 func TestImageManager_Install_EmptySources_Bad(t *testing.T) {
@@ -517,8 +675,12 @@ func TestImageManager_Install_EmptySources_Bad(t *testing.T) {
 	}
 
 	err := mgr.Install(context.Background(), nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no image source available")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "no image source available"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestImageManager_Install_AllUnavailable_Bad(t *testing.T) {
@@ -536,8 +698,12 @@ func TestImageManager_Install_AllUnavailable_Bad(t *testing.T) {
 	}
 
 	err := mgr.Install(context.Background(), nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no image source available")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if s, sub := err.Error(), "no image source available"; !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
+	}
 }
 
 func TestImageManager_CheckUpdate_FirstSourceUnavailable_Good(t *testing.T) {
@@ -561,10 +727,18 @@ func TestImageManager_CheckUpdate_FirstSourceUnavailable_Good(t *testing.T) {
 	}
 
 	current, latest, hasUpdate, err := mgr.CheckUpdate(context.Background())
-	assert.NoError(t, err)
-	assert.Equal(t, "v1.0.0", current)
-	assert.Equal(t, "v2.0.0", latest)
-	assert.True(t, hasUpdate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := current, "v1.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := latest, "v2.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if !(hasUpdate) {
+		t.Fatal("expected true")
+	}
 }
 
 func TestManifest_Struct_Good(t *testing.T) {
@@ -574,7 +748,13 @@ func TestManifest_Struct_Good(t *testing.T) {
 		},
 		path: "/path/to/manifest.json",
 	}
-	assert.Equal(t, "/path/to/manifest.json", m.path)
-	assert.Len(t, m.Images, 1)
-	assert.Equal(t, "1.0.0", m.Images["test.img"].Version)
+	if got, want := m.path, "/path/to/manifest.json"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := len(m.Images), 1; got != want {
+		t.Fatalf("want len %v, got %v", want, got)
+	}
+	if got, want := m.Images["test.img"].Version, "1.0.0"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
 }
