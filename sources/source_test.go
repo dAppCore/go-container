@@ -46,4 +46,9 @@ func TestImageSource_Interface_Good(t *testing.T) {
 	// Ensure both sources implement the interface
 	var _ ImageSource = (*GitHubSource)(nil)
 	var _ ImageSource = (*CDNSource)(nil)
+	github := NewGitHubSource(SourceConfig{GitHubRepo: "owner/repo", ImageName: "image.qcow2"})
+	cdn := NewCDNSource(SourceConfig{CDNURL: "https://cdn.example.com", ImageName: "image.qcow2"})
+	if github.Name() == "" || cdn.Name() == "" {
+		t.Fatal("expected non-empty source names")
+	}
 }

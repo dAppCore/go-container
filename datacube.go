@@ -5,7 +5,7 @@ import (
 	"io/fs"
 	"sync"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -207,7 +207,9 @@ func (c *DataCube) ReadStream(path string) (goio.ReadCloser, error) { return c.M
 // Usage:
 //
 //	w, err := cube.WriteStream("logs/app.log")
-func (c *DataCube) WriteStream(path string) (goio.WriteCloser, error) { return c.Medium.WriteStream(path) }
+func (c *DataCube) WriteStream(path string) (goio.WriteCloser, error) {
+	return c.Medium.WriteStream(path)
+}
 
 // Exists reports whether path exists on the underlying medium.
 //

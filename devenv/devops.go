@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/container"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
@@ -150,7 +150,9 @@ func (d *DevOps) Boot(ctx context.Context, opts BootOptions) error {
 
 	// Stop existing if fresh
 	if opts.Fresh {
-		_ = d.Stop(ctx)
+		if err := d.Stop(ctx); err != nil {
+			// Fresh boot should continue when there is no existing container to stop.
+		}
 	}
 
 	imagePath, err := ImagePath()

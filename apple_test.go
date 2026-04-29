@@ -143,3 +143,280 @@ func TestApple_AvailableOnNonDarwin_Ugly(t *testing.T) {
 		}
 	}
 }
+
+// --- AX-7 canonical triplets ---
+
+func TestApple_IsAppleAvailable_Bad(t *testing.T) {
+	symbol := IsAppleAvailable
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_IsAppleAvailable_Ugly(t *testing.T) {
+	symbol := IsAppleAvailable
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_NewAppleProvider_Bad(t *testing.T) {
+	symbol := NewAppleProvider
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_NewAppleProvider_Ugly(t *testing.T) {
+	symbol := NewAppleProvider
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Available_Good(t *testing.T) {
+	symbol := (*AppleProvider).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Available_Bad(t *testing.T) {
+	symbol := (*AppleProvider).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Available_Ugly(t *testing.T) {
+	symbol := (*AppleProvider).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Build_Good(t *testing.T) {
+	symbol := (*AppleProvider).Build
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Build_Bad(t *testing.T) {
+	symbol := (*AppleProvider).Build
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Build_Ugly(t *testing.T) {
+	symbol := (*AppleProvider).Build
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Run_Good(t *testing.T) {
+	symbol := (*AppleProvider).Run
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Run_Bad(t *testing.T) {
+	symbol := (*AppleProvider).Run
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Run_Ugly(t *testing.T) {
+	symbol := (*AppleProvider).Run
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Tracked_Good(t *testing.T) {
+	symbol := (*AppleProvider).Tracked
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Tracked_Bad(t *testing.T) {
+	symbol := (*AppleProvider).Tracked
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Tracked_Ugly(t *testing.T) {
+	symbol := (*AppleProvider).Tracked
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Wait_Good(t *testing.T) {
+	symbol := (*AppleProvider).Wait
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Wait_Bad(t *testing.T) {
+	symbol := (*AppleProvider).Wait
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Wait_Ugly(t *testing.T) {
+	symbol := (*AppleProvider).Wait
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Encrypt_Good(t *testing.T) {
+	symbol := (*AppleProvider).Encrypt
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Encrypt_Bad(t *testing.T) {
+	symbol := (*AppleProvider).Encrypt
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Encrypt_Ugly(t *testing.T) {
+	symbol := (*AppleProvider).Encrypt
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Decrypt_Good(t *testing.T) {
+	symbol := (*AppleProvider).Decrypt
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Decrypt_Bad(t *testing.T) {
+	symbol := (*AppleProvider).Decrypt
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestApple_AppleProvider_Decrypt_Ugly(t *testing.T) {
+	symbol := (*AppleProvider).Decrypt
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}

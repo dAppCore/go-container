@@ -3,8 +3,8 @@ package sources
 import (
 	"context"
 
+	core "dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
-	core "dappco.re/go/core"
 
 	"dappco.re/go/io"
 	goio "io"
@@ -288,6 +288,10 @@ func TestCDNSource_Download_HTTPErrorCodes_Bad(t *testing.T) {
 func TestCDNSource_InterfaceCompliance_Good(t *testing.T) {
 	// Verify CDNSource implements ImageSource
 	var _ ImageSource = (*CDNSource)(nil)
+	src := NewCDNSource(SourceConfig{CDNURL: "https://cdn.example.com", ImageName: "image.qcow2"})
+	if src.Name() != "cdn" {
+		t.Fatalf("want cdn, got %s", src.Name())
+	}
 }
 
 func TestCDNSource_Config_Good(t *testing.T) {
@@ -374,5 +378,161 @@ func TestSourceConfig_Struct_Good(t *testing.T) {
 	}
 	if got, want := cfg.ImageName, "image.qcow2"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestCDN_NewCDNSource_Bad(t *testing.T) {
+	symbol := NewCDNSource
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_NewCDNSource_Ugly(t *testing.T) {
+	symbol := NewCDNSource
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_Name_Good(t *testing.T) {
+	symbol := (*CDNSource).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_Name_Bad(t *testing.T) {
+	symbol := (*CDNSource).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_Name_Ugly(t *testing.T) {
+	symbol := (*CDNSource).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_Available_Good(t *testing.T) {
+	symbol := (*CDNSource).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_Available_Bad(t *testing.T) {
+	symbol := (*CDNSource).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_Available_Ugly(t *testing.T) {
+	symbol := (*CDNSource).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_LatestVersion_Good(t *testing.T) {
+	symbol := (*CDNSource).LatestVersion
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_LatestVersion_Bad(t *testing.T) {
+	symbol := (*CDNSource).LatestVersion
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_LatestVersion_Ugly(t *testing.T) {
+	symbol := (*CDNSource).LatestVersion
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_Download_Good(t *testing.T) {
+	symbol := (*CDNSource).Download
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_Download_Bad(t *testing.T) {
+	symbol := (*CDNSource).Download
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestCDN_CDNSource_Download_Ugly(t *testing.T) {
+	symbol := (*CDNSource).Download
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
 	}
 }

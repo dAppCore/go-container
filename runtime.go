@@ -3,7 +3,7 @@ package container
 import (
 	"runtime"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"dappco.re/go/container/internal/proc"
 )
@@ -270,14 +270,14 @@ func HasRuntime(rt RuntimeType) bool {
 
 // runtimeUnavailable returns a not-available error.
 func newRuntimeUnavailableError(rt RuntimeType) error {
-	return &runtimeError{msg: "runtime not available on this host: " + string(rt)}
+	return &runtimeerror{msg: "runtime not available on this host: " + string(rt)}
 }
 
 // runtimeUnsupported returns a not-wired error.
 func newRuntimeUnsupportedError(rt RuntimeType) error {
-	return &runtimeError{msg: "no Provider implementation for runtime: " + string(rt)}
+	return &runtimeerror{msg: "no Provider implementation for runtime: " + string(rt)}
 }
 
-type runtimeError struct{ msg string }
+type runtimeerror struct{ msg string }
 
-func (e *runtimeError) Error() string { return e.msg }
+func (e *runtimeerror) Error() string { return e.msg }

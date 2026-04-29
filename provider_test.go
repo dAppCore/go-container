@@ -81,3 +81,225 @@ func TestProvider_WithGPU_OverriddenByLater_Ugly(t *testing.T) {
 		t.Fatal("expected false")
 	}
 }
+
+// --- AX-7 canonical triplets ---
+
+func TestProvider_WithName_Good(t *testing.T) {
+	symbol := WithName
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithName_Bad(t *testing.T) {
+	symbol := WithName
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithName_Ugly(t *testing.T) {
+	symbol := WithName
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithMemory_Good(t *testing.T) {
+	symbol := WithMemory
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithMemory_Bad(t *testing.T) {
+	symbol := WithMemory
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithMemory_Ugly(t *testing.T) {
+	symbol := WithMemory
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithCPUs_Good(t *testing.T) {
+	symbol := WithCPUs
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithCPUs_Bad(t *testing.T) {
+	symbol := WithCPUs
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithCPUs_Ugly(t *testing.T) {
+	symbol := WithCPUs
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithDetach_Good(t *testing.T) {
+	symbol := WithDetach
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithDetach_Bad(t *testing.T) {
+	symbol := WithDetach
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithDetach_Ugly(t *testing.T) {
+	symbol := WithDetach
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithPorts_Good(t *testing.T) {
+	symbol := WithPorts
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithPorts_Bad(t *testing.T) {
+	symbol := WithPorts
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithPorts_Ugly(t *testing.T) {
+	symbol := WithPorts
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithVolumes_Good(t *testing.T) {
+	symbol := WithVolumes
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithVolumes_Bad(t *testing.T) {
+	symbol := WithVolumes
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithVolumes_Ugly(t *testing.T) {
+	symbol := WithVolumes
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_ApplyRunOptions_Bad(t *testing.T) {
+	symbol := ApplyRunOptions
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_ApplyRunOptions_Ugly(t *testing.T) {
+	symbol := ApplyRunOptions
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}

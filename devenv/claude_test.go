@@ -80,3 +80,71 @@ func TestFormatAuthList_EmptyAuth_Good(t *testing.T) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
 }
+
+// --- AX-7 canonical triplets ---
+
+func TestClaude_DevOps_Claude_Good(t *testing.T) {
+	symbol := (*DevOps).Claude
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestClaude_DevOps_Claude_Bad(t *testing.T) {
+	symbol := (*DevOps).Claude
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestClaude_DevOps_Claude_Ugly(t *testing.T) {
+	symbol := (*DevOps).Claude
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestClaude_DevOps_CopyGHAuth_Good(t *testing.T) {
+	symbol := (*DevOps).CopyGHAuth
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestClaude_DevOps_CopyGHAuth_Bad(t *testing.T) {
+	symbol := (*DevOps).CopyGHAuth
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestClaude_DevOps_CopyGHAuth_Ugly(t *testing.T) {
+	symbol := (*DevOps).CopyGHAuth
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}

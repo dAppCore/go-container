@@ -4,7 +4,7 @@ import (
 	"dappco.re/go/config"
 	"dappco.re/go/io"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 
 	"dappco.re/go/container/internal/coreutil"
 )
@@ -89,8 +89,8 @@ func LoadConfig(m io.Medium) (*Config, error) {
 		return cfg, nil
 	}
 
-	// Use centralized config service
-	c, err := config.New(config.WithMedium(m), config.WithPath(configPath))
+	// Use centralized config service.
+	c, err := config.New(config.WithMedium(configmedium{Medium: m}), config.WithPath(configPath))
 	if err != nil {
 		return nil, err
 	}
@@ -100,4 +100,21 @@ func LoadConfig(m io.Medium) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+type configmedium struct {
+	io.Medium
+}
+
+func (m configmedium) Read(path string) core.Result {
+	content, err := m.Medium.Read(path)
+	return core.ResultOf(content, err)
+}
+
+func (m configmedium) Write(path, content string) core.Result {
+	return core.ResultOf(nil, m.Medium.Write(path, content))
+}
+
+func (m configmedium) EnsureDir(path string) core.Result {
+	return core.ResultOf(nil, m.Medium.EnsureDir(path))
 }

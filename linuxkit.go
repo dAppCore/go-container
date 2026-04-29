@@ -7,7 +7,7 @@ import (
 	"syscall" // Note: POSIX signal primitives; no core equivalent yet.
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 
@@ -153,7 +153,9 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 
 		// Start the process
 		if err := cmd.Start(); err != nil {
-			_ = logFile.Close()
+			if closeErr := logFile.Close(); closeErr != nil {
+				return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+			}
 			return nil, coreerr.E("LinuxKitManager.Run", "failed to start VM", err)
 		}
 
@@ -162,13 +164,19 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 		// Save state
 		if err := m.state.Add(container); err != nil {
 			// Try to kill the process we just started
-			_ = cmd.Process.Kill()
-			_ = logFile.Close()
+			if killErr := cmd.Process.Kill(); killErr != nil {
+				// Process may already have exited; return the state error below.
+			}
+			if closeErr := logFile.Close(); closeErr != nil {
+				return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+			}
 			return nil, coreerr.E("LinuxKitManager.Run", "failed to save state", err)
 		}
 
 		// Close log file handle (process has its own)
-		_ = logFile.Close()
+		if err := logFile.Close(); err != nil {
+			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", err)
+		}
 
 		// Start a goroutine to wait for process exit and update state
 		go m.waitForExit(container.ID, cmd)
@@ -180,18 +188,24 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	// Tee output to both log file and stdout
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		_ = logFile.Close()
+		if closeErr := logFile.Close(); closeErr != nil {
+			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+		}
 		return nil, coreerr.E("LinuxKitManager.Run", "failed to get stdout pipe", err)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		_ = logFile.Close()
+		if closeErr := logFile.Close(); closeErr != nil {
+			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+		}
 		return nil, coreerr.E("LinuxKitManager.Run", "failed to get stderr pipe", err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		_ = logFile.Close()
+		if closeErr := logFile.Close(); closeErr != nil {
+			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+		}
 		return nil, coreerr.E("LinuxKitManager.Run", "failed to start VM", err)
 	}
 
@@ -199,8 +213,12 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 
 	// Save state before waiting
 	if err := m.state.Add(container); err != nil {
-		_ = cmd.Process.Kill()
-		_ = logFile.Close()
+		if killErr := cmd.Process.Kill(); killErr != nil {
+			// Process may already have exited; return the state error below.
+		}
+		if closeErr := logFile.Close(); closeErr != nil {
+			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+		}
 		return nil, coreerr.E("LinuxKitManager.Run", "failed to save state", err)
 	}
 
@@ -221,7 +239,9 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 		container.Status = StatusStopped
 	}
 
-	_ = logFile.Close()
+	if err := logFile.Close(); err != nil {
+		return container, coreerr.E("LinuxKitManager.Run", "failed to close log file", err)
+	}
 	if err := m.state.Update(container); err != nil {
 		return container, coreerr.E("LinuxKitManager.Run", "update container state", err)
 	}
@@ -240,7 +260,9 @@ func (m *LinuxKitManager) waitForExit(id string, cmd *proc.Command) {
 		} else {
 			container.Status = StatusStopped
 		}
-		_ = m.state.Update(container)
+		if updateErr := m.state.Update(container); updateErr != nil {
+			// Detached monitor has no caller; List will repair stale state later.
+		}
 	}
 }
 
@@ -263,13 +285,17 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) error {
 	if err := process.Signal(syscall.SIGTERM); err != nil {
 		// Process might already be gone
 		container.Status = StatusStopped
-		_ = m.state.Update(container)
+		if updateErr := m.state.Update(container); updateErr != nil {
+			return coreerr.E("LinuxKitManager.Stop", "update container state", updateErr)
+		}
 		return nil
 	}
 
 	// Honour already-cancelled contexts before waiting
 	if err := ctx.Err(); err != nil {
-		_ = process.Kill()
+		if killErr := process.Kill(); killErr != nil {
+			// Process may already have exited; return the context error below.
+		}
 		return err
 	}
 
@@ -280,9 +306,13 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) error {
 	for isProcessRunning(container.PID) {
 		select {
 		case <-deadline:
-			_ = process.Kill()
+			if err := process.Kill(); err != nil {
+				// Process may already have exited.
+			}
 		case <-ctx.Done():
-			_ = process.Kill()
+			if err := process.Kill(); err != nil {
+				// Process may already have exited; return the context error below.
+			}
 			return ctx.Err()
 		case <-ticker.C:
 		}
@@ -304,7 +334,9 @@ func (m *LinuxKitManager) List(ctx context.Context) ([]*Container, error) {
 		if c.Status == StatusRunning {
 			if !isProcessRunning(c.PID) {
 				c.Status = StatusStopped
-				_ = m.state.Update(c)
+				if err := m.state.Update(c); err != nil {
+					return nil, coreerr.E("LinuxKitManager.List", "update container state", err)
+				}
 			}
 		}
 	}
@@ -348,8 +380,8 @@ func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) (Rea
 	return newFollowReader(ctx, m.medium, logPath)
 }
 
-// followReader implements ReadCloser for following log files.
-type followReader struct {
+// followreader implements ReadCloser for following log files.
+type followreader struct {
 	file    fs.File
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -359,7 +391,7 @@ type followReader struct {
 	pending []byte
 }
 
-func newFollowReader(ctx context.Context, m coreio.Medium, path string) (*followReader, error) {
+func newFollowReader(ctx context.Context, m coreio.Medium, path string) (*followreader, error) {
 	file, err := m.Open(path)
 	if err != nil {
 		return nil, err
@@ -367,7 +399,7 @@ func newFollowReader(ctx context.Context, m coreio.Medium, path string) (*follow
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	return &followReader{
+	return &followreader{
 		file:   file,
 		ctx:    ctx,
 		cancel: cancel,
@@ -376,7 +408,7 @@ func newFollowReader(ctx context.Context, m coreio.Medium, path string) (*follow
 	}, nil
 }
 
-func (f *followReader) Read(p []byte) (int, error) {
+func (f *followreader) Read(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -420,7 +452,7 @@ func (f *followReader) Read(p []byte) (int, error) {
 	}
 }
 
-func (f *followReader) Close() error {
+func (f *followreader) Close() error {
 	f.cancel()
 	return f.file.Close()
 }

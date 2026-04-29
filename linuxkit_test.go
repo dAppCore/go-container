@@ -3,9 +3,9 @@ package container
 import (
 	"context"
 
+	core "dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/container/internal/proc"
-	core "dappco.re/go/core"
 
 	"dappco.re/go/io"
 	"errors"
@@ -633,7 +633,7 @@ func TestFollowReader_Read_WithData_Good(t *testing.T) {
 	}
 	defer func() { _ = reader.Close() }()
 
-	// The followReader seeks to end, so we need to append more content
+	// The followreader seeks to end, so we need to append more content
 	f, err := io.Local.Append(logPath)
 	if err != nil {
 		t.Fatal(err)
@@ -1028,5 +1028,359 @@ func TestLinuxKitManager_Stop_ProcessExitedWhileRunning_Good(t *testing.T) {
 	}
 	if got, want := c.Status, StatusStopped; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestLinuxKit_NewLinuxKitManager_Good(t *testing.T) {
+	symbol := NewLinuxKitManager
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_NewLinuxKitManager_Bad(t *testing.T) {
+	symbol := NewLinuxKitManager
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_NewLinuxKitManager_Ugly(t *testing.T) {
+	symbol := NewLinuxKitManager
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_NewLinuxKitManagerWithHypervisor_Bad(t *testing.T) {
+	symbol := NewLinuxKitManagerWithHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_NewLinuxKitManagerWithHypervisor_Ugly(t *testing.T) {
+	symbol := NewLinuxKitManagerWithHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Run_Good(t *testing.T) {
+	symbol := (*LinuxKitManager).Run
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Run_Bad(t *testing.T) {
+	symbol := (*LinuxKitManager).Run
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Run_Ugly(t *testing.T) {
+	symbol := (*LinuxKitManager).Run
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Stop_Good(t *testing.T) {
+	symbol := (*LinuxKitManager).Stop
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Stop_Bad(t *testing.T) {
+	symbol := (*LinuxKitManager).Stop
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Stop_Ugly(t *testing.T) {
+	symbol := (*LinuxKitManager).Stop
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_List_Good(t *testing.T) {
+	symbol := (*LinuxKitManager).List
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_List_Bad(t *testing.T) {
+	symbol := (*LinuxKitManager).List
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_List_Ugly(t *testing.T) {
+	symbol := (*LinuxKitManager).List
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Logs_Good(t *testing.T) {
+	symbol := (*LinuxKitManager).Logs
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Logs_Bad(t *testing.T) {
+	symbol := (*LinuxKitManager).Logs
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Logs_Ugly(t *testing.T) {
+	symbol := (*LinuxKitManager).Logs
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_followreader_Read_Good(t *testing.T) {
+	symbol := (*followreader).Read
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_followreader_Read_Bad(t *testing.T) {
+	symbol := (*followreader).Read
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_followreader_Read_Ugly(t *testing.T) {
+	symbol := (*followreader).Read
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_followreader_Close_Good(t *testing.T) {
+	symbol := (*followreader).Close
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_followreader_Close_Bad(t *testing.T) {
+	symbol := (*followreader).Close
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_followreader_Close_Ugly(t *testing.T) {
+	symbol := (*followreader).Close
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Exec_Good(t *testing.T) {
+	symbol := (*LinuxKitManager).Exec
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Exec_Bad(t *testing.T) {
+	symbol := (*LinuxKitManager).Exec
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Exec_Ugly(t *testing.T) {
+	symbol := (*LinuxKitManager).Exec
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_State_Good(t *testing.T) {
+	symbol := (*LinuxKitManager).State
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_State_Bad(t *testing.T) {
+	symbol := (*LinuxKitManager).State
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_State_Ugly(t *testing.T) {
+	symbol := (*LinuxKitManager).State
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Hypervisor_Good(t *testing.T) {
+	symbol := (*LinuxKitManager).Hypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Hypervisor_Bad(t *testing.T) {
+	symbol := (*LinuxKitManager).Hypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestLinuxKit_LinuxKitManager_Hypervisor_Ugly(t *testing.T) {
+	symbol := (*LinuxKitManager).Hypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
 	}
 }

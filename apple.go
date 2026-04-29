@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/proc"
@@ -43,7 +43,7 @@ type AppleProvider struct {
 	// Version is the detected framework version (populated when known).
 	Version string
 
-	tracked  map[string]*appleTracked
+	tracked map[string]*appleTracked
 }
 
 // appleTracked records a detached apple container process for lifecycle
