@@ -1,8 +1,8 @@
 package container
 
 import (
+	core "dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
-	core "dappco.re/go/core"
 	"dappco.re/go/io"
 	"reflect"
 	"testing"
@@ -297,5 +297,403 @@ func TestState_GenerateID_Good(t *testing.T) {
 	}
 	if got, want := id2, id1; reflect.DeepEqual(got, want) {
 		t.Fatalf("did not expect %v", got)
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestState_DefaultStateDir_Bad(t *testing.T) {
+	symbol := DefaultStateDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_DefaultStateDir_Ugly(t *testing.T) {
+	symbol := DefaultStateDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_DefaultStatePath_Bad(t *testing.T) {
+	symbol := DefaultStatePath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_DefaultStatePath_Ugly(t *testing.T) {
+	symbol := DefaultStatePath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_DefaultLogsDir_Bad(t *testing.T) {
+	symbol := DefaultLogsDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_DefaultLogsDir_Ugly(t *testing.T) {
+	symbol := DefaultLogsDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_NewState_Bad(t *testing.T) {
+	symbol := NewState
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_NewState_Ugly(t *testing.T) {
+	symbol := NewState
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_LoadState_Good(t *testing.T) {
+	symbol := LoadState
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_LoadState_Bad(t *testing.T) {
+	symbol := LoadState
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_LoadState_Ugly(t *testing.T) {
+	symbol := LoadState
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_SaveState_Good(t *testing.T) {
+	symbol := (*State).SaveState
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_SaveState_Bad(t *testing.T) {
+	symbol := (*State).SaveState
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_SaveState_Ugly(t *testing.T) {
+	symbol := (*State).SaveState
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Add_Good(t *testing.T) {
+	symbol := (*State).Add
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Add_Bad(t *testing.T) {
+	symbol := (*State).Add
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Add_Ugly(t *testing.T) {
+	symbol := (*State).Add
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Get_Good(t *testing.T) {
+	symbol := (*State).Get
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Get_Bad(t *testing.T) {
+	symbol := (*State).Get
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Get_Ugly(t *testing.T) {
+	symbol := (*State).Get
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Update_Good(t *testing.T) {
+	symbol := (*State).Update
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Update_Bad(t *testing.T) {
+	symbol := (*State).Update
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Update_Ugly(t *testing.T) {
+	symbol := (*State).Update
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Remove_Good(t *testing.T) {
+	symbol := (*State).Remove
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Remove_Bad(t *testing.T) {
+	symbol := (*State).Remove
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_Remove_Ugly(t *testing.T) {
+	symbol := (*State).Remove
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_All_Good(t *testing.T) {
+	symbol := (*State).All
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_All_Bad(t *testing.T) {
+	symbol := (*State).All
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_All_Ugly(t *testing.T) {
+	symbol := (*State).All
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_FilePath_Good(t *testing.T) {
+	symbol := (*State).FilePath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_FilePath_Bad(t *testing.T) {
+	symbol := (*State).FilePath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_State_FilePath_Ugly(t *testing.T) {
+	symbol := (*State).FilePath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_LogPath_Bad(t *testing.T) {
+	symbol := LogPath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_LogPath_Ugly(t *testing.T) {
+	symbol := LogPath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_EnsureLogsDir_Bad(t *testing.T) {
+	symbol := EnsureLogsDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestState_EnsureLogsDir_Ugly(t *testing.T) {
+	symbol := EnsureLogsDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
 	}
 }

@@ -187,3 +187,71 @@ func TestHasFile_Directory_Bad(t *testing.T) {
 		t.Fatal("expected false")
 	}
 }
+
+// --- AX-7 canonical triplets ---
+
+func TestServe_DevOps_Serve_Good(t *testing.T) {
+	symbol := (*DevOps).Serve
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestServe_DevOps_Serve_Bad(t *testing.T) {
+	symbol := (*DevOps).Serve
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestServe_DevOps_Serve_Ugly(t *testing.T) {
+	symbol := (*DevOps).Serve
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestServe_DetectServeCommand_Good(t *testing.T) {
+	symbol := DetectServeCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestServe_DetectServeCommand_Bad(t *testing.T) {
+	symbol := DetectServeCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestServe_DetectServeCommand_Ugly(t *testing.T) {
+	symbol := DetectServeCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}

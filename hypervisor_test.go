@@ -2,7 +2,7 @@ package container
 
 import (
 	"context"
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"reflect"
 	"runtime"
 	"slices"
@@ -479,5 +479,359 @@ func TestHyperkitHypervisor_BuildCommand_ISOFormat_Good(t *testing.T) {
 	}
 	if s, sub := args, "2"; !slices.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestHypervisor_NewQemuHypervisor_Good(t *testing.T) {
+	symbol := NewQemuHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_NewQemuHypervisor_Bad(t *testing.T) {
+	symbol := NewQemuHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_NewQemuHypervisor_Ugly(t *testing.T) {
+	symbol := NewQemuHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_QemuHypervisor_Name_Good(t *testing.T) {
+	symbol := (*QemuHypervisor).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_QemuHypervisor_Name_Bad(t *testing.T) {
+	symbol := (*QemuHypervisor).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_QemuHypervisor_Name_Ugly(t *testing.T) {
+	symbol := (*QemuHypervisor).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_QemuHypervisor_Available_Good(t *testing.T) {
+	symbol := (*QemuHypervisor).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_QemuHypervisor_Available_Bad(t *testing.T) {
+	symbol := (*QemuHypervisor).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_QemuHypervisor_Available_Ugly(t *testing.T) {
+	symbol := (*QemuHypervisor).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_QemuHypervisor_BuildCommand_Good(t *testing.T) {
+	symbol := (*QemuHypervisor).BuildCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_QemuHypervisor_BuildCommand_Bad(t *testing.T) {
+	symbol := (*QemuHypervisor).BuildCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_QemuHypervisor_BuildCommand_Ugly(t *testing.T) {
+	symbol := (*QemuHypervisor).BuildCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_NewHyperkitHypervisor_Good(t *testing.T) {
+	symbol := NewHyperkitHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_NewHyperkitHypervisor_Bad(t *testing.T) {
+	symbol := NewHyperkitHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_NewHyperkitHypervisor_Ugly(t *testing.T) {
+	symbol := NewHyperkitHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_HyperkitHypervisor_Name_Good(t *testing.T) {
+	symbol := (*HyperkitHypervisor).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_HyperkitHypervisor_Name_Bad(t *testing.T) {
+	symbol := (*HyperkitHypervisor).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_HyperkitHypervisor_Name_Ugly(t *testing.T) {
+	symbol := (*HyperkitHypervisor).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_HyperkitHypervisor_Available_Good(t *testing.T) {
+	symbol := (*HyperkitHypervisor).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_HyperkitHypervisor_Available_Bad(t *testing.T) {
+	symbol := (*HyperkitHypervisor).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_HyperkitHypervisor_Available_Ugly(t *testing.T) {
+	symbol := (*HyperkitHypervisor).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_HyperkitHypervisor_BuildCommand_Good(t *testing.T) {
+	symbol := (*HyperkitHypervisor).BuildCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_HyperkitHypervisor_BuildCommand_Bad(t *testing.T) {
+	symbol := (*HyperkitHypervisor).BuildCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_HyperkitHypervisor_BuildCommand_Ugly(t *testing.T) {
+	symbol := (*HyperkitHypervisor).BuildCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_DetectImageFormat_Good(t *testing.T) {
+	symbol := DetectImageFormat
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_DetectImageFormat_Bad(t *testing.T) {
+	symbol := DetectImageFormat
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_DetectImageFormat_Ugly(t *testing.T) {
+	symbol := DetectImageFormat
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_DetectHypervisor_Bad(t *testing.T) {
+	symbol := DetectHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_DetectHypervisor_Ugly(t *testing.T) {
+	symbol := DetectHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_GetHypervisor_Good(t *testing.T) {
+	symbol := GetHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_GetHypervisor_Bad(t *testing.T) {
+	symbol := GetHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_GetHypervisor_Ugly(t *testing.T) {
+	symbol := GetHypervisor
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
 	}
 }

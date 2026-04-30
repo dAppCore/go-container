@@ -4,66 +4,55 @@ import (
 	"context"
 	"text/tabwriter"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
+	"dappco.re/go/cli/pkg/i18n"
 	"dappco.re/go/container"
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/container/internal/proc"
-	"dappco.re/go/i18n"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
-	"dappco.re/go/cli/pkg/cli"
 )
 
 // addVMTemplatesCommand adds the 'templates' command under vm.
-func addVMTemplatesCommand(parent *cli.Command) {
-	templatesCmd := &cli.Command{
-		Use:   "templates",
-		Short: i18n.T("cmd.vm.templates.short"),
-		Long:  i18n.T("cmd.vm.templates.long"),
-		RunE: func(cmd *cli.Command, args []string) error {
-			return listTemplates()
+func addVMTemplatesCommand(c *core.Core) {
+	registerVMCommand(c, "vm/templates", core.Command{
+		Description: i18n.T("cmd.vm.templates.short"),
+		Action: func(opts core.Options) core.Result {
+			return resultFromError(listTemplates())
 		},
-	}
+	})
 
 	// Add subcommands
-	addTemplatesShowCommand(templatesCmd)
-	addTemplatesVarsCommand(templatesCmd)
-
-	parent.AddCommand(templatesCmd)
+	addTemplatesShowCommand(c)
+	addTemplatesVarsCommand(c)
 }
 
 // addTemplatesShowCommand adds the 'templates show' subcommand.
-func addTemplatesShowCommand(parent *cli.Command) {
-	showCmd := &cli.Command{
-		Use:   "show <template-name>",
-		Short: i18n.T("cmd.vm.templates.show.short"),
-		Long:  i18n.T("cmd.vm.templates.show.long"),
-		RunE: func(cmd *cli.Command, args []string) error {
+func addTemplatesShowCommand(c *core.Core) {
+	registerVMCommand(c, "vm/templates/show", core.Command{
+		Description: i18n.T("cmd.vm.templates.show.short"),
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
 			if len(args) == 0 {
-				return coreerr.E("templates show", i18n.T("cmd.vm.error.template_required"), nil)
+				return core.Fail(coreerr.E("templates show", i18n.T("cmd.vm.error.template_required"), nil))
 			}
-			return showTemplate(args[0])
+			return resultFromError(showTemplate(args[0]))
 		},
-	}
-
-	parent.AddCommand(showCmd)
+	})
 }
 
 // addTemplatesVarsCommand adds the 'templates vars' subcommand.
-func addTemplatesVarsCommand(parent *cli.Command) {
-	varsCmd := &cli.Command{
-		Use:   "vars <template-name>",
-		Short: i18n.T("cmd.vm.templates.vars.short"),
-		Long:  i18n.T("cmd.vm.templates.vars.long"),
-		RunE: func(cmd *cli.Command, args []string) error {
+func addTemplatesVarsCommand(c *core.Core) {
+	registerVMCommand(c, "vm/templates/vars", core.Command{
+		Description: i18n.T("cmd.vm.templates.vars.short"),
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
 			if len(args) == 0 {
-				return coreerr.E("templates vars", i18n.T("cmd.vm.error.template_required"), nil)
+				return core.Fail(coreerr.E("templates vars", i18n.T("cmd.vm.error.template_required"), nil))
 			}
-			return showTemplateVars(args[0])
+			return resultFromError(showTemplateVars(args[0]))
 		},
-	}
-
-	parent.AddCommand(varsCmd)
+	})
 }
 
 func listTemplates() error {
@@ -88,7 +77,9 @@ func listTemplates() error {
 		}
 		core.Print(w, "%s\t%s", repoNameStyle.Render(tmpl.Name), desc)
 	}
-	_ = w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
 
 	core.Println()
 	core.Print(nil, "%s %s", i18n.T("cmd.vm.templates.hint.show"), dimStyle.Render("core vm templates show <name>"))
@@ -164,7 +155,11 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	if err != nil {
 		return coreerr.E("RunFromTemplate", i18n.T("common.error.failed", map[string]any{"Action": "create temp directory"}), err)
 	}
-	defer func() { _ = io.Local.DeleteAll(tmpDir) }()
+	defer func() {
+		if err := io.Local.DeleteAll(tmpDir); err != nil {
+			// Temporary build output is best-effort cleanup.
+		}
+	}()
 
 	// Write the YAML file
 	yamlPath := coreutil.JoinPath(tmpDir, core.Concat(templateName, ".yml"))

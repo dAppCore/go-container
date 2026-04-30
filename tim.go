@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 

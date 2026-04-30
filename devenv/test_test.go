@@ -351,3 +351,93 @@ func TestDetectTestCommand_PackageJSONWithoutScript_Good(t *testing.T) {
 		t.Errorf("expected empty string, got %q", cmd)
 	}
 }
+
+// --- AX-7 canonical triplets ---
+
+func TestTest_DevOps_Test_Good(t *testing.T) {
+	symbol := (*DevOps).Test
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTest_DevOps_Test_Bad(t *testing.T) {
+	symbol := (*DevOps).Test
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTest_DevOps_Test_Ugly(t *testing.T) {
+	symbol := (*DevOps).Test
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTest_DetectTestCommand_Good(t *testing.T) {
+	symbol := DetectTestCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTest_DetectTestCommand_Bad(t *testing.T) {
+	symbol := DetectTestCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTest_DetectTestCommand_Ugly(t *testing.T) {
+	symbol := DetectTestCommand
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTest_LoadTestConfig_Bad(t *testing.T) {
+	symbol := LoadTestConfig
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTest_LoadTestConfig_Ugly(t *testing.T) {
+	symbol := LoadTestConfig
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}

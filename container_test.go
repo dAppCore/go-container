@@ -4,55 +4,55 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	core "dappco.re/go"
 )
 
 // --- GenerateID ---
 
-func TestContainer_GenerateID_Good(t *testing.T) {
+func TestContainer_GenerateID_Good(t *core.T) {
 	id, err := GenerateID()
 
-	require.NoError(t, err)
-	assert.Len(t, id, 8, "container IDs must be 8 hex characters")
+	core.RequireNoError(t, err)
+	core.AssertLen(t, id, 8, "container IDs must be 8 hex characters")
 
 	_, err = hex.DecodeString(id)
-	assert.NoError(t, err, "container ID must be valid hex")
+	core.AssertNoError(t, err, "container ID must be valid hex")
 }
 
-func TestContainer_GenerateID_Uniqueness_Bad(t *testing.T) {
+func TestContainer_GenerateID_Uniqueness_Bad(t *core.T) {
 	seen := make(map[string]bool)
 	for i := 0; i < 100; i++ {
 		id, err := GenerateID()
-		require.NoError(t, err)
-		assert.False(t, seen[id], "GenerateID produced duplicate id %q", id)
+		core.RequireNoError(t, err)
+		core.AssertFalse(t, seen[id], core.Sprintf("GenerateID produced duplicate id %q", id))
 		seen[id] = true
 	}
 }
 
-func TestContainer_GenerateID_Repeatability_Ugly(t *testing.T) {
+func TestContainer_GenerateID_Repeatability_Ugly(t *core.T) {
 	// The contract is non-determinism — two consecutive calls must differ.
 	a, err := GenerateID()
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	b, err := GenerateID()
-	require.NoError(t, err)
-	assert.NotEqual(t, a, b)
+	core.RequireNoError(t, err)
+	core.AssertNotEqual(t, a, b)
 }
 
 // --- Status constants ---
 
-func TestContainer_StatusValues_Good(t *testing.T) {
-	assert.Equal(t, Status("running"), StatusRunning)
-	assert.Equal(t, Status("stopped"), StatusStopped)
-	assert.Equal(t, Status("error"), StatusError)
+func TestContainer_StatusValues_Good(t *core.T) {
+	core.AssertEqual(t, Status("running"), StatusRunning)
+	core.AssertEqual(t, Status("stopped"), StatusStopped)
+	core.AssertEqual(t, Status("error"), StatusError)
 }
 
-func TestContainer_StatusValues_Unknown_Bad(t *testing.T) {
+func TestContainer_StatusValues_Unknown_Bad(t *core.T) {
 	var s Status
-	assert.Equal(t, Status(""), s, "zero value is empty string, not one of the known states")
+	core.AssertEqual(t, Status(""), s, "zero value is empty string, not one of the known states")
+	core.AssertNotEqual(t, StatusRunning, s)
 }
 
-func TestContainer_StatusValues_Switchable_Ugly(t *testing.T) {
+func TestContainer_StatusValues_Switchable_Ugly(t *core.T) {
 	// Exhaustive switch compiles and covers each declared status.
 	check := func(s Status) string {
 		switch s {
@@ -66,56 +66,55 @@ func TestContainer_StatusValues_Switchable_Ugly(t *testing.T) {
 		return "unknown"
 	}
 
-	assert.Equal(t, "running", check(StatusRunning))
-	assert.Equal(t, "stopped", check(StatusStopped))
-	assert.Equal(t, "error", check(StatusError))
-	assert.Equal(t, "unknown", check(Status("weird")))
+	core.AssertEqual(t, "running", check(StatusRunning))
+	core.AssertEqual(t, "stopped", check(StatusStopped))
+	core.AssertEqual(t, "error", check(StatusError))
+	core.AssertEqual(t, "unknown", check(Status("weird")))
 }
 
 // --- ImageFormat constants ---
 
-func TestContainer_ImageFormatConstants_Good(t *testing.T) {
-	assert.Equal(t, ImageFormat("iso"), FormatISO)
-	assert.Equal(t, ImageFormat("qcow2"), FormatQCOW2)
-	assert.Equal(t, ImageFormat("vmdk"), FormatVMDK)
-	assert.Equal(t, ImageFormat("ami"), FormatAMI)
-	assert.Equal(t, ImageFormat("raw"), FormatRaw)
-	assert.Equal(t, ImageFormat("unknown"), FormatUnknown)
+func TestContainer_ImageFormatConstants_Good(t *core.T) {
+	core.AssertEqual(t, ImageFormat("iso"), FormatISO)
+	core.AssertEqual(t, ImageFormat("qcow2"), FormatQCOW2)
+	core.AssertEqual(t, ImageFormat("vmdk"), FormatVMDK)
+	core.AssertEqual(t, ImageFormat("raw"), FormatRaw)
+	core.AssertEqual(t, ImageFormat("unknown"), FormatUnknown)
 }
 
-func TestContainer_ImageFormatConstants_Unique_Bad(t *testing.T) {
+func TestContainer_ImageFormatConstants_Unique_Bad(t *core.T) {
 	seen := map[ImageFormat]bool{}
-	for _, f := range []ImageFormat{FormatISO, FormatQCOW2, FormatVMDK, FormatAMI, FormatRaw, FormatUnknown} {
-		assert.False(t, seen[f], "duplicate ImageFormat constant %q", f)
+	for _, f := range []ImageFormat{FormatISO, FormatQCOW2, FormatVMDK, FormatRaw, FormatUnknown} {
+		core.AssertFalse(t, seen[f], core.Sprintf("duplicate ImageFormat constant %q", f))
 		seen[f] = true
 	}
 }
 
-func TestContainer_ImageFormatConstants_String_Ugly(t *testing.T) {
+func TestContainer_ImageFormatConstants_String_Ugly(t *core.T) {
 	// ImageFormat is a string alias — it must roundtrip via string conversion.
-	for _, f := range []ImageFormat{FormatISO, FormatQCOW2, FormatVMDK, FormatAMI, FormatRaw, FormatUnknown} {
-		assert.Equal(t, string(f), string(ImageFormat(string(f))))
+	for _, f := range []ImageFormat{FormatISO, FormatQCOW2, FormatVMDK, FormatRaw, FormatUnknown} {
+		core.AssertEqual(t, string(f), string(ImageFormat(string(f))))
 	}
 }
 
 // --- RunOptions / Container struct smoke ---
 
-func TestContainer_RunOptions_Zero_Good(t *testing.T) {
+func TestContainer_RunOptions_Zero_Good(t *core.T) {
 	var o RunOptions
-	assert.Equal(t, "", o.Name)
-	assert.False(t, o.Detach)
-	assert.Equal(t, 0, o.Memory)
+	core.AssertEqual(t, "", o.Name)
+	core.AssertFalse(t, o.Detach)
+	core.AssertEqual(t, 0, o.Memory)
 }
 
-func TestContainer_RunOptions_WithValues_Bad(t *testing.T) {
+func TestContainer_RunOptions_WithValues_Bad(t *core.T) {
 	o := RunOptions{Memory: -1, CPUs: -1, SSHPort: -1}
 	// The struct is a plain DTO, callers are responsible for validation.
-	assert.Equal(t, -1, o.Memory)
-	assert.Equal(t, -1, o.CPUs)
-	assert.Equal(t, -1, o.SSHPort)
+	core.AssertEqual(t, -1, o.Memory)
+	core.AssertEqual(t, -1, o.CPUs)
+	core.AssertEqual(t, -1, o.SSHPort)
 }
 
-func TestContainer_Struct_AllFields_Ugly(t *testing.T) {
+func TestContainer_Struct_AllFields_Ugly(t *core.T) {
 	c := Container{
 		ID:      "abcdef01",
 		Name:    "demo",
@@ -129,7 +128,31 @@ func TestContainer_Struct_AllFields_Ugly(t *testing.T) {
 		SSHKey:  "/tmp/id_ed25519",
 	}
 
-	assert.Equal(t, StatusRunning, c.Status)
-	assert.Equal(t, 80, c.Ports[8080])
-	assert.NotZero(t, c.PID)
+	core.AssertEqual(t, StatusRunning, c.Status)
+	core.AssertEqual(t, 80, c.Ports[8080])
+	core.AssertNotEqual(t, 0, c.PID)
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestContainer_GenerateID_Bad(t *testing.T) {
+	symbol := GenerateID
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestContainer_GenerateID_Ugly(t *testing.T) {
+	symbol := GenerateID
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
 }

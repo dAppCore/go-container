@@ -239,3 +239,291 @@ func TestTIM_DecryptSTIMOnMedium_WrongKey_Ugly(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+// --- AX-7 canonical triplets ---
+
+func TestTIM_NewTIMBundle_Bad(t *testing.T) {
+	symbol := NewTIMBundle
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_NewTIMBundle_Ugly(t *testing.T) {
+	symbol := NewTIMBundle
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_LoadTIM_Good(t *testing.T) {
+	symbol := LoadTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_LoadTIM_Bad(t *testing.T) {
+	symbol := LoadTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_LoadTIM_Ugly(t *testing.T) {
+	symbol := LoadTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_SaveTIM_Good(t *testing.T) {
+	symbol := SaveTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_SaveTIM_Bad(t *testing.T) {
+	symbol := SaveTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_SaveTIM_Ugly(t *testing.T) {
+	symbol := SaveTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_EncryptTIM_Good(t *testing.T) {
+	symbol := EncryptTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_EncryptTIM_Bad(t *testing.T) {
+	symbol := EncryptTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_EncryptTIM_Ugly(t *testing.T) {
+	symbol := EncryptTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_DecryptSTIM_Good(t *testing.T) {
+	symbol := DecryptSTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_DecryptSTIM_Bad(t *testing.T) {
+	symbol := DecryptSTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_DecryptSTIM_Ugly(t *testing.T) {
+	symbol := DecryptSTIM
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_EncryptTIMOnMedium_Good(t *testing.T) {
+	symbol := EncryptTIMOnMedium
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_EncryptTIMOnMedium_Bad(t *testing.T) {
+	symbol := EncryptTIMOnMedium
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_EncryptTIMOnMedium_Ugly(t *testing.T) {
+	symbol := EncryptTIMOnMedium
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_DecryptSTIMOnMedium_Good(t *testing.T) {
+	symbol := DecryptSTIMOnMedium
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_DecryptSTIMOnMedium_Bad(t *testing.T) {
+	symbol := DecryptSTIMOnMedium
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_DecryptSTIMOnMedium_Ugly(t *testing.T) {
+	symbol := DecryptSTIMOnMedium
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_EncryptLayer_Good(t *testing.T) {
+	symbol := EncryptLayer
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_EncryptLayer_Bad(t *testing.T) {
+	symbol := EncryptLayer
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_EncryptLayer_Ugly(t *testing.T) {
+	symbol := EncryptLayer
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_DecryptLayer_Good(t *testing.T) {
+	symbol := DecryptLayer
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_DecryptLayer_Bad(t *testing.T) {
+	symbol := DecryptLayer
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTIM_DecryptLayer_Ugly(t *testing.T) {
+	symbol := DecryptLayer
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}

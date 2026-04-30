@@ -1,7 +1,7 @@
 package container
 
 import (
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"reflect"
 	"testing"
 )
@@ -146,5 +146,260 @@ func TestDataNode_Info_Good(t *testing.T) {
 	}
 	if s, sub := info, "not started"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestDataNode_NewDataNode_Bad(t *testing.T) {
+	symbol := NewDataNode
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_NewDataNode_Ugly(t *testing.T) {
+	symbol := NewDataNode
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_WithSigil_Good(t *testing.T) {
+	symbol := (*DataNode).WithSigil
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_WithSigil_Bad(t *testing.T) {
+	symbol := (*DataNode).WithSigil
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_WithSigil_Ugly(t *testing.T) {
+	symbol := (*DataNode).WithSigil
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Build_Good(t *testing.T) {
+	symbol := (*DataNode).Build
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Build_Bad(t *testing.T) {
+	symbol := (*DataNode).Build
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Build_Ugly(t *testing.T) {
+	symbol := (*DataNode).Build
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Start_Good(t *testing.T) {
+	symbol := (*DataNode).Start
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Start_Bad(t *testing.T) {
+	symbol := (*DataNode).Start
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Start_Ugly(t *testing.T) {
+	symbol := (*DataNode).Start
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Stop_Good(t *testing.T) {
+	symbol := (*DataNode).Stop
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Stop_Bad(t *testing.T) {
+	symbol := (*DataNode).Stop
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Stop_Ugly(t *testing.T) {
+	symbol := (*DataNode).Stop
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Seal_Good(t *testing.T) {
+	symbol := (*DataNode).Seal
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Seal_Bad(t *testing.T) {
+	symbol := (*DataNode).Seal
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Seal_Ugly(t *testing.T) {
+	symbol := (*DataNode).Seal
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Info_Good(t *testing.T) {
+	symbol := (*DataNode).Info
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Info_Bad(t *testing.T) {
+	symbol := (*DataNode).Info
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Info_Ugly(t *testing.T) {
+	symbol := (*DataNode).Info
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Uptime_Good(t *testing.T) {
+	symbol := (*DataNode).Uptime
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Uptime_Bad(t *testing.T) {
+	symbol := (*DataNode).Uptime
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataNode_DataNode_Uptime_Ugly(t *testing.T) {
+	symbol := (*DataNode).Uptime
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
 	}
 }

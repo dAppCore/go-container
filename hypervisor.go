@@ -3,7 +3,7 @@ package container
 import (
 	"context"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 
@@ -130,7 +130,7 @@ func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *H
 		shareID++
 	}
 
-// Check if KVM is available on Linux, remove -enable-kvm if not
+	// Check if KVM is available on Linux, remove -enable-kvm if not
 	if discoverHostOS() != "linux" || !isKVMAvailable() {
 		// Remove -enable-kvm from args
 		newArgs := make([]string, 0, len(args))

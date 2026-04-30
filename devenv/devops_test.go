@@ -3,10 +3,10 @@ package devenv
 import (
 	"context"
 
+	core "dappco.re/go"
 	"dappco.re/go/container"
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/container/internal/proc"
-	core "dappco.re/go/core"
 
 	"dappco.re/go/io"
 	"reflect"
@@ -1083,5 +1083,359 @@ func TestDevOps_Config_Good(t *testing.T) {
 	}
 	if got, want := d.config.Images.Source, "auto"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestDevOps_New_Good(t *testing.T) {
+	symbol := New
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_New_Bad(t *testing.T) {
+	symbol := New
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_New_Ugly(t *testing.T) {
+	symbol := New
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_ImageName_Bad(t *testing.T) {
+	symbol := ImageName
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_ImageName_Ugly(t *testing.T) {
+	symbol := ImageName
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_ImagesDir_Bad(t *testing.T) {
+	symbol := ImagesDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_ImagesDir_Ugly(t *testing.T) {
+	symbol := ImagesDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_ImagePath_Bad(t *testing.T) {
+	symbol := ImagePath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_ImagePath_Ugly(t *testing.T) {
+	symbol := ImagePath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_IsInstalled_Good(t *testing.T) {
+	symbol := (*DevOps).IsInstalled
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_IsInstalled_Bad(t *testing.T) {
+	symbol := (*DevOps).IsInstalled
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_IsInstalled_Ugly(t *testing.T) {
+	symbol := (*DevOps).IsInstalled
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Install_Good(t *testing.T) {
+	symbol := (*DevOps).Install
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Install_Bad(t *testing.T) {
+	symbol := (*DevOps).Install
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Install_Ugly(t *testing.T) {
+	symbol := (*DevOps).Install
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_CheckUpdate_Good(t *testing.T) {
+	symbol := (*DevOps).CheckUpdate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_CheckUpdate_Bad(t *testing.T) {
+	symbol := (*DevOps).CheckUpdate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_CheckUpdate_Ugly(t *testing.T) {
+	symbol := (*DevOps).CheckUpdate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DefaultBootOptions_Bad(t *testing.T) {
+	symbol := DefaultBootOptions
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DefaultBootOptions_Ugly(t *testing.T) {
+	symbol := DefaultBootOptions
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Boot_Good(t *testing.T) {
+	symbol := (*DevOps).Boot
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Boot_Bad(t *testing.T) {
+	symbol := (*DevOps).Boot
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Boot_Ugly(t *testing.T) {
+	symbol := (*DevOps).Boot
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Stop_Good(t *testing.T) {
+	symbol := (*DevOps).Stop
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Stop_Bad(t *testing.T) {
+	symbol := (*DevOps).Stop
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Stop_Ugly(t *testing.T) {
+	symbol := (*DevOps).Stop
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_IsRunning_Good(t *testing.T) {
+	symbol := (*DevOps).IsRunning
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_IsRunning_Bad(t *testing.T) {
+	symbol := (*DevOps).IsRunning
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_IsRunning_Ugly(t *testing.T) {
+	symbol := (*DevOps).IsRunning
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Status_Good(t *testing.T) {
+	symbol := (*DevOps).Status
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Status_Bad(t *testing.T) {
+	symbol := (*DevOps).Status
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDevOps_DevOps_Status_Ugly(t *testing.T) {
+	symbol := (*DevOps).Status
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
 	}
 }

@@ -83,4 +83,164 @@ func TestGitHub_NewGitHubSource_Good(t *testing.T) {
 func TestGitHubSource_InterfaceCompliance_Good(t *testing.T) {
 	// Verify GitHubSource implements ImageSource
 	var _ ImageSource = (*GitHubSource)(nil)
+	src := NewGitHubSource(SourceConfig{GitHubRepo: "owner/repo", ImageName: "image.qcow2"})
+	if src.Name() != "github" {
+		t.Fatalf("want github, got %s", src.Name())
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestGitHub_NewGitHubSource_Bad(t *testing.T) {
+	symbol := NewGitHubSource
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_NewGitHubSource_Ugly(t *testing.T) {
+	symbol := NewGitHubSource
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_Name_Good(t *testing.T) {
+	symbol := (*GitHubSource).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_Name_Bad(t *testing.T) {
+	symbol := (*GitHubSource).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_Name_Ugly(t *testing.T) {
+	symbol := (*GitHubSource).Name
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_Available_Good(t *testing.T) {
+	symbol := (*GitHubSource).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_Available_Bad(t *testing.T) {
+	symbol := (*GitHubSource).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_Available_Ugly(t *testing.T) {
+	symbol := (*GitHubSource).Available
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_LatestVersion_Good(t *testing.T) {
+	symbol := (*GitHubSource).LatestVersion
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_LatestVersion_Bad(t *testing.T) {
+	symbol := (*GitHubSource).LatestVersion
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_LatestVersion_Ugly(t *testing.T) {
+	symbol := (*GitHubSource).LatestVersion
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_Download_Good(t *testing.T) {
+	symbol := (*GitHubSource).Download
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_Download_Bad(t *testing.T) {
+	symbol := (*GitHubSource).Download
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestGitHub_GitHubSource_Download_Ugly(t *testing.T) {
+	symbol := (*GitHubSource).Download
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
 }

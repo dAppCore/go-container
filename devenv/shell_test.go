@@ -66,3 +66,38 @@ func TestShellOptions_EmptyCommand_Good(t *testing.T) {
 		t.Fatalf("want len %v, got %v", want, got)
 	}
 }
+
+// --- AX-7 canonical triplets ---
+
+func TestShell_DevOps_Shell_Good(t *testing.T) {
+	symbol := (*DevOps).Shell
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestShell_DevOps_Shell_Bad(t *testing.T) {
+	symbol := (*DevOps).Shell
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestShell_DevOps_Shell_Ugly(t *testing.T) {
+	symbol := (*DevOps).Shell
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}

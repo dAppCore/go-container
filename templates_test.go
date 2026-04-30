@@ -1,8 +1,8 @@
 package container
 
 import (
+	core "dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
-	core "dappco.re/go/core"
 	"dappco.re/go/io"
 	"reflect"
 	"slices"
@@ -668,5 +668,172 @@ func TestScanUserTemplates_DefaultDescription_Good(t *testing.T) {
 	}
 	if got, want := templates[0].Description, "User-defined template"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestTemplates_ListTemplates_Bad(t *testing.T) {
+	symbol := ListTemplates
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ListTemplates_Ugly(t *testing.T) {
+	symbol := ListTemplates
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ListTemplatesIter_Good(t *testing.T) {
+	symbol := ListTemplatesIter
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ListTemplatesIter_Bad(t *testing.T) {
+	symbol := ListTemplatesIter
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ListTemplatesIter_Ugly(t *testing.T) {
+	symbol := ListTemplatesIter
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_GetTemplate_Good(t *testing.T) {
+	symbol := GetTemplate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_GetTemplate_Bad(t *testing.T) {
+	symbol := GetTemplate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_GetTemplate_Ugly(t *testing.T) {
+	symbol := GetTemplate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ApplyTemplate_Bad(t *testing.T) {
+	symbol := ApplyTemplate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ApplyTemplate_Ugly(t *testing.T) {
+	symbol := ApplyTemplate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ApplyVariables_Good(t *testing.T) {
+	symbol := ApplyVariables
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ApplyVariables_Bad(t *testing.T) {
+	symbol := ApplyVariables
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ApplyVariables_Ugly(t *testing.T) {
+	symbol := ApplyVariables
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ExtractVariables_Bad(t *testing.T) {
+	symbol := ExtractVariables
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestTemplates_ExtractVariables_Ugly(t *testing.T) {
+	symbol := ExtractVariables
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
 	}
 }

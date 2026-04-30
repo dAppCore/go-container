@@ -5,7 +5,7 @@ import (
 	"io/fs"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/container/sources"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"

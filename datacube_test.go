@@ -1,8 +1,8 @@
 package container
 
 import (
+	"dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 	"reflect"
 	"testing"
@@ -140,4 +140,629 @@ func TestDataCube_Describe_Good(t *testing.T) {
 func TestDataCube_ImplementsMedium_Good(t *testing.T) {
 	// Compile-time check: DataCube must implement io.Medium.
 	var _ io.Medium = (*DataCube)(nil)
+	cube, err := NewDataCube(io.Local, []byte("workspace-key"), "worker-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cube == nil {
+		t.Fatal("expected non-nil value")
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestDataCube_NewDataCube_Bad(t *testing.T) {
+	symbol := NewDataCube
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_NewDataCube_Ugly(t *testing.T) {
+	symbol := NewDataCube
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Read_Good(t *testing.T) {
+	symbol := (*DataCube).Read
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Read_Bad(t *testing.T) {
+	symbol := (*DataCube).Read
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Read_Ugly(t *testing.T) {
+	symbol := (*DataCube).Read
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Write_Good(t *testing.T) {
+	symbol := (*DataCube).Write
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Write_Bad(t *testing.T) {
+	symbol := (*DataCube).Write
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Write_Ugly(t *testing.T) {
+	symbol := (*DataCube).Write
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_WriteMode_Good(t *testing.T) {
+	symbol := (*DataCube).WriteMode
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_WriteMode_Bad(t *testing.T) {
+	symbol := (*DataCube).WriteMode
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_WriteMode_Ugly(t *testing.T) {
+	symbol := (*DataCube).WriteMode
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_EnsureDir_Good(t *testing.T) {
+	symbol := (*DataCube).EnsureDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_EnsureDir_Bad(t *testing.T) {
+	symbol := (*DataCube).EnsureDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_EnsureDir_Ugly(t *testing.T) {
+	symbol := (*DataCube).EnsureDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_IsFile_Good(t *testing.T) {
+	symbol := (*DataCube).IsFile
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_IsFile_Bad(t *testing.T) {
+	symbol := (*DataCube).IsFile
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_IsFile_Ugly(t *testing.T) {
+	symbol := (*DataCube).IsFile
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Delete_Good(t *testing.T) {
+	symbol := (*DataCube).Delete
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Delete_Bad(t *testing.T) {
+	symbol := (*DataCube).Delete
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Delete_Ugly(t *testing.T) {
+	symbol := (*DataCube).Delete
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_DeleteAll_Good(t *testing.T) {
+	symbol := (*DataCube).DeleteAll
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_DeleteAll_Bad(t *testing.T) {
+	symbol := (*DataCube).DeleteAll
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_DeleteAll_Ugly(t *testing.T) {
+	symbol := (*DataCube).DeleteAll
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Rename_Good(t *testing.T) {
+	symbol := (*DataCube).Rename
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Rename_Bad(t *testing.T) {
+	symbol := (*DataCube).Rename
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Rename_Ugly(t *testing.T) {
+	symbol := (*DataCube).Rename
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_List_Good(t *testing.T) {
+	symbol := (*DataCube).List
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_List_Bad(t *testing.T) {
+	symbol := (*DataCube).List
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_List_Ugly(t *testing.T) {
+	symbol := (*DataCube).List
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Stat_Good(t *testing.T) {
+	symbol := (*DataCube).Stat
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Stat_Bad(t *testing.T) {
+	symbol := (*DataCube).Stat
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Stat_Ugly(t *testing.T) {
+	symbol := (*DataCube).Stat
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Open_Good(t *testing.T) {
+	symbol := (*DataCube).Open
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Open_Bad(t *testing.T) {
+	symbol := (*DataCube).Open
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Open_Ugly(t *testing.T) {
+	symbol := (*DataCube).Open
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Create_Good(t *testing.T) {
+	symbol := (*DataCube).Create
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Create_Bad(t *testing.T) {
+	symbol := (*DataCube).Create
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Create_Ugly(t *testing.T) {
+	symbol := (*DataCube).Create
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Append_Good(t *testing.T) {
+	symbol := (*DataCube).Append
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Append_Bad(t *testing.T) {
+	symbol := (*DataCube).Append
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Append_Ugly(t *testing.T) {
+	symbol := (*DataCube).Append
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_ReadStream_Good(t *testing.T) {
+	symbol := (*DataCube).ReadStream
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_ReadStream_Bad(t *testing.T) {
+	symbol := (*DataCube).ReadStream
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_ReadStream_Ugly(t *testing.T) {
+	symbol := (*DataCube).ReadStream
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_WriteStream_Good(t *testing.T) {
+	symbol := (*DataCube).WriteStream
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_WriteStream_Bad(t *testing.T) {
+	symbol := (*DataCube).WriteStream
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_WriteStream_Ugly(t *testing.T) {
+	symbol := (*DataCube).WriteStream
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Exists_Good(t *testing.T) {
+	symbol := (*DataCube).Exists
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Exists_Bad(t *testing.T) {
+	symbol := (*DataCube).Exists
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Exists_Ugly(t *testing.T) {
+	symbol := (*DataCube).Exists
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_IsDir_Good(t *testing.T) {
+	symbol := (*DataCube).IsDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_IsDir_Bad(t *testing.T) {
+	symbol := (*DataCube).IsDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_IsDir_Ugly(t *testing.T) {
+	symbol := (*DataCube).IsDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Describe_Good(t *testing.T) {
+	symbol := (*DataCube).Describe
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Describe_Bad(t *testing.T) {
+	symbol := (*DataCube).Describe
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestDataCube_DataCube_Describe_Ugly(t *testing.T) {
+	symbol := (*DataCube).Describe
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
 }

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"syscall"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 
 	"dappco.re/go/container/internal/coreutil"
@@ -53,16 +53,16 @@ type Command struct {
 	waited  bool
 	waitMu  sync.Mutex
 
-	stdoutPipe *pipeReader
-	stderrPipe *pipeReader
+	stdoutPipe *pipereader
+	stderrPipe *pipereader
 }
 
-type pipeReader struct {
+type pipereader struct {
 	fd      int
 	childFD int
 }
 
-func (p *pipeReader) Read(data []byte) (int, error) {
+func (p *pipereader) Read(data []byte) (int, error) {
 	n, err := syscall.Read(p.fd, data)
 	if err != nil {
 		return n, err
@@ -73,7 +73,7 @@ func (p *pipeReader) Read(data []byte) (int, error) {
 	return n, nil
 }
 
-func (p *pipeReader) Close() error {
+func (p *pipereader) Close() error {
 	var first error
 	if p.fd >= 0 {
 		if err := syscall.Close(p.fd); err != nil {
@@ -90,11 +90,11 @@ func (p *pipeReader) Close() error {
 	return first
 }
 
-type stdioReader struct {
+type stdioreader struct {
 	fd int
 }
 
-func (s *stdioReader) Read(data []byte) (int, error) {
+func (s *stdioreader) Read(data []byte) (int, error) {
 	n, err := syscall.Read(s.fd, data)
 	if err != nil {
 		return n, err
@@ -105,15 +105,15 @@ func (s *stdioReader) Read(data []byte) (int, error) {
 	return n, nil
 }
 
-func (s *stdioReader) Close() error { return nil }
+func (s *stdioreader) Close() error { return nil }
 
-func (s *stdioReader) Fd() uintptr { return uintptr(s.fd) }
+func (s *stdioreader) Fd() uintptr { return uintptr(s.fd) }
 
-type stdioWriter struct {
+type stdiowriter struct {
 	fd int
 }
 
-func (s *stdioWriter) Write(data []byte) (int, error) {
+func (s *stdiowriter) Write(data []byte) (int, error) {
 	total := 0
 	for len(data) > 0 {
 		n, err := syscall.Write(s.fd, data)
@@ -126,14 +126,14 @@ func (s *stdioWriter) Write(data []byte) (int, error) {
 	return total, nil
 }
 
-func (s *stdioWriter) Close() error { return nil }
+func (s *stdiowriter) Close() error { return nil }
 
-func (s *stdioWriter) Fd() uintptr { return uintptr(s.fd) }
+func (s *stdiowriter) Fd() uintptr { return uintptr(s.fd) }
 
 var (
-	Stdin  goio.ReadCloser  = &stdioReader{fd: 0}
-	Stdout goio.WriteCloser = &stdioWriter{fd: 1}
-	Stderr goio.WriteCloser = &stdioWriter{fd: 2}
+	Stdin  goio.ReadCloser  = &stdioreader{fd: 0}
+	Stdout goio.WriteCloser = &stdiowriter{fd: 1}
+	Stderr goio.WriteCloser = &stdiowriter{fd: 2}
 )
 
 var (
@@ -202,7 +202,7 @@ func (c *Command) StdoutPipe() (goio.ReadCloser, error) {
 	if err := syscall.Pipe(fds); err != nil {
 		return nil, err
 	}
-	c.stdoutPipe = &pipeReader{fd: fds[0], childFD: fds[1]}
+	c.stdoutPipe = &pipereader{fd: fds[0], childFD: fds[1]}
 	return c.stdoutPipe, nil
 }
 
@@ -217,7 +217,7 @@ func (c *Command) StderrPipe() (goio.ReadCloser, error) {
 	if err := syscall.Pipe(fds); err != nil {
 		return nil, err
 	}
-	c.stderrPipe = &pipeReader{fd: fds[0], childFD: fds[1]}
+	c.stderrPipe = &pipereader{fd: fds[0], childFD: fds[1]}
 	return c.stderrPipe, nil
 }
 
@@ -342,7 +342,7 @@ func (c *Command) inputFD() uintptr {
 	return uintptr(openNull())
 }
 
-func (c *Command) outputFD(pipe *pipeReader, writer goio.Writer) uintptr {
+func (c *Command) outputFD(pipe *pipereader, writer goio.Writer) uintptr {
 	if pipe != nil {
 		return uintptr(pipe.childFD)
 	}
@@ -357,11 +357,15 @@ func (c *Command) outputFD(pipe *pipeReader, writer goio.Writer) uintptr {
 
 func (c *Command) closeChildPipeEnds() {
 	if c.stdoutPipe != nil && c.stdoutPipe.childFD >= 0 {
-		_ = syscall.Close(c.stdoutPipe.childFD)
+		if err := syscall.Close(c.stdoutPipe.childFD); err != nil {
+			// Parent-side cleanup only; Wait reports process failure separately.
+		}
 		c.stdoutPipe.childFD = -1
 	}
 	if c.stderrPipe != nil && c.stderrPipe.childFD >= 0 {
-		_ = syscall.Close(c.stderrPipe.childFD)
+		if err := syscall.Close(c.stderrPipe.childFD); err != nil {
+			// Parent-side cleanup only; Wait reports process failure separately.
+		}
 		c.stderrPipe.childFD = -1
 	}
 }
@@ -373,7 +377,9 @@ func (c *Command) watchContext() {
 	go func() {
 		select {
 		case <-c.ctx.Done():
-			_ = c.Process.Kill()
+			if err := c.Process.Kill(); err != nil {
+				// Process may have exited between context cancellation and kill.
+			}
 		case <-c.done:
 		}
 	}()

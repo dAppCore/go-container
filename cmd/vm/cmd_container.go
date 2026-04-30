@@ -10,11 +10,10 @@ import (
 	// Note: AX-6 — time is structural for elapsed container duration formatting; no core primitive.
 	"time"
 
-	"dappco.re/go/cli/pkg/cli"
+	core "dappco.re/go"
+	"dappco.re/go/cli/pkg/i18n"
 	"dappco.re/go/container"
 	"dappco.re/go/container/internal/proc"
-	core "dappco.re/go/core"
-	"dappco.re/go/i18n"
 	"dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 )
@@ -32,48 +31,54 @@ var (
 )
 
 // addVMRunCommand adds the 'run' command under vm.
-func addVMRunCommand(parent *cli.Command) {
-	runCmd := &cli.Command{
-		Use:   "run [image]",
-		Short: i18n.T("cmd.vm.run.short"),
-		Long:  i18n.T("cmd.vm.run.long"),
-		RunE: func(cmd *cli.Command, args []string) error {
-			opts := container.RunOptions{
-				Name:    runName,
-				Detach:  runDetach,
-				Memory:  runMemory,
-				CPUs:    runCPUs,
-				SSHPort: runSSHPort,
-				GPU:     runGPU,
+func addVMRunCommand(c *core.Core) {
+	registerVMCommand(c, "vm/run", core.Command{
+		Description: i18n.T("cmd.vm.run.short"),
+		Flags: core.NewOptions(
+			core.Option{Key: "name", Value: ""},
+			core.Option{Key: "detach", Value: false},
+			core.Option{Key: "memory", Value: 0},
+			core.Option{Key: "cpus", Value: 0},
+			core.Option{Key: "ssh-port", Value: 0},
+			core.Option{Key: "template", Value: ""},
+			core.Option{Key: "runtime", Value: ""},
+			core.Option{Key: "gpu", Value: false},
+		),
+		Action: func(opts core.Options) core.Result {
+			runOpts := container.RunOptions{
+				Name:    opts.String("name"),
+				Detach:  opts.Bool("detach"),
+				Memory:  opts.Int("memory"),
+				CPUs:    opts.Int("cpus"),
+				SSHPort: opts.Int("ssh-port"),
+				GPU:     opts.Bool("gpu"),
 			}
 
 			// If template is specified, build and run from template
-			if runTemplateName != "" {
-				vars := ParseVarFlags(runVarFlags)
-				return RunFromTemplate(runTemplateName, vars, opts)
+			if templateName := opts.String("template"); templateName != "" {
+				vars := ParseVarFlags(optionStrings(opts, "var"))
+				return resultFromError(RunFromTemplate(templateName, vars, runOpts))
 			}
 
 			// Otherwise, require an image path
+			args := optionArgs(opts)
 			if len(args) == 0 {
-				return coreerr.E("vm run", i18n.T("cmd.vm.run.error.image_required"), nil)
+				return core.Fail(coreerr.E("vm run", i18n.T("cmd.vm.run.error.image_required"), nil))
 			}
 			image := args[0]
 
-			return runContainer(image, runName, runDetach, runMemory, runCPUs, runSSHPort, runRuntime, runGPU)
+			return resultFromError(runContainer(
+				image,
+				opts.String("name"),
+				opts.Bool("detach"),
+				opts.Int("memory"),
+				opts.Int("cpus"),
+				opts.Int("ssh-port"),
+				opts.String("runtime"),
+				opts.Bool("gpu"),
+			))
 		},
-	}
-
-	runCmd.Flags().StringVar(&runName, "name", "", i18n.T("cmd.vm.run.flag.name"))
-	runCmd.Flags().BoolVarP(&runDetach, "detach", "d", false, i18n.T("cmd.vm.run.flag.detach"))
-	runCmd.Flags().IntVar(&runMemory, "memory", 0, i18n.T("cmd.vm.run.flag.memory"))
-	runCmd.Flags().IntVar(&runCPUs, "cpus", 0, i18n.T("cmd.vm.run.flag.cpus"))
-	runCmd.Flags().IntVar(&runSSHPort, "ssh-port", 0, i18n.T("cmd.vm.run.flag.ssh_port"))
-	runCmd.Flags().StringVar(&runTemplateName, "template", "", i18n.T("cmd.vm.run.flag.template"))
-	runCmd.Flags().StringArrayVar(&runVarFlags, "var", nil, i18n.T("cmd.vm.run.flag.var"))
-	runCmd.Flags().StringVar(&runRuntime, "runtime", "", i18n.T("cmd.vm.run.flag.runtime"))
-	runCmd.Flags().BoolVar(&runGPU, "gpu", false, i18n.T("cmd.vm.run.flag.gpu"))
-
-	parent.AddCommand(runCmd)
+	})
 }
 
 // resolveRuntime maps the --runtime flag onto a RuntimeType. Empty string
@@ -201,19 +206,14 @@ func runContainerApple(image, name string, detach bool, memory, cpus int, gpu bo
 var psAll bool
 
 // addVMPsCommand adds the 'ps' command under vm.
-func addVMPsCommand(parent *cli.Command) {
-	psCmd := &cli.Command{
-		Use:   "ps",
-		Short: i18n.T("cmd.vm.ps.short"),
-		Long:  i18n.T("cmd.vm.ps.long"),
-		RunE: func(cmd *cli.Command, args []string) error {
-			return listContainers(psAll)
+func addVMPsCommand(c *core.Core) {
+	registerVMCommand(c, "vm/ps", core.Command{
+		Description: i18n.T("cmd.vm.ps.short"),
+		Flags:       core.NewOptions(core.Option{Key: "all", Value: false}),
+		Action: func(opts core.Options) core.Result {
+			return resultFromError(listContainers(opts.Bool("all")))
 		},
-	}
-
-	psCmd.Flags().BoolVarP(&psAll, "all", "a", false, i18n.T("cmd.vm.ps.flag.all"))
-
-	parent.AddCommand(psCmd)
+	})
 }
 
 func listContainers(all bool) error {
@@ -277,8 +277,7 @@ func listContainers(all bool) error {
 			c.ID[:8], c.Name, imageName, status, duration, c.PID)
 	}
 
-	_ = w.Flush()
-	return nil
+	return w.Flush()
 }
 
 func formatDuration(d time.Duration) string {
@@ -295,20 +294,17 @@ func formatDuration(d time.Duration) string {
 }
 
 // addVMStopCommand adds the 'stop' command under vm.
-func addVMStopCommand(parent *cli.Command) {
-	stopCmd := &cli.Command{
-		Use:   "stop <container-id>",
-		Short: i18n.T("cmd.vm.stop.short"),
-		Long:  i18n.T("cmd.vm.stop.long"),
-		RunE: func(cmd *cli.Command, args []string) error {
+func addVMStopCommand(c *core.Core) {
+	registerVMCommand(c, "vm/stop", core.Command{
+		Description: i18n.T("cmd.vm.stop.short"),
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
 			if len(args) == 0 {
-				return coreerr.E("vm stop", i18n.T("cmd.vm.error.id_required"), nil)
+				return core.Fail(coreerr.E("vm stop", i18n.T("cmd.vm.error.id_required"), nil))
 			}
-			return stopContainer(args[0])
+			return resultFromError(stopContainer(args[0]))
 		},
-	}
-
-	parent.AddCommand(stopCmd)
+	})
 }
 
 func stopContainer(id string) error {
@@ -362,22 +358,18 @@ func resolveContainerID(manager *container.LinuxKitManager, partialID string) (s
 var logsFollow bool
 
 // addVMLogsCommand adds the 'logs' command under vm.
-func addVMLogsCommand(parent *cli.Command) {
-	logsCmd := &cli.Command{
-		Use:   "logs <container-id>",
-		Short: i18n.T("cmd.vm.logs.short"),
-		Long:  i18n.T("cmd.vm.logs.long"),
-		RunE: func(cmd *cli.Command, args []string) error {
+func addVMLogsCommand(c *core.Core) {
+	registerVMCommand(c, "vm/logs", core.Command{
+		Description: i18n.T("cmd.vm.logs.short"),
+		Flags:       core.NewOptions(core.Option{Key: "follow", Value: false}),
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
 			if len(args) == 0 {
-				return coreerr.E("vm logs", i18n.T("cmd.vm.error.id_required"), nil)
+				return core.Fail(coreerr.E("vm logs", i18n.T("cmd.vm.error.id_required"), nil))
 			}
-			return viewLogs(args[0], logsFollow)
+			return resultFromError(viewLogs(args[0], opts.Bool("follow")))
 		},
-	}
-
-	logsCmd.Flags().BoolVarP(&logsFollow, "follow", "f", false, i18n.T("common.flag.follow"))
-
-	parent.AddCommand(logsCmd)
+	})
 }
 
 func viewLogs(id string, follow bool) error {
@@ -396,27 +388,28 @@ func viewLogs(id string, follow bool) error {
 	if err != nil {
 		return coreerr.E("viewLogs", i18n.T("i18n.fail.get", "logs"), err)
 	}
-	defer func() { _ = reader.Close() }()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			// Streaming has already ended; return the copy error if one exists.
+		}
+	}()
 
 	_, err = goio.Copy(proc.Stdout, reader)
 	return err
 }
 
 // addVMExecCommand adds the 'exec' command under vm.
-func addVMExecCommand(parent *cli.Command) {
-	execCmd := &cli.Command{
-		Use:   "exec <container-id> <command> [args...]",
-		Short: i18n.T("cmd.vm.exec.short"),
-		Long:  i18n.T("cmd.vm.exec.long"),
-		RunE: func(cmd *cli.Command, args []string) error {
+func addVMExecCommand(c *core.Core) {
+	registerVMCommand(c, "vm/exec", core.Command{
+		Description: i18n.T("cmd.vm.exec.short"),
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
 			if len(args) < 2 {
-				return coreerr.E("vm exec", i18n.T("cmd.vm.error.id_and_cmd_required"), nil)
+				return core.Fail(coreerr.E("vm exec", i18n.T("cmd.vm.error.id_and_cmd_required"), nil))
 			}
-			return execInContainer(args[0], args[1:])
+			return resultFromError(execInContainer(args[0], args[1:]))
 		},
-	}
-
-	parent.AddCommand(execCmd)
+	})
 }
 
 func execInContainer(id string, cmd []string) error {

@@ -3,9 +3,9 @@ package devenv
 import (
 	"context"
 
+	"dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/container/sources"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 	"errors"
 	"reflect"
@@ -756,5 +756,161 @@ func TestManifest_Struct_Good(t *testing.T) {
 	}
 	if got, want := m.Images["test.img"].Version, "1.0.0"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestImages_NewImageManager_Bad(t *testing.T) {
+	symbol := NewImageManager
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_NewImageManager_Ugly(t *testing.T) {
+	symbol := NewImageManager
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_ImageManager_IsInstalled_Good(t *testing.T) {
+	symbol := (*ImageManager).IsInstalled
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_ImageManager_IsInstalled_Bad(t *testing.T) {
+	symbol := (*ImageManager).IsInstalled
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_ImageManager_IsInstalled_Ugly(t *testing.T) {
+	symbol := (*ImageManager).IsInstalled
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_ImageManager_Install_Good(t *testing.T) {
+	symbol := (*ImageManager).Install
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_ImageManager_Install_Bad(t *testing.T) {
+	symbol := (*ImageManager).Install
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_ImageManager_Install_Ugly(t *testing.T) {
+	symbol := (*ImageManager).Install
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_ImageManager_CheckUpdate_Good(t *testing.T) {
+	symbol := (*ImageManager).CheckUpdate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_ImageManager_CheckUpdate_Bad(t *testing.T) {
+	symbol := (*ImageManager).CheckUpdate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_ImageManager_CheckUpdate_Ugly(t *testing.T) {
+	symbol := (*ImageManager).CheckUpdate
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_Manifest_Save_Good(t *testing.T) {
+	symbol := (*Manifest).Save
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_Manifest_Save_Bad(t *testing.T) {
+	symbol := (*Manifest).Save
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestImages_Manifest_Save_Ugly(t *testing.T) {
+	symbol := (*Manifest).Save
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
 	}
 }

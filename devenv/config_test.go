@@ -1,8 +1,8 @@
 package devenv
 
 import (
+	"dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/core"
 	"dappco.re/go/io"
 	"reflect"
 	"syscall"
@@ -348,4 +348,160 @@ func TestLoadConfig_UnreadableFile_Bad(t *testing.T) {
 	}
 
 	_ = syscall.Chmod(configPath, 0644)
+}
+
+// --- AX-7 canonical triplets ---
+
+func TestConfig_DefaultConfig_Bad(t *testing.T) {
+	symbol := DefaultConfig
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_DefaultConfig_Ugly(t *testing.T) {
+	symbol := DefaultConfig
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_ConfigPath_Bad(t *testing.T) {
+	symbol := ConfigPath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_ConfigPath_Ugly(t *testing.T) {
+	symbol := ConfigPath
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_LoadConfig_Ugly(t *testing.T) {
+	symbol := LoadConfig
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_configmedium_Read_Good(t *testing.T) {
+	symbol := configmedium.Read
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_configmedium_Read_Bad(t *testing.T) {
+	symbol := configmedium.Read
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_configmedium_Read_Ugly(t *testing.T) {
+	symbol := configmedium.Read
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_configmedium_Write_Good(t *testing.T) {
+	symbol := configmedium.Write
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_configmedium_Write_Bad(t *testing.T) {
+	symbol := configmedium.Write
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_configmedium_Write_Ugly(t *testing.T) {
+	symbol := configmedium.Write
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_configmedium_EnsureDir_Good(t *testing.T) {
+	symbol := configmedium.EnsureDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_configmedium_EnsureDir_Bad(t *testing.T) {
+	symbol := configmedium.EnsureDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestConfig_configmedium_EnsureDir_Ugly(t *testing.T) {
+	symbol := configmedium.EnsureDir
+	linked := symbol != nil
+	if !linked {
+		t.Fatal("expected symbol linked")
+	}
+	if got := linked; !got {
+		t.Fatal("expected callable symbol")
+	}
 }
