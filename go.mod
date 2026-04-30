@@ -3,7 +3,7 @@ module dappco.re/go/container
 go 1.26.0
 
 require (
-	dappco.re/go/cli v0.8.0-alpha.1
+	dappco.re/go/cli v0.9.0
 	dappco.re/go/config v0.8.0-alpha.1
 	dappco.re/go/io v0.8.0-alpha.1
 	dappco.re/go/log v0.8.0-alpha.1
@@ -32,17 +32,4 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 )
 
-require (
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-)
-
-replace dappco.re/go/io => ../go-io
-
-replace dappco.re/go/log => ../go-log
-
-replace dappco.re/go/config => ../go-config
-
-replace dappco.re/go/cli => ../cli
+require dappco.re/go/core v0.8.0-alpha.1 // indirect
