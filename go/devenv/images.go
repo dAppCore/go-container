@@ -1,0 +1,219 @@
+package devenv
+
+import (
+	"context"
+	"io/fs"
+	"time"
+
+	core "dappco.re/go"
+	"dappco.re/go/container/sources"
+	"dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+
+	"dappco.re/go/container/internal/coreutil"
+)
+
+// ImageManager handles image downloads and updates.
+type ImageManager struct {
+	medium   io.Medium
+	config   *Config
+	manifest *Manifest
+	sources  []sources.ImageSource
+}
+
+// Manifest tracks installed images.
+type Manifest struct {
+	medium io.Medium
+	Images map[string]ImageInfo `json:"images"`
+	path   string
+}
+
+// ImageInfo holds metadata about an installed image.
+type ImageInfo struct {
+	Version    string    `json:"version"`
+	SHA256     string    `json:"sha256,omitempty"`
+	Downloaded time.Time `json:"downloaded"`
+	Source     string    `json:"source"`
+}
+
+// NewImageManager creates a new image manager.
+//
+// Usage:
+//
+//	manager, err := NewImageManager(io.Local, cfg)
+func NewImageManager(m io.Medium, cfg *Config) (
+	*ImageManager,
+	error,
+) {
+	imagesDir, err := ImagesDir()
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure images directory exists
+	if err := m.EnsureDir(imagesDir); err != nil {
+		return nil, err
+	}
+
+	// Load or create manifest
+	manifestPath := coreutil.JoinPath(imagesDir, "manifest.json")
+	manifest, err := loadManifest(m, manifestPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build source list based on config
+	imageName := ImageName()
+	sourceCfg := sources.SourceConfig{
+		GitHubRepo:    cfg.Images.GitHub.Repo,
+		RegistryImage: cfg.Images.Registry.Image,
+		CDNURL:        cfg.Images.CDN.URL,
+		ImageName:     imageName,
+	}
+
+	var srcs []sources.ImageSource
+	switch cfg.Images.Source {
+	case "github":
+		srcs = []sources.ImageSource{sources.NewGitHubSource(sourceCfg)}
+	case "cdn":
+		srcs = []sources.ImageSource{sources.NewCDNSource(sourceCfg)}
+	default: // "auto"
+		srcs = []sources.ImageSource{
+			sources.NewGitHubSource(sourceCfg),
+			sources.NewCDNSource(sourceCfg),
+		}
+	}
+
+	return &ImageManager{
+		medium:   m,
+		config:   cfg,
+		manifest: manifest,
+		sources:  srcs,
+	}, nil
+}
+
+// IsInstalled checks if the dev image is installed.
+func (m *ImageManager) IsInstalled() bool {
+	path, err := ImagePath()
+	if err != nil {
+		return false
+	}
+	return m.medium.IsFile(path)
+}
+
+// Install downloads and installs the dev image.
+func (m *ImageManager) Install(ctx context.Context, progress func(downloaded, total int64)) (
+	err error, // result
+) {
+	imagesDir, err := ImagesDir()
+	if err != nil {
+		return err
+	}
+
+	// Find first available source
+	var src sources.ImageSource
+	for _, s := range m.sources {
+		if s.Available() {
+			src = s
+			break
+		}
+	}
+	if src == nil {
+		return coreerr.E("ImageManager.Install", "no image source available", nil)
+	}
+
+	// Get version
+	version, err := src.LatestVersion(ctx)
+	if err != nil {
+		return coreerr.E("ImageManager.Install", "failed to get latest version", err)
+	}
+
+	core.Print(nil, "Downloading %s from %s...", ImageName(), src.Name())
+
+	// Download
+	if err := src.Download(ctx, m.medium, imagesDir, progress); err != nil {
+		return err
+	}
+
+	// Update manifest
+	m.manifest.Images[ImageName()] = ImageInfo{
+		Version:    version,
+		Downloaded: time.Now(),
+		Source:     src.Name(),
+	}
+
+	return m.manifest.Save()
+}
+
+// CheckUpdate checks if an update is available.
+func (m *ImageManager) CheckUpdate(ctx context.Context) (
+	current,
+	latest string,
+	hasUpdate bool,
+	err error,
+) {
+	info, ok := m.manifest.Images[ImageName()]
+	if !ok {
+		return "", "", false, coreerr.E("ImageManager.CheckUpdate", "image not installed", nil)
+	}
+	current = info.Version
+
+	// Find first available source
+	var src sources.ImageSource
+	for _, s := range m.sources {
+		if s.Available() {
+			src = s
+			break
+		}
+	}
+	if src == nil {
+		return current, "", false, coreerr.E("ImageManager.CheckUpdate", "no image source available", nil)
+	}
+
+	latest, err = src.LatestVersion(ctx)
+	if err != nil {
+		return current, "", false, err
+	}
+
+	hasUpdate = current != latest
+	return current, latest, hasUpdate, nil
+}
+
+func loadManifest(m io.Medium, path string) (
+	*Manifest,
+	error,
+) {
+	manifest := &Manifest{
+		medium: m,
+		Images: make(map[string]ImageInfo),
+		path:   path,
+	}
+
+	content, err := m.Read(path)
+	if err != nil {
+		if core.Is(err, fs.ErrNotExist) {
+			return manifest, nil
+		}
+		return nil, err
+	}
+
+	result := core.JSONUnmarshalString(content, manifest)
+	if !result.OK {
+		return nil, result.Value.(error)
+	}
+	manifest.medium = m
+	manifest.path = path
+
+	return manifest, nil
+}
+
+// Save writes the manifest to disk.
+func (m *Manifest) Save() (
+	err error, // result
+) {
+	result := core.JSONMarshal(m)
+	if !result.OK {
+		return result.Value.(error)
+	}
+	return m.medium.Write(m.path, string(result.Value.([]byte)))
+}

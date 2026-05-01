@@ -1,0 +1,82 @@
+package devenv
+
+import (
+	"context"
+
+	core "dappco.re/go"
+	coreerr "dappco.re/go/log"
+
+	"dappco.re/go/container/internal/proc"
+)
+
+// ShellOptions configures the shell connection.
+type ShellOptions struct {
+	Console bool     // Use serial console instead of SSH
+	Command []string // Command to run (empty = interactive shell)
+}
+
+// Shell connects to the dev environment.
+func (d *DevOps) Shell(ctx context.Context, opts ShellOptions) (
+	err error, // result
+) {
+	running, err := d.IsRunning(ctx)
+	if err != nil {
+		return err
+	}
+	if !running {
+		return coreerr.E("DevOps.Shell", "dev environment not running (run 'core dev boot' first)", nil)
+	}
+
+	if opts.Console {
+		return d.serialConsole(ctx)
+	}
+
+	return d.sshShell(ctx, opts.Command)
+}
+
+// sshShell connects via SSH.
+func (d *DevOps) sshShell(ctx context.Context, command []string) (
+	err error, // result
+) {
+	args := []string{
+		"-o", "StrictHostKeyChecking=yes",
+		"-o", "UserKnownHostsFile=~/.core/known_hosts",
+		"-o", "LogLevel=ERROR",
+		"-A", // Agent forwarding
+		"-p", core.Sprintf("%d", DefaultSSHPort),
+		"root@localhost",
+	}
+
+	if len(command) > 0 {
+		args = append(args, command...)
+	}
+
+	cmd := proc.NewCommandContext(ctx, "ssh", args...)
+	cmd.Stdin = proc.Stdin
+	cmd.Stdout = proc.Stdout
+	cmd.Stderr = proc.Stderr
+
+	return cmd.Run()
+}
+
+// serialConsole attaches to the QEMU serial console.
+func (d *DevOps) serialConsole(ctx context.Context) (
+	err error, // result
+) {
+	// Find the container to get its console socket
+	c, err := d.findContainer(ctx, "core-dev")
+	if err != nil {
+		return err
+	}
+	if c == nil {
+		return coreerr.E("DevOps.serialConsole", "console not available: container not found", nil)
+	}
+
+	// Use socat to connect to the console socket
+	socketPath := core.Sprintf("/tmp/core-%s-console.sock", c.ID)
+	cmd := proc.NewCommandContext(ctx, "socat", "-,raw,echo=0", "unix-connect:"+socketPath)
+	cmd.Stdin = proc.Stdin
+	cmd.Stdout = proc.Stdout
+	cmd.Stderr = proc.Stderr
+	return cmd.Run()
+}
