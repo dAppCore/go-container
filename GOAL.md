@@ -148,3 +148,32 @@ bash /Users/snider/Code/core/go/tests/cli/v090-upgrade/audit.sh .
 ```
 
 The audit IS the spec for AX cleanup. Each dimension's preamble inside the script explains the rule + the canonical fix. No additional guidance needed here.
+
+## Everything else missing in go-container
+
+- TODO.md at repo root is stale (single migration task superseded by audit script) — delete it
+- RFC.md §16 Implementation Priority table is outdated — §13 Runtime Detection is done (move to ✅), §12 Apple Containers becomes ✅ after the 17 tasks above
+- RFC.commands.md is a 13-line stub — thicken to match the actual cmd/vm/ tree (cmd_container, cmd_vm, cmd_templates, cmd_commands)
+- RFC.imports.md is a 24-line stub — thicken to match the real import surface across go/*.go
+- runtime.go detectApple() does not set capGPU on Apple Silicon — wire `capGPU` when GOARCH=arm64 && GOOS=darwin
+- RFC.md §3.3 LinuxKit output formats: verify ISO / raw / qcow2 / VMDK / AMI / GCP image all build through linuxkit.go and have triplet+Example tests for each format path
+- RFC.md §3.4 dm-crypt encrypted storage: verify implementation present and tested
+- RFC.md §3.5 Networking: verify WireGuard / VPNKit / Vsock / static IP all wired in linuxkit.go
+- RFC.md §6 Commands: cross-check every CLI subcommand described in §6 has a counterpart in cmd/vm/
+- RFC.md §8 DevOps Portable Environment: verify devenv/ package has Boot / Stop / Status / image mgmt / test detection / serve detection / SSH shell / serial console / Claude workspace mount
+- RFC.md §9 Hypervisor Selection: verify DetectHypervisor returns QEMU on Linux/KVM and Hyperkit on macOS with VPNKit fallback; verify DetectImageFormat handles iso/raw/qcow2/vmdk
+- RFC.md §10 State Persistence: verify container registry at ~/.core/containers.json with thread-safe Add/Update/Remove
+- RFC.md §11 Logging: verify per-container logs land at ~/.core/logs/{id}.log
+- RFC.md §15 Metal GPU passthrough: §15.2 WithGPU RunOption (already exists), §15.3 HasGPU detection (capability bit exists but not wired to Apple Silicon detection — see runtime.go bullet above), §15.4 go-mlx integration smoke test inside an Apple container
+- RFC.tim.md §3 rootfs three-layer convention (base/app/data): verify TIMBundle layout actually writes this structure
+- RFC.tim.md §6 Key Hierarchy: workspace_key → container_key → layer_keys[] derivation already in tim.go — verify each step has triplet+Example tests
+- RFC.tim.md §7 Borg.DataNode integration: DataNode wraps TIM container — verify NewDataNode + Start + Seal cover the full lifecycle described in §7
+- AGENTS.md, GEMINI.md, PROMPT.md, UPGRADE.md, RECENT.md at repo root — audit each for stale content; delete or refresh
+- docs/architecture.md, docs/development.md, docs/index.md — verify these match current code (not the pre-extraction shape from go-devops)
+- README.md — verify it reflects the current single-repo state (not the legacy go-devops bundle history)
+- v0.9.0 audit findings (snapshot 2026-05-13, will be re-checked after the 17 feature tasks land):
+  - legacy-log-package: 19 sites — `import coreerr "dappco.re/go/log"` → use `core.E` from `dappco.re/go`
+  - ax7-triplet-gaps: 2 — script reports which symbols
+  - example-gaps: 2 — script reports which symbols
+  - missing-example-files: 1 — script reports which source file
+- All RFC.md / RFC.apple.md / RFC.tim.md / RFC.commands.md / RFC.imports.md / RFC.models.md cross-references must resolve: every `code/core/go/io/RFC.md §Medium`-style link must point at a file that exists at the named anchor
