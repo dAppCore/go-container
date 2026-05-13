@@ -47,6 +47,8 @@ const (
 	StatusStopped Status = "stopped"
 	// StatusError indicates the container encountered an error.
 	StatusError Status = "error"
+	// StatusKilled indicates the container was killed with SIGKILL.
+	StatusKilled Status = "killed"
 )
 
 // RunOptions configures how a container should be run.
@@ -138,6 +140,8 @@ const (
 	FormatVMDK ImageFormat = "vmdk"
 	// FormatRaw is a raw disk image format.
 	FormatRaw ImageFormat = "raw"
+	// FormatOCI is an OCI container image format (Apple Containers).
+	FormatOCI ImageFormat = "oci"
 	// FormatUnknown indicates an unknown image format.
 	FormatUnknown ImageFormat = "unknown"
 )

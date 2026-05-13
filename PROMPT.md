@@ -1,12 +1,10 @@
-Read PERSONA.md if it exists — adopt that identity and approach.
 Read CLAUDE.md for project conventions and context.
-Read TODO.md for your task.
-Read PLAN.md if it exists — work through each phase in order.
+Read GOAL.md for your task.
 Read CONTEXT.md for relevant knowledge from previous sessions.
 Read CONSUMERS.md to understand breaking change risk.
 Read RECENT.md for recent changes.
 
-Work in the src/ directory. Follow the conventions in CLAUDE.md.
+Work in the go/ directory. Follow the conventions in CLAUDE.md.
 
 ## Workflow
 

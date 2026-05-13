@@ -5,14 +5,21 @@ description: Internal design of go-container -- types, data flow, hypervisor abs
 
 # Architecture
 
-go-container is organised into three packages with clear responsibilities. The root `container` package owns the core abstractions. The `devenv` package composes those abstractions into a higher-level development environment. The `sources` package provides pluggable image download backends.
+go-container is organised into several packages with clear responsibilities. The root `container` package owns the core abstractions. The `devenv` package composes those abstractions into a higher-level development environment. The `sources` package provides pluggable image download backends.
 
 ```
 container (root)
+  |-- Provider interface + implementations
+  |     |-- LinuxKitManager (LinuxKit + hypervisor)
+  |     |-- AppleProvider (macOS 26+ Containerisation framework)
+  |     +-- TIMProvider (experimental, Borg-native)
   |-- Manager interface + LinuxKitManager implementation
   |-- Hypervisor interface (QEMU, Hyperkit)
   |-- State (persistent container registry)
   |-- Template engine (embedded + user templates)
+  |-- Runtime detection (Apple → Docker → Podman → LinuxKit)
+  |-- DataCube (encrypted io.Medium wrapper)
+  |-- DataNode (TIM container + Borg identity)
   |
   +-- devenv/
   |     |-- DevOps orchestrator
@@ -21,9 +28,13 @@ container (root)
   |     +-- Config (from ~/.core/config.yaml)
   |
   +-- sources/
-        |-- ImageSource interface
-        |-- CDNSource
-        +-- GitHubSource
+  |     |-- ImageSource interface
+  |     |-- CDNSource
+  |     +-- GitHubSource
+  |
+  +-- cmd/vm/
+        |-- run, ps, stop, logs, exec, templates
+        +-- Template build → run pipeline
 ```
 
 

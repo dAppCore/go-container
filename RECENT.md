@@ -1,6 +1,14 @@
 # Recent Changes
 
 ```
+(HEAD)  feat(container): Apple provider full implementation — 17 tasks
+        - Build, Encrypt, Decrypt real implementations
+        - Stop, Kill, Remove, Logs, Exec, List, Inspect methods
+        - Pull, Push, RemoveImage, ListImages methods
+        - Version detection, Metal GPU passthrough, tracked map GC
+        - StatusKilled, FormatOCI constants
+        - capGPU wired on Apple Silicon via detectApple()
+
 05f9e99 chore: sync go.mod dependencies
 319ffe3 chore: add .core/ and .idea/ to .gitignore
 d97537b fix: update stale import paths and dependency versions from extraction

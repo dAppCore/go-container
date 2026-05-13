@@ -164,6 +164,9 @@ func detectApple() (ContainerRuntime, bool) {
 		Version: captureVersion(path, "--version"),
 	}
 	rt.caps = capNetworkIsolation | capVolumeMounts | capHardwareIsolation | capSubSecondStart
+	if runtime.GOARCH == "arm64" && runtime.GOOS == "darwin" {
+		rt.caps |= capGPU
+	}
 	return rt, true
 }
 

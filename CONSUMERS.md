@@ -1,8 +1,10 @@
 # Consumers of go-container
 
-These modules import `dappco.re/go/core/container`:
+These modules import `dappco.re/go/container`:
 
-- core
-- go-devops
+- core (portable dev environments via `devenv`)
+- go-mlx (Metal GPU inference inside containers)
+- LEM (model isolation via TIM containers)
+- Borg (encrypted container storage via DataNode/STIM)
 
-**Breaking change risk: 2 consumers.**
+**Breaking change risk: 4 consumers.**
