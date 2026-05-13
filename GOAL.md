@@ -138,3 +138,13 @@ Both exit 0. The 17 tasks above all show real implementations (no stub returns).
 - Apple `container` CLI flag names differ from this GOAL's assumptions. Capture the actual flag, surface to Snider.
 - 6 hours elapsed.
 - Any task introduces a build break the same task can't fix.
+
+## After the 17 tasks land — AX polish
+
+Run the audit and fix every dimension it reports until the verdict is COMPLIANT:
+
+```bash
+bash /Users/snider/Code/core/go/tests/cli/v090-upgrade/audit.sh .
+```
+
+The audit IS the spec for AX cleanup. Each dimension's preamble inside the script explains the rule + the canonical fix. No additional guidance needed here.
