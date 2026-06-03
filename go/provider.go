@@ -220,6 +220,18 @@ func WithVolumes(vols map[string]string) RunOption {
 	}
 }
 
+// WithArgs sets the container command/arguments, passed after the image
+// (e.g. WithArgs("sleep", "300")). Empty runs the image's default entrypoint.
+//
+// Usage:
+//
+//	p.Run(img, container.WithArgs("/bin/sh", "-c", "echo hello"))
+func WithArgs(args ...string) RunOption {
+	return func(o *RunOptions) {
+		o.Args = append(o.Args, args...)
+	}
+}
+
 // ApplyRunOptions folds a slice of RunOption functions into a RunOptions.
 //
 // Usage:

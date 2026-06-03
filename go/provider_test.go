@@ -402,6 +402,35 @@ func TestProvider_WithVolumes_Ugly(t *testing.T) {
 	}
 }
 
+func TestProvider_WithArgs_Good(t *testing.T) {
+	o := ApplyRunOptions(WithArgs("sleep", "300"))
+	if len(o.Args) != 2 || o.Args[0] != "sleep" || o.Args[1] != "300" {
+		t.Fatalf("WithArgs => %v, want [sleep 300]", o.Args)
+	}
+}
+
+func TestProvider_WithArgs_Bad(t *testing.T) {
+	// No args is a degenerate but valid call: Args stays empty.
+	o := ApplyRunOptions(WithArgs())
+	if len(o.Args) != 0 {
+		t.Fatalf("WithArgs() => %v, want empty", o.Args)
+	}
+}
+
+func TestProvider_WithArgs_Ugly(t *testing.T) {
+	// Order and flag-shaped tokens are preserved verbatim.
+	o := ApplyRunOptions(WithArgs("--", "/bin/sh", "-c", "echo a b"))
+	want := []string{"--", "/bin/sh", "-c", "echo a b"}
+	if len(o.Args) != len(want) {
+		t.Fatalf("WithArgs len = %d, want %d (%v)", len(o.Args), len(want), o.Args)
+	}
+	for i := range want {
+		if o.Args[i] != want[i] {
+			t.Fatalf("WithArgs[%d] = %q, want %q", i, o.Args[i], want[i])
+		}
+	}
+}
+
 func TestProvider_ApplyRunOptions_Bad(t *testing.T) {
 	auditTarget := "ApplyRunOptions"
 	auditVariant := "Bad"

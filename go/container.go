@@ -74,6 +74,9 @@ type RunOptions struct {
 	// GPU requests GPU passthrough into the container. Providers that do not
 	// support GPU passthrough return an error when this is set.
 	GPU bool
+	// Args is the container command/arguments, passed after the image
+	// (e.g. ["sleep", "300"]). Empty runs the image's default entrypoint.
+	Args []string
 }
 
 // ReadCloser is the stream contract returned by Manager.Logs.

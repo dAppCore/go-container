@@ -24,6 +24,11 @@ func ExampleWithVolumes() {
 	// WithVolumes usage is covered by the corresponding triplet tests.
 }
 
+func ExampleWithArgs() {
+	// WithArgs sets the container command/args, appended after the image.
+	_ = ApplyRunOptions(WithArgs("sleep", "300"))
+}
+
 func ExampleApplyRunOptions() {
 	// ApplyRunOptions usage is covered by the corresponding triplet tests.
 }

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
@@ -1047,6 +1048,22 @@ func TestApple_appleRunArgs_Good(t *testing.T) {
 	}
 }
 
+func TestApple_appleRunArgs_ContainerArgs_Good(t *testing.T) {
+	// The container command/args must follow the image, matching
+	// `container run <image> [args...]`.
+	r := appleRunArgs("web", &Image{Path: "alpine:latest"}, RunOptions{Args: []string{"sleep", "300"}})
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	args := core.MustCast[[]string](r)
+	if !core.Contains(core.Join(" ", args...), "alpine:latest sleep 300") {
+		t.Fatalf("args %v: container command must follow the image as `alpine:latest sleep 300`", args)
+	}
+	if n := len(args); args[n-3] != "alpine:latest" || args[n-2] != "sleep" || args[n-1] != "300" {
+		t.Fatalf("trailing args = %v, want [... alpine:latest sleep 300]", args)
+	}
+}
+
 // TestApple_E2E_ImageLifecycle_Smoke certifies the image-subgroup reconciliation
 // against the LIVE `container` binary: pull → list (parse real JSON) → delete.
 // Opt-in (set CORE_APPLE_E2E=1) because it shells out to the runtime, requires
@@ -1102,31 +1119,38 @@ func TestApple_E2E_ContainerLifecycle_Smoke(t *testing.T) {
 	}
 	const name = "core-lifecycle-e2e"
 	ctx := context.Background()
-	// Create a long-running container directly: Run does not yet forward an
-	// entrypoint/args (separate follow-up), so the CLI is used to stage one.
-	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run()
-	if err := proc.NewCommandContext(ctx, "container", "run", "-d", "--name", name,
-		"docker.io/library/alpine:latest", "sleep", "60").Run(); err != nil {
-		t.Fatalf("stage running container: %v", err)
-	}
+	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() // pre-clean leftovers
 	defer func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }()
 
-	// List finds and parses it (the path `vm ps` aggregates).
-	listRes := p.List()
-	if !listRes.OK {
-		t.Fatalf("List: %v", listRes.Error())
+	// Boot a long-running container THROUGH the API (#17: Run forwards args).
+	// Without forwarded args, alpine's default CMD exits immediately and the
+	// container would not stay running — so a running container proves it.
+	runRes := p.Run(&Image{Path: "docker.io/library/alpine:latest"},
+		WithName(name), WithDetach(true), WithArgs("sleep", "60"))
+	if !runRes.OK {
+		t.Fatalf("Run with args: %v", runRes.Error())
 	}
+
+	// `container run --detach` boots asynchronously; poll List (the path
+	// `vm ps` aggregates) until the container is running.
 	var got *Container
-	for _, c := range core.MustCast[[]*Container](listRes) {
-		if c.ID == name {
-			got = c
+	for i := 0; i < 30 && got == nil; i++ {
+		if listRes := p.List(); listRes.OK {
+			for _, c := range core.MustCast[[]*Container](listRes) {
+				if c.ID == name && c.Status == StatusRunning {
+					got = c
+				}
+			}
+		}
+		if got == nil {
+			time.Sleep(500 * time.Millisecond)
 		}
 	}
 	if got == nil {
-		t.Fatalf("List did not return the running container %q", name)
+		t.Fatalf("container %q not running after Run(WithArgs sleep) — args not forwarded?", name)
 	}
-	if got.Image == "" || got.Status == "" {
-		t.Fatalf("List parsed container with empty fields: %+v", got)
+	if got.Image == "" {
+		t.Fatalf("List parsed container with empty image: %+v", got)
 	}
 
 	// Exec runs a command inside it (the path `vm exec` dispatches).

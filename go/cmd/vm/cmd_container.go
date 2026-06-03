@@ -64,6 +64,7 @@ func addVMRunCommand(c *core.Core) {
 				return core.Fail(core.E("vm run", vmT("cmd.vm.run.error.image_required"), nil))
 			}
 			image := args[0]
+			containerArgs := args[1:]
 
 			return resultFromError(runContainer(
 				image,
@@ -74,6 +75,7 @@ func addVMRunCommand(c *core.Core) {
 				opts.Int("ssh-port"),
 				opts.String("runtime"),
 				opts.Bool("gpu"),
+				containerArgs,
 			))
 		},
 	})
@@ -112,7 +114,7 @@ func resolveRuntime(flag string) (
 	}
 }
 
-func runContainer(image, name string, detach bool, memory, cpus, sshPort int, runtimeFlag string, gpu bool) (
+func runContainer(image, name string, detach bool, memory, cpus, sshPort int, runtimeFlag string, gpu bool, containerArgs []string) (
 	err error, // result
 ) {
 	rtType, err := resolveRuntime(runtimeFlag)
@@ -127,6 +129,7 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int, ru
 		CPUs:    cpus,
 		SSHPort: sshPort,
 		GPU:     gpu,
+		Args:    containerArgs,
 	}
 
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("image")), image)
@@ -136,7 +139,7 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int, ru
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.runtime")), string(rtType))
 
 	if rtType == container.RuntimeApple {
-		return runContainerApple(image, name, detach, memory, cpus, gpu)
+		return runContainerApple(image, name, detach, memory, cpus, gpu, containerArgs)
 	}
 
 	// LinuxKit (default) path — also used for Docker/Podman which route through
@@ -173,7 +176,7 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int, ru
 // runContainerApple boots an image through the AppleProvider. Ports and
 // volumes are omitted — they are handled via the Apple CLI directly when
 // declared on the image's source config.
-func runContainerApple(image, name string, detach bool, memory, cpus int, gpu bool) (
+func runContainerApple(image, name string, detach bool, memory, cpus int, gpu bool, args []string) (
 	err error, // result
 ) {
 	p := container.NewAppleProvider()
@@ -194,6 +197,9 @@ func runContainerApple(image, name string, detach bool, memory, cpus int, gpu bo
 		container.WithMemory(memory),
 		container.WithCPUs(cpus),
 		container.WithDetach(detach),
+	}
+	if len(args) > 0 {
+		opts = append(opts, container.WithArgs(args...))
 	}
 	if gpu {
 		opts = append(opts, container.WithGPU(true))
