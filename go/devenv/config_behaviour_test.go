@@ -3,6 +3,7 @@ package devenv
 import (
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/io"
 )
 
@@ -42,14 +43,14 @@ func TestConfigBehaviour_ConfigMedium_ReadMissing_Bad(t *testing.T) {
 // TestConfigBehaviour_New_Good constructs a DevOps instance backed by a clean
 // temp HOME, so the default config and image manager wire up without error.
 //
-//	dev, err := New(io.Local)
+//	dev := core.MustCast[*DevOps](New(io.Local))
 func TestConfigBehaviour_New_Good(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	dev, err := New(io.Local)
-	if err != nil {
-		t.Fatalf("New(io.Local) error: %v", err)
+	r := New(io.Local)
+	if !r.OK {
+		t.Fatalf("New(io.Local) error: %v", r.Error())
 	}
-	if dev == nil {
+	if core.MustCast[*DevOps](r) == nil {
 		t.Fatal("New returned a nil DevOps with nil error")
 	}
 }

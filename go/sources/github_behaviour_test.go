@@ -11,11 +11,11 @@ import (
 // cannot be located on PATH, so callers see a github.LatestVersion failure rather
 // than a bare exec error.
 //
-//	_, err := NewGitHubSource(cfg).LatestVersion(ctx) // err != nil when gh absent
+//	r := NewGitHubSource(cfg).LatestVersion(ctx) // r.OK == false when gh absent
 func TestGitHubBehaviour_LatestVersion_Bad(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	src := NewGitHubSource(SourceConfig{GitHubRepo: "host-uk/core-images"})
-	if _, err := src.LatestVersion(context.Background()); err == nil {
+	if r := src.LatestVersion(context.Background()); r.OK {
 		t.Skip("gh resolved despite an empty PATH on this host")
 	}
 }
@@ -28,8 +28,8 @@ func TestGitHubBehaviour_Download_Bad(t *testing.T) {
 		GitHubRepo: "host-uk/core-images",
 		ImageName:  "core-devops.qcow2",
 	})
-	err := src.Download(context.Background(), io.NewMemoryMedium(), t.TempDir(), nil)
-	if err == nil {
+	r := src.Download(context.Background(), io.NewMemoryMedium(), t.TempDir(), nil)
+	if r.OK {
 		t.Skip("gh resolved despite an empty PATH on this host")
 	}
 }

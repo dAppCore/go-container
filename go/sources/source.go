@@ -4,25 +4,25 @@ package sources
 import (
 	"context"
 
+	core "dappco.re/go"
 	"dappco.re/go/io"
 )
 
 // ImageSource defines the interface for downloading dev images.
-//
-// TODO(corego): LatestVersion/Download still return (string, error)/error rather
-// than core.Result. Migrating them to core.Result requires updating the consumers
-// in devenv/images.go (an out-of-scope workstream); coordinate that change so the
-// devenv build stays green before converting this contract.
 type ImageSource interface {
 	// Name returns the source identifier.
 	Name() string
 	// Available checks if this source can be used.
 	Available() bool
 	// LatestVersion returns the latest available version.
-	LatestVersion(ctx context.Context) (string, error)
+	//
+	// Example: r := src.LatestVersion(ctx); version := core.MustCast[string](r)
+	LatestVersion(ctx context.Context) core.Result // Value: string
 	// Download downloads the image to the destination path.
 	// Reports progress via the callback if provided.
-	Download(ctx context.Context, m io.Medium, dest string, progress func(downloaded, total int64)) error
+	//
+	// Example: if r := src.Download(ctx, io.Local, dest, nil); !r.OK { return r }
+	Download(ctx context.Context, m io.Medium, dest string, progress func(downloaded, total int64)) core.Result // Value: nil
 }
 
 // SourceConfig holds configuration for a source.

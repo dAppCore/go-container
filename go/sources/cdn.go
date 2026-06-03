@@ -39,58 +39,61 @@ func (s *CDNSource) Available() bool {
 }
 
 // LatestVersion fetches version from manifest or returns "latest".
-func (s *CDNSource) LatestVersion(ctx context.Context) (
-	string,
-	error,
-) {
+//
+// Usage:
+//
+//	version := core.MustCast[string](src.LatestVersion(ctx))
+func (s *CDNSource) LatestVersion(ctx context.Context) core.Result { // Value: string
 	// Try to fetch manifest.json for version info
 	url := core.Sprintf("%s/manifest.json", s.config.CDNURL)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return "latest", nil
+		return core.Ok("latest")
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || resp.StatusCode != 200 {
-		return "latest", nil
+		return core.Ok("latest")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// For now, just return latest - could parse manifest for version
-	return "latest", nil
+	return core.Ok("latest")
 }
 
 // Download downloads the image from CDN.
-func (s *CDNSource) Download(ctx context.Context, m io.Medium, dest string, progress func(downloaded, total int64)) (
-	err error, // result
-) {
+//
+// Usage:
+//
+//	if r := src.Download(ctx, io.Local, dest, nil); !r.OK { return r }
+func (s *CDNSource) Download(ctx context.Context, m io.Medium, dest string, progress func(downloaded, total int64)) core.Result { // Value: nil
 	url := core.Sprintf("%s/%s", s.config.CDNURL, s.config.ImageName)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return core.E("cdn.Download", "create request", err)
+		return core.Fail(core.E("cdn.Download", "create request", err))
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return core.E("cdn.Download", "execute request", err)
+		return core.Fail(core.E("cdn.Download", "execute request", err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return core.E("cdn.Download", core.Sprintf("HTTP %d", resp.StatusCode), nil)
+		return core.Fail(core.E("cdn.Download", core.Sprintf("HTTP %d", resp.StatusCode), nil))
 	}
 
 	// Ensure dest directory exists
 	if err := m.EnsureDir(dest); err != nil {
-		return core.E("cdn.Download", "ensure destination directory", err)
+		return core.Fail(core.E("cdn.Download", "ensure destination directory", err))
 	}
 
 	// Create destination file
 	destPath := coreutil.JoinPath(dest, s.config.ImageName)
 	f, err := m.Create(destPath)
 	if err != nil {
-		return core.E("cdn.Download", "create destination file", err)
+		return core.Fail(core.E("cdn.Download", "create destination file", err))
 	}
 	defer func() { _ = f.Close() }()
 
@@ -103,7 +106,7 @@ func (s *CDNSource) Download(ctx context.Context, m io.Medium, dest string, prog
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
 			if _, werr := f.Write(buf[:n]); werr != nil {
-				return core.E("cdn.Download", "write to file", werr)
+				return core.Fail(core.E("cdn.Download", "write to file", werr))
 			}
 			downloaded += int64(n)
 			if progress != nil {
@@ -114,9 +117,9 @@ func (s *CDNSource) Download(ctx context.Context, m io.Medium, dest string, prog
 			break
 		}
 		if err != nil {
-			return core.E("cdn.Download", "read response body", err)
+			return core.Fail(core.E("cdn.Download", "read response body", err))
 		}
 	}
 
-	return nil
+	return core.Ok(nil)
 }

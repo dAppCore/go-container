@@ -9,7 +9,6 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/container"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/coreutil"
 )
@@ -31,32 +30,32 @@ type DevOps struct {
 //
 // Usage:
 //
-//	dev, err := New(io.Local)
-func New(m io.Medium) (
-	*DevOps,
-	error,
-) {
-	cfg, err := LoadConfig(m)
-	if err != nil {
-		return nil, coreerr.E("devops.New", "failed to load config", err)
+//	dev := core.MustCast[*DevOps](New(io.Local))
+func New(m io.Medium) core.Result { // Value: *DevOps
+	cfgRes := LoadConfig(m)
+	if !cfgRes.OK {
+		return core.Fail(core.E("devops.New", "failed to load config", cfgRes.Value.(error)))
 	}
+	cfg := core.MustCast[*Config](cfgRes)
 
-	images, err := NewImageManager(m, cfg)
-	if err != nil {
-		return nil, coreerr.E("devops.New", "failed to create image manager", err)
+	imagesRes := NewImageManager(m, cfg)
+	if !imagesRes.OK {
+		return core.Fail(core.E("devops.New", "failed to create image manager", imagesRes.Value.(error)))
 	}
+	images := core.MustCast[*ImageManager](imagesRes)
 
-	mgr, err := container.NewLinuxKitManager(io.Local)
-	if err != nil {
-		return nil, coreerr.E("devops.New", "failed to create container manager", err)
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return core.Fail(core.E("devops.New", "failed to create container manager", mgrRes.Value.(error)))
 	}
+	mgr := core.MustCast[*container.LinuxKitManager](mgrRes)
 
-	return &DevOps{
+	return core.Ok(&DevOps{
 		medium:    m,
 		config:    cfg,
 		images:    images,
 		container: mgr,
-	}, nil
+	})
 }
 
 // ImageName returns the platform-specific image name.
@@ -72,60 +71,55 @@ func ImageName() string {
 //
 // Usage:
 //
-//	dir, err := ImagesDir()
-func ImagesDir() (
-	string,
-	error,
-) {
+//	dir := core.MustCast[string](ImagesDir())
+func ImagesDir() core.Result { // Value: string
 	if dir := core.Env("CORE_IMAGES_DIR"); dir != "" {
-		return dir, nil
+		return core.Ok(dir)
 	}
 	home := coreutil.HomeDir()
 	if home == "" {
-		return "", core.E("ImagesDir", "home directory not available", nil)
+		return core.Fail(core.E("ImagesDir", "home directory not available", nil))
 	}
-	return coreutil.JoinPath(home, ".core", "images"), nil
+	return core.Ok(coreutil.JoinPath(home, ".core", "images"))
 }
 
 // ImagePath returns the full path to the platform-specific image.
 //
 // Usage:
 //
-//	path, err := ImagePath()
-func ImagePath() (
-	string,
-	error,
-) {
-	dir, err := ImagesDir()
-	if err != nil {
-		return "", err
+//	path := core.MustCast[string](ImagePath())
+func ImagePath() core.Result { // Value: string
+	dirRes := ImagesDir()
+	if !dirRes.OK {
+		return dirRes
 	}
-	return coreutil.JoinPath(dir, ImageName()), nil
+	return core.Ok(coreutil.JoinPath(core.MustCast[string](dirRes), ImageName()))
 }
 
 // IsInstalled checks if the dev image is installed.
 func (d *DevOps) IsInstalled() bool {
-	path, err := ImagePath()
-	if err != nil {
+	pathRes := ImagePath()
+	if !pathRes.OK {
 		return false
 	}
-	return d.medium.IsFile(path)
+	return d.medium.IsFile(core.MustCast[string](pathRes))
 }
 
 // Install downloads and installs the dev image.
-func (d *DevOps) Install(ctx context.Context, progress func(downloaded, total int64)) (
-	err error, // result
-) {
+//
+// Usage:
+//
+//	if r := dev.Install(ctx, nil); !r.OK { return r }
+func (d *DevOps) Install(ctx context.Context, progress func(downloaded, total int64)) core.Result { // Value: nil
 	return d.images.Install(ctx, progress)
 }
 
 // CheckUpdate checks if an update is available.
-func (d *DevOps) CheckUpdate(ctx context.Context) (
-	current,
-	latest string,
-	hasUpdate bool,
-	err error,
-) {
+//
+// Usage:
+//
+//	info := core.MustCast[*UpdateInfo](dev.CheckUpdate(ctx))
+func (d *DevOps) CheckUpdate(ctx context.Context) core.Result { // Value: *UpdateInfo
 	return d.images.CheckUpdate(ctx)
 }
 
@@ -151,32 +145,35 @@ func DefaultBootOptions() BootOptions {
 }
 
 // Boot starts the dev environment.
-func (d *DevOps) Boot(ctx context.Context, opts BootOptions) (
-	err error, // result
-) {
+//
+// Usage:
+//
+//	if r := dev.Boot(ctx, devenv.DefaultBootOptions()); !r.OK { return r }
+func (d *DevOps) Boot(ctx context.Context, opts BootOptions) core.Result { // Value: nil
 	if !d.images.IsInstalled() {
-		return coreerr.E("DevOps.Boot", "dev image not installed (run 'core dev install' first)", nil)
+		return core.Fail(core.E("DevOps.Boot", "dev image not installed (run 'core dev install' first)", nil))
 	}
 
 	// Check if already running
 	if !opts.Fresh {
-		running, err := d.IsRunning(ctx)
-		if err == nil && running {
-			return coreerr.E("DevOps.Boot", "dev environment already running (use 'core dev stop' first or --fresh)", nil)
+		runningRes := d.IsRunning(ctx)
+		if runningRes.OK && core.MustCast[bool](runningRes) {
+			return core.Fail(core.E("DevOps.Boot", "dev environment already running (use 'core dev stop' first or --fresh)", nil))
 		}
 	}
 
 	// Stop existing if fresh
 	if opts.Fresh {
-		if err := d.Stop(ctx); err != nil {
+		if r := d.Stop(ctx); !r.OK {
 			// Fresh boot should continue when there is no existing container to stop.
 		}
 	}
 
-	imagePath, err := ImagePath()
-	if err != nil {
-		return err
+	pathRes := ImagePath()
+	if !pathRes.OK {
+		return pathRes
 	}
+	imagePath := core.MustCast[string](pathRes)
 
 	// Build run options for LinuxKitManager
 	runOpts := container.RunOptions{
@@ -187,9 +184,8 @@ func (d *DevOps) Boot(ctx context.Context, opts BootOptions) (
 		Detach:  true,
 	}
 
-	_, err = d.container.Run(ctx, imagePath, runOpts)
-	if err != nil {
-		return err
+	if r := d.container.Run(ctx, imagePath, runOpts); !r.OK {
+		return r
 	}
 
 	// Wait for SSH to be ready and scan host key
@@ -198,60 +194,64 @@ func (d *DevOps) Boot(ctx context.Context, opts BootOptions) (
 	for range 30 {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return core.Fail(core.E("DevOps.Boot", "context cancelled", ctx.Err()))
 		case <-time.After(2 * time.Second):
-			if err := ensureHostKey(ctx, runOpts.SSHPort); err == nil {
-				return nil
+			if r := ensureHostKey(ctx, runOpts.SSHPort); r.OK {
+				return core.Ok(nil)
 			} else {
-				lastErr = err
+				lastErr = r.Value.(error)
 			}
 		}
 	}
 
-	return coreerr.E("DevOps.Boot", "failed to verify host key after boot", lastErr)
+	return core.Fail(core.E("DevOps.Boot", "failed to verify host key after boot", lastErr))
 }
 
 // Stop stops the dev environment.
-func (d *DevOps) Stop(ctx context.Context) (
-	err error, // result
-) {
-	c, err := d.findContainer(ctx, "core-dev")
-	if err != nil {
-		return err
+//
+// Usage:
+//
+//	if r := dev.Stop(ctx); !r.OK { return r }
+func (d *DevOps) Stop(ctx context.Context) core.Result { // Value: nil
+	findRes := d.findContainer(ctx, "core-dev")
+	if !findRes.OK {
+		return findRes
 	}
+	c := core.MustCast[*container.Container](findRes)
 	if c == nil {
-		return coreerr.E("DevOps.Stop", "dev environment not found", nil)
+		return core.Fail(core.E("DevOps.Stop", "dev environment not found", nil))
 	}
 	return d.container.Stop(ctx, c.ID)
 }
 
 // IsRunning checks if the dev environment is running.
-func (d *DevOps) IsRunning(ctx context.Context) (
-	bool,
-	error,
-) {
-	c, err := d.findContainer(ctx, "core-dev")
-	if err != nil {
-		return false, err
+//
+// Usage:
+//
+//	running := core.MustCast[bool](dev.IsRunning(ctx))
+func (d *DevOps) IsRunning(ctx context.Context) core.Result { // Value: bool
+	findRes := d.findContainer(ctx, "core-dev")
+	if !findRes.OK {
+		return findRes
 	}
-	return c != nil && c.Status == container.StatusRunning, nil
+	c := core.MustCast[*container.Container](findRes)
+	return core.Ok(c != nil && c.Status == container.StatusRunning)
 }
 
-// findContainer finds a container by name.
-func (d *DevOps) findContainer(ctx context.Context, name string) (
-	*container.Container,
-	error,
-) {
-	containers, err := d.container.List(ctx)
-	if err != nil {
-		return nil, err
+// findContainer finds a container by name. The Result carries a nil
+// *container.Container Value when no container matches the name.
+func (d *DevOps) findContainer(ctx context.Context, name string) core.Result { // Value: *container.Container
+	listRes := d.container.List(ctx)
+	if !listRes.OK {
+		return listRes
 	}
+	containers := core.MustCast[[]*container.Container](listRes)
 	for _, c := range containers {
 		if c.Name == name {
-			return c, nil
+			return core.Ok(c)
 		}
 	}
-	return nil, nil
+	return core.Ok((*container.Container)(nil))
 }
 
 // DevStatus returns information about the dev environment.
@@ -267,10 +267,11 @@ type DevStatus struct {
 }
 
 // Status returns the current dev environment status.
-func (d *DevOps) Status(ctx context.Context) (
-	*DevStatus,
-	error,
-) {
+//
+// Usage:
+//
+//	status := core.MustCast[*DevStatus](dev.Status(ctx))
+func (d *DevOps) Status(ctx context.Context) core.Result { // Value: *DevStatus
 	status := &DevStatus{
 		Installed: d.images.IsInstalled(),
 		SSHPort:   DefaultSSHPort,
@@ -280,16 +281,18 @@ func (d *DevOps) Status(ctx context.Context) (
 		status.ImageVersion = info.Version
 	}
 
-	c, _ := d.findContainer(ctx, "core-dev")
-	if c != nil {
-		status.Running = c.Status == container.StatusRunning
-		status.ContainerID = c.ID
-		status.Memory = c.Memory
-		status.CPUs = c.CPUs
-		if status.Running {
-			status.Uptime = time.Since(c.StartedAt)
+	if findRes := d.findContainer(ctx, "core-dev"); findRes.OK {
+		c := core.MustCast[*container.Container](findRes)
+		if c != nil {
+			status.Running = c.Status == container.StatusRunning
+			status.ContainerID = c.ID
+			status.Memory = c.Memory
+			status.CPUs = c.CPUs
+			if status.Running {
+				status.Uptime = time.Since(c.StartedAt)
+			}
 		}
 	}
 
-	return status, nil
+	return core.Ok(status)
 }

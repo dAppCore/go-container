@@ -43,10 +43,11 @@ func (s *GitHubSource) Available() bool {
 }
 
 // LatestVersion returns the latest release tag.
-func (s *GitHubSource) LatestVersion(ctx context.Context) (
-	string,
-	error,
-) {
+//
+// Usage:
+//
+//	version := core.MustCast[string](src.LatestVersion(ctx))
+func (s *GitHubSource) LatestVersion(ctx context.Context) core.Result { // Value: string
 	cmd := proc.NewCommandContext(ctx, "gh", "release", "view",
 		"-R", s.config.GitHubRepo,
 		"--json", "tagName",
@@ -54,15 +55,17 @@ func (s *GitHubSource) LatestVersion(ctx context.Context) (
 	)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", core.E("github.LatestVersion", "failed", err)
+		return core.Fail(core.E("github.LatestVersion", "failed", err))
 	}
-	return core.Trim(string(out)), nil
+	return core.Ok(core.Trim(string(out)))
 }
 
 // Download downloads the image from the latest release.
-func (s *GitHubSource) Download(ctx context.Context, m io.Medium, dest string, progress func(downloaded, total int64)) (
-	err error, // result
-) {
+//
+// Usage:
+//
+//	if r := src.Download(ctx, io.Local, dest, nil); !r.OK { return r }
+func (s *GitHubSource) Download(ctx context.Context, m io.Medium, dest string, progress func(downloaded, total int64)) core.Result { // Value: nil
 	// Get release assets to find our image
 	cmd := proc.NewCommandContext(ctx, "gh", "release", "download",
 		"-R", s.config.GitHubRepo,
@@ -74,7 +77,7 @@ func (s *GitHubSource) Download(ctx context.Context, m io.Medium, dest string, p
 	cmd.Stderr = proc.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return core.E("github.Download", "failed", err)
+		return core.Fail(core.E("github.Download", "failed", err))
 	}
-	return nil
+	return core.Ok(nil)
 }

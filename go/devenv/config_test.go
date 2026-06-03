@@ -33,10 +33,11 @@ func TestConfig_ConfigPath_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	path, err := ConfigPath()
-	if err != nil {
-		t.Fatal(err)
+	r := ConfigPath()
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	path := core.MustCast[string](r)
 	if s, sub := path, ".core/config.yaml"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
@@ -53,10 +54,11 @@ func TestConfig_LoadConfig_Good(t *testing.T) {
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
 
-		cfg, err := LoadConfig(io.Local)
-		if err != nil {
-			t.Fatal(err)
+		r := LoadConfig(io.Local)
+		if !r.OK {
+			t.Fatal(r.Error())
 		}
+		cfg := core.MustCast[*Config](r)
 		if got, want := cfg, DefaultConfig(); !reflect.DeepEqual(got, want) {
 			t.Fatalf("want %v, got %v", want, got)
 		}
@@ -84,10 +86,11 @@ images:
 			t.Fatal(err)
 		}
 
-		cfg, err := LoadConfig(io.Local)
-		if err != nil {
-			t.Fatal(err)
+		r := LoadConfig(io.Local)
+		if !r.OK {
+			t.Fatal(r.Error())
 		}
+		cfg := core.MustCast[*Config](r)
 		if got, want := cfg.Version, 2; !reflect.DeepEqual(got, want) {
 			t.Fatalf("want %v, got %v", want, got)
 		}
@@ -121,8 +124,7 @@ func TestConfig_LoadConfig_Bad(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err = LoadConfig(io.Local)
-		if err == nil {
+		if r := LoadConfig(io.Local); r.OK {
 			t.Fatal("expected error")
 		}
 	})
@@ -216,10 +218,11 @@ images:
 		t.Fatal(err)
 	}
 
-	cfg, err := LoadConfig(io.Local)
-	if err != nil {
-		t.Fatal(err)
+	r := LoadConfig(io.Local)
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	cfg := core.MustCast[*Config](r)
 	if got, want := cfg.Version, 1; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -315,11 +318,11 @@ images:
 				t.Fatal(err)
 			}
 
-			cfg, err := LoadConfig(io.Local)
-			if err != nil {
-				t.Fatal(err)
+			r := LoadConfig(io.Local)
+			if !r.OK {
+				t.Fatal(r.Error())
 			}
-			tt.check(t, cfg)
+			tt.check(t, core.MustCast[*Config](r))
 		})
 	}
 }
@@ -405,8 +408,7 @@ func TestLoadConfig_UnreadableFile_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = LoadConfig(io.Local)
-	if err == nil {
+	if r := LoadConfig(io.Local); r.OK {
 		t.Fatal("expected error")
 
 		// Restore permissions so cleanup works
