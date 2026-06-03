@@ -28,6 +28,11 @@ func ExampleLinuxKitManager_Exec() {
 	// LinuxKitManager_Exec usage is covered by the corresponding triplet tests.
 }
 
+func ExampleLinuxKitManager_ExecInteractive() {
+	// ExecInteractive opens a TTY session in the container over `ssh -t`; usage
+	// is covered by the corresponding triplet tests.
+}
+
 func ExampleLinuxKitManager_State() {
 	// LinuxKitManager_State usage is covered by the corresponding triplet tests.
 }

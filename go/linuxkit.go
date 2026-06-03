@@ -469,7 +469,46 @@ func (f *followreader) Close() (
 	return f.file.Close()
 }
 
-// Exec executes a command inside the container via SSH.
+// linuxkitSSHArgs builds the ssh argument list for running cmd inside container
+// c. When tty is true it inserts -t to request a remote pseudo-terminal (for
+// interactive sessions); otherwise the connection stays non-interactive. The
+// SSH port falls back to the default 2222 when the container has none set.
+func linuxkitSSHArgs(c *Container, cmd []string, tty bool) []string {
+	sshPort := c.SSHPort
+	if sshPort <= 0 {
+		sshPort = 2222
+	}
+	args := []string{
+		"-p", core.Sprintf("%d", sshPort),
+		"-o", "StrictHostKeyChecking=yes",
+		"-o", "UserKnownHostsFile=~/.core/known_hosts",
+		"-o", "LogLevel=ERROR",
+	}
+	if tty {
+		args = append(args, "-t")
+	}
+	if c.SSHKey != "" {
+		args = append(args, "-i", c.SSHKey)
+	}
+	args = append(args, "root@localhost")
+	args = append(args, cmd...)
+	return args
+}
+
+// runSSH executes ssh with args, wiring the child to the terminal (fds 0/1/2),
+// and wraps any failure under op. Shared by Exec and ExecInteractive.
+func runSSH(ctx context.Context, op string, args []string) core.Result { // Value: nil
+	sshCmd := proc.NewCommandContext(ctx, "ssh", args...)
+	sshCmd.Stdin = proc.Stdin
+	sshCmd.Stdout = proc.Stdout
+	sshCmd.Stderr = proc.Stderr
+	if err := sshCmd.Run(); err != nil {
+		return core.Fail(core.E(op, "ssh exec", err))
+	}
+	return core.Ok(nil)
+}
+
+// Exec executes a command inside the container via SSH (non-interactive).
 func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) core.Result { // Value: nil
 	if err := ctx.Err(); err != nil {
 		return core.Fail(core.E("LinuxKitManager.Exec", "context cancelled", err))
@@ -478,39 +517,27 @@ func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) cor
 	if !ok {
 		return core.Fail(core.E("LinuxKitManager.Exec", "container not found: "+id, nil))
 	}
-
 	if container.Status != StatusRunning {
 		return core.Fail(core.E("LinuxKitManager.Exec", "container is not running: "+id, nil))
 	}
+	return runSSH(ctx, "LinuxKitManager.Exec", linuxkitSSHArgs(container, cmd, false))
+}
 
-	// Use the container's configured SSH port, falling back to the default.
-	sshPort := container.SSHPort
-	if sshPort <= 0 {
-		sshPort = 2222
+// ExecInteractive runs cmd inside the container over `ssh -t`, wiring the child
+// to the terminal so the user gets a real interactive session. It blocks until
+// the remote command exits.
+func (m *LinuxKitManager) ExecInteractive(ctx context.Context, id string, cmd []string) core.Result { // Value: nil
+	if err := ctx.Err(); err != nil {
+		return core.Fail(core.E("LinuxKitManager.ExecInteractive", "context cancelled", err))
 	}
-
-	// Build SSH command
-	sshArgs := []string{
-		"-p", core.Sprintf("%d", sshPort),
-		"-o", "StrictHostKeyChecking=yes",
-		"-o", "UserKnownHostsFile=~/.core/known_hosts",
-		"-o", "LogLevel=ERROR",
+	container, ok := m.state.Get(id)
+	if !ok {
+		return core.Fail(core.E("LinuxKitManager.ExecInteractive", "container not found: "+id, nil))
 	}
-	if container.SSHKey != "" {
-		sshArgs = append(sshArgs, "-i", container.SSHKey)
+	if container.Status != StatusRunning {
+		return core.Fail(core.E("LinuxKitManager.ExecInteractive", "container is not running: "+id, nil))
 	}
-	sshArgs = append(sshArgs, "root@localhost")
-	sshArgs = append(sshArgs, cmd...)
-
-	sshCmd := proc.NewCommandContext(ctx, "ssh", sshArgs...)
-	sshCmd.Stdin = proc.Stdin
-	sshCmd.Stdout = proc.Stdout
-	sshCmd.Stderr = proc.Stderr
-
-	if err := sshCmd.Run(); err != nil {
-		return core.Fail(core.E("LinuxKitManager.Exec", "ssh exec", err))
-	}
-	return core.Ok(nil)
+	return runSSH(ctx, "LinuxKitManager.ExecInteractive", linuxkitSSHArgs(container, cmd, true))
 }
 
 // State returns the manager's state (for testing).

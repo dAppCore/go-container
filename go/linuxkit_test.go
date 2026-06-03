@@ -2070,3 +2070,20 @@ func TestLinuxkit_LinuxKitManager_Hypervisor_Ugly(t *testing.T) {
 		t.Fatal(targetSymbol, variantCase)
 	}
 }
+
+func TestLinuxkit_linuxkitSSHArgs_Good(t *testing.T) {
+	c := &Container{SSHPort: 2200}
+	withTTY := linuxkitSSHArgs(c, []string{"/bin/sh"}, true)
+	noTTY := linuxkitSSHArgs(c, []string{"/bin/sh"}, false)
+	if indexOf(withTTY, "-t") < 0 {
+		t.Fatalf("tty args missing -t: %v", withTTY)
+	}
+	if indexOf(noTTY, "-t") >= 0 {
+		t.Fatalf("non-tty args should omit -t: %v", noTTY)
+	}
+	for _, want := range []string{"-p", "2200", "root@localhost", "/bin/sh"} {
+		if indexOf(withTTY, want) < 0 {
+			t.Fatalf("args %v missing %q", withTTY, want)
+		}
+	}
+}
