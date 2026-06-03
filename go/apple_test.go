@@ -1477,3 +1477,47 @@ func TestApple_E2E_ContainerLifecycle_Smoke(t *testing.T) {
 		t.Fatalf("Stop: %v", r.Error())
 	}
 }
+
+// TestApple_E2E_RunPublish_Smoke certifies that a published port set via
+// WithPorts reaches the runtime: run with -p 18080:80 and assert List's parsed
+// publishedPorts shows 18080->80. Opt-in (CORE_APPLE_E2E=1).
+func TestApple_E2E_RunPublish_Smoke(t *testing.T) {
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI smoke")
+	}
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	const name = "core-publish-e2e"
+	const ref = "docker.io/library/alpine:latest"
+	ctx := context.Background()
+	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run()
+	defer func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }()
+	if r := p.Pull(ref); !r.OK {
+		t.Fatalf("Pull: %v", r.Error())
+	}
+	if r := p.Run(&Image{Path: ref}, WithName(name), WithDetach(true),
+		WithPorts(map[int]int{18080: 80}), WithArgs("sleep", "60")); !r.OK {
+		t.Fatalf("Run with -p: %v", r.Error())
+	}
+	var got *Container
+	for i := 0; i < 30 && got == nil; i++ {
+		if lr := p.List(); lr.OK {
+			for _, c := range core.MustCast[[]*Container](lr) {
+				if c.ID == name && c.Status == StatusRunning {
+					got = c
+				}
+			}
+		}
+		if got == nil {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if got == nil {
+		t.Fatal("container not running after Run(WithPorts)")
+	}
+	if got.Ports[18080] != 80 {
+		t.Fatalf("published ports = %v, want 18080->80", got.Ports)
+	}
+}
