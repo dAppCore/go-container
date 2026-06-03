@@ -565,14 +565,30 @@ func viewLogs(id string, follow bool) (
 func addVMExecCommand(c *core.Core) {
 	registerVMCommand(c, "vm/exec", core.Command{
 		Description: vmT("cmd.vm.exec.short"),
+		Flags: core.NewOptions(
+			// -i/--interactive and -t/--tty route exec through the TTY-wired
+			// path. Short forms parse to single-char keys (see wantInteractive).
+			core.Option{Key: "interactive", Value: false},
+			core.Option{Key: "tty", Value: false},
+		),
 		Action: func(opts core.Options) core.Result {
 			args := optionArgs(opts)
 			if len(args) < 2 {
 				return core.Fail(core.E("vm exec", vmT("cmd.vm.error.id_and_cmd_required"), nil))
 			}
+			if wantInteractive(opts) {
+				return execInteractive(args[0], args[1:])
+			}
 			return resultFromError(execInContainer(args[0], args[1:]))
 		},
 	})
+}
+
+// wantInteractive reports whether exec should use the TTY-wired interactive
+// path. True when any of -i/--interactive/-t/--tty is set; the short forms
+// parse to single-char keys (i, t), the long forms to their full names.
+func wantInteractive(opts core.Options) bool {
+	return opts.Bool("interactive") || opts.Bool("i") || opts.Bool("tty") || opts.Bool("t")
 }
 
 func execInContainer(id string, cmd []string) (
@@ -603,6 +619,50 @@ func execInContainer(id string, cmd []string) (
 		return r.Value.(error)
 	}
 	return nil
+}
+
+// execInteractive runs cmd inside a container through the TTY-wired path,
+// dispatching by owner (Apple's `container exec -i -t` or LinuxKit's `ssh -t`).
+// It blocks until the remote command exits.
+func execInteractive(id string, cmd []string) core.Result { // Value: nil
+	apple, fullID, err := resolveContainerOwner(id)
+	if err != nil {
+		return core.Fail(err)
+	}
+	if apple != nil {
+		return apple.ExecInteractive(fullID, cmd...)
+	}
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return core.Fail(core.E("execInteractive", vmT("i18n.fail.init", "container manager"), mgrRes.Value.(error)))
+	}
+	return core.MustCast[*container.LinuxKitManager](mgrRes).ExecInteractive(context.Background(), fullID, cmd)
+}
+
+// shellContainer opens an interactive shell in a container, defaulting the
+// command to /bin/sh when none is given.
+func shellContainer(id string, cmd []string) core.Result { // Value: nil
+	if id == "" {
+		return core.Fail(core.E("vm shell", vmT("cmd.vm.error.id_required"), nil))
+	}
+	if len(cmd) == 0 {
+		cmd = []string{"/bin/sh"}
+	}
+	return execInteractive(id, cmd)
+}
+
+// addVMShellCommand adds the 'shell' command under vm.
+func addVMShellCommand(c *core.Core) {
+	registerVMCommand(c, "vm/shell", core.Command{
+		Description: "Open an interactive shell in a container (default /bin/sh)",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) == 0 {
+				return core.Fail(core.E("vm shell", vmT("cmd.vm.error.id_required"), nil))
+			}
+			return shellContainer(args[0], args[1:])
+		},
+	})
 }
 
 // addVMKillCommand adds the 'kill' command under vm.

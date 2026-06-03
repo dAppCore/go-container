@@ -94,3 +94,23 @@ func TestCmdContainer_inspectContainer_Bad(t *testing.T) {
 		t.Fatal("expected error for empty id")
 	}
 }
+
+func TestCmdContainer_shellContainer_Bad(t *testing.T) {
+	if shellContainer("", nil).OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestCmdContainer_wantInteractive_Good(t *testing.T) {
+	// Any of -i/--interactive/-t/--tty routes exec through the TTY path; the
+	// short forms parse to single-char keys (i, t), the long forms to full names.
+	for _, key := range []string{"i", "interactive", "t", "tty"} {
+		on := core.NewOptions(core.Option{Key: key, Value: true})
+		if !wantInteractive(on) {
+			t.Fatalf("flag %q should request the interactive path", key)
+		}
+	}
+	if wantInteractive(core.NewOptions()) {
+		t.Fatal("no flags should not request the interactive path")
+	}
+}

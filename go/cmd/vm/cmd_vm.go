@@ -38,6 +38,7 @@ func AddVMCommands(c *core.Core) {
 	addVMStopCommand(c)
 	addVMLogsCommand(c)
 	addVMExecCommand(c)
+	addVMShellCommand(c)
 	addVMTemplatesCommand(c)
 	addVMBuildCommand(c)
 	addVMPullCommand(c)

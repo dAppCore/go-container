@@ -9,7 +9,8 @@
 //   - kill: Kill a running container (SIGKILL)
 //   - rm: Remove a container
 //   - logs: View container logs
-//   - exec: Execute a command inside a container
+//   - exec: Execute a command inside a container (add -i/-t for a TTY session)
+//   - shell: Open an interactive shell in a container (default /bin/sh)
 //   - inspect: Show detailed container information (JSON)
 //   - templates: Manage LinuxKit templates (list, show, vars)
 //
