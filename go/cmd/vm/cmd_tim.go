@@ -1,0 +1,73 @@
+package vm
+
+import (
+	core "dappco.re/go"
+	"dappco.re/go/io"
+
+	"forge.lthn.ai/Snider/Borg/pkg/datanode"
+	borgtim "forge.lthn.ai/Snider/Borg/pkg/tim"
+)
+
+// timKeyphrase resolves the STIM passphrase from --key-file (read + trimmed) or
+// the CORE_TIM_KEY env var. The value is fed to Borg's ToSigil/FromSigil, which
+// derives the AEAD key via sha256. Fails if neither yields a non-empty secret.
+func timKeyphrase(opts core.Options) core.Result { // Value: string
+	if kf := opts.String("key-file"); kf != "" {
+		raw, err := io.Local.Read(kf)
+		if err != nil {
+			return core.Fail(core.E("vm tim", "read key file: "+kf, err))
+		}
+		pass := core.Trim(raw)
+		if pass == "" {
+			return core.Fail(core.E("vm tim", "key file is empty: "+kf, nil))
+		}
+		return core.Ok(pass)
+	}
+	if env := core.Env("CORE_TIM_KEY"); env != "" {
+		return core.Ok(env)
+	}
+	return core.Fail(core.E("vm tim", "no key: pass --key-file or set CORE_TIM_KEY", nil))
+}
+
+// timIsSTIM reports whether data carries the Borg STIM magic prefix.
+func timIsSTIM(data []byte) bool {
+	return len(data) >= 4 && string(data[:4]) == "STIM"
+}
+
+// timPack packs the source directory into a Borg-default .tim bundle at outPath.
+func timPack(srcDir, outPath string) core.Result { // Value: nil
+	m, err := borgtim.New()
+	if err != nil {
+		return core.Fail(core.E("vm tim pack", "new tim", err))
+	}
+	if err := m.RootFS.AddPath(srcDir, datanode.AddPathOptions{}); err != nil {
+		return core.Fail(core.E("vm tim pack", "add path: "+srcDir, err))
+	}
+	tarBytes, err := m.ToTar()
+	if err != nil {
+		return core.Fail(core.E("vm tim pack", "to tar", err))
+	}
+	if err := io.Local.Write(outPath, string(tarBytes)); err != nil {
+		return core.Fail(core.E("vm tim pack", "write: "+outPath, err))
+	}
+	core.Print(nil, "%s %s", successStyle.Render("packed"), outPath)
+	core.Println()
+	return core.Ok(nil)
+}
+
+// addVMTimCommand registers the `vm tim` subgroup (pack/encrypt/decrypt/inspect).
+func addVMTimCommand(c *core.Core) {
+	registerVMCommand(c, "vm/tim", core.Command{
+		Description: "Manage Borg TIM/STIM container bundles",
+	})
+	registerVMCommand(c, "vm/tim/pack", core.Command{
+		Description: "Pack a directory into a Borg .tim bundle",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) < 2 {
+				return core.Fail(core.E("vm tim pack", "usage: vm tim pack <src-dir> <out.tim>", nil))
+			}
+			return timPack(args[0], args[1])
+		},
+	})
+}
