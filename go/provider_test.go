@@ -431,6 +431,35 @@ func TestProvider_WithArgs_Ugly(t *testing.T) {
 	}
 }
 
+func TestProvider_WithEnv_Good(t *testing.T) {
+	o := ApplyRunOptions(WithEnv("FOO=bar", "BAZ=qux"))
+	if len(o.Env) != 2 || o.Env[0] != "FOO=bar" || o.Env[1] != "BAZ=qux" {
+		t.Fatalf("WithEnv => %v, want [FOO=bar BAZ=qux]", o.Env)
+	}
+}
+
+func TestProvider_WithEnv_Bad(t *testing.T) {
+	// No args is a degenerate but valid call: Env stays empty.
+	o := ApplyRunOptions(WithEnv())
+	if len(o.Env) != 0 {
+		t.Fatalf("WithEnv() => %v, want empty", o.Env)
+	}
+}
+
+func TestProvider_WithEnv_Ugly(t *testing.T) {
+	// Values may contain '=' and be empty; order is preserved.
+	o := ApplyRunOptions(WithEnv("URL=https://x?a=b", "EMPTY="))
+	want := []string{"URL=https://x?a=b", "EMPTY="}
+	if len(o.Env) != len(want) {
+		t.Fatalf("WithEnv len = %d, want %d (%v)", len(o.Env), len(want), o.Env)
+	}
+	for i := range want {
+		if o.Env[i] != want[i] {
+			t.Fatalf("WithEnv[%d] = %q, want %q", i, o.Env[i], want[i])
+		}
+	}
+}
+
 func TestProvider_ApplyRunOptions_Bad(t *testing.T) {
 	auditTarget := "ApplyRunOptions"
 	auditVariant := "Bad"

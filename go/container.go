@@ -77,6 +77,9 @@ type RunOptions struct {
 	// Args is the container command/arguments, passed after the image
 	// (e.g. ["sleep", "300"]). Empty runs the image's default entrypoint.
 	Args []string
+	// Env is the container environment in KEY=VALUE form (Apple runtime only;
+	// LinuxKit bakes env into the image at build time).
+	Env []string
 }
 
 // ReadCloser is the stream contract returned by Manager.Logs.

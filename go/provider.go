@@ -232,6 +232,18 @@ func WithArgs(args ...string) RunOption {
 	}
 }
 
+// WithEnv sets container environment variables (KEY=VALUE), e.g.
+// WithEnv("PORT=8080"). Apple runtime only; LinuxKit env is image-baked.
+//
+// Usage:
+//
+//	p.Run(img, container.WithEnv("CORE_ENV=prod"))
+func WithEnv(env ...string) RunOption {
+	return func(o *RunOptions) {
+		o.Env = append(o.Env, env...)
+	}
+}
+
 // ApplyRunOptions folds a slice of RunOption functions into a RunOptions.
 //
 // Usage:

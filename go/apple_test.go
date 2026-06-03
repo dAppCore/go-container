@@ -1308,6 +1308,33 @@ func TestApple_appleRunArgs_ContainerArgs_Good(t *testing.T) {
 	}
 }
 
+func TestApple_appleRunArgs_Env_Good(t *testing.T) {
+	r := appleRunArgs("web", &Image{Path: "alpine:latest"},
+		RunOptions{Env: []string{"FOO=bar"}, Volumes: map[string]string{"/h": "/c"}, Args: []string{"sleep", "1"}})
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	args := core.MustCast[[]string](r)
+	if !core.Contains(core.Join(" ", args...), "-e FOO=bar") {
+		t.Fatalf("args %v missing `-e FOO=bar`", args)
+	}
+	// env must precede the image; container args follow it.
+	ePos, imgPos := indexOf(args, "FOO=bar"), indexOf(args, "alpine:latest")
+	if ePos < 0 || imgPos < 0 || ePos > imgPos {
+		t.Fatalf("env must precede image: %v", args)
+	}
+}
+
+// indexOf returns the first index of v in s, or -1.
+func indexOf(s []string, v string) int {
+	for i, x := range s {
+		if x == v {
+			return i
+		}
+	}
+	return -1
+}
+
 func TestApple_appleContainerID_Good(t *testing.T) {
 	// Explicit name wins; else the image name; else the generated fallback.
 	// For Apple this id is what `container run --name` registers and what

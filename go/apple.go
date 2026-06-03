@@ -264,6 +264,9 @@ func appleRunArgs(name string, image *Image, ro RunOptions) core.Result { // Val
 	for host, guest := range ro.Volumes {
 		args = append(args, "--volume", core.Sprintf("%s:%s", host, guest))
 	}
+	for _, e := range ro.Env {
+		args = append(args, "-e", e)
+	}
 	args = append(args, image.Path)
 	args = append(args, ro.Args...)
 	return core.Ok(args)
