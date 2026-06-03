@@ -2,7 +2,7 @@ package container
 
 import core "dappco.re/go"
 
-// Provider abstracts the container backend (LinuxKit, TIM, Apple Containers).
+// Provider abstracts the container backend (LinuxKit, Apple Containers).
 // Each provider implements a consistent lifecycle: build an image from a
 // declarative config, run it, and optionally encrypt/decrypt the image.
 //
@@ -36,7 +36,7 @@ type Provider interface {
 
 // ContainerConfig is the declarative build input for a Provider.
 // Different providers map this to their native format (LinuxKit YAML,
-// TIM config.json, Apple Containers spec).
+// Apple Containers spec).
 //
 // Usage:
 //
@@ -69,7 +69,7 @@ type ContainerConfig struct {
 	// Format is the requested output format (iso, qcow2, raw, vmdk, ami).
 	// Empty uses the provider default.
 	Format string
-	// Source is the source image reference (LinuxKit YAML path, TIM bundle path, etc).
+	// Source is the source image reference (LinuxKit YAML path, OCI ref, etc).
 	Source string
 }
 
