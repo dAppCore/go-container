@@ -6,6 +6,7 @@ import (
 
 	"forge.lthn.ai/Snider/Borg/pkg/datanode"
 	borgtim "forge.lthn.ai/Snider/Borg/pkg/tim"
+	"forge.lthn.ai/Snider/Enchantrix/pkg/trix"
 )
 
 // timKeyphrase resolves the STIM passphrase from --key-file (read + trimmed) or
@@ -109,6 +110,38 @@ func timDecrypt(inPath, outPath string, opts core.Options) core.Result { // Valu
 	return core.Ok(nil)
 }
 
+// timInspect prints metadata for a .tim (decoded config) or .stim (Trix header,
+// no key required). The file kind is sniffed from the STIM magic prefix.
+func timInspect(path string) core.Result { // Value: nil
+	raw, err := io.Local.Read(path)
+	if err != nil {
+		return core.Fail(core.E("vm tim inspect", "read: "+path, err))
+	}
+	data := []byte(raw)
+	if timIsSTIM(data) {
+		tx, derr := trix.Decode(data, "STIM", nil)
+		if derr != nil {
+			return core.Fail(core.E("vm tim inspect", "decode stim header", derr))
+		}
+		hdrRes := core.JSONMarshalIndent(tx.Header, "", "  ")
+		if !hdrRes.OK {
+			return hdrRes
+		}
+		core.Print(nil, "%s %s", dimStyle.Render("format"), "stim")
+		core.Println()
+		core.Println(string(core.MustCast[[]byte](hdrRes)))
+		return core.Ok(nil)
+	}
+	m, ferr := borgtim.FromTar(data)
+	if ferr != nil {
+		return core.Fail(core.E("vm tim inspect", "parse tim: "+path, ferr))
+	}
+	core.Print(nil, "%s %s", dimStyle.Render("format"), "tim")
+	core.Println()
+	core.Println(string(m.Config))
+	return core.Ok(nil)
+}
+
 // addVMTimCommand registers the `vm tim` subgroup (pack/encrypt/decrypt/inspect).
 func addVMTimCommand(c *core.Core) {
 	registerVMCommand(c, "vm/tim", core.Command{
@@ -144,6 +177,16 @@ func addVMTimCommand(c *core.Core) {
 				return core.Fail(core.E("vm tim decrypt", "usage: vm tim decrypt <in.stim> <out.tim> --key-file <p>", nil))
 			}
 			return timDecrypt(args[0], args[1], opts)
+		},
+	})
+	registerVMCommand(c, "vm/tim/inspect", core.Command{
+		Description: "Show metadata for a .tim (config) or .stim (header)",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) == 0 {
+				return core.Fail(core.E("vm tim inspect", "usage: vm tim inspect <file>", nil))
+			}
+			return timInspect(args[0])
 		},
 	})
 }

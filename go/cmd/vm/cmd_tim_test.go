@@ -144,3 +144,32 @@ func TestCmdTim_timDecrypt_Bad(t *testing.T) {
 		t.Fatal("expected decrypt with the wrong key to fail")
 	}
 }
+
+func TestCmdTim_timInspect_Good(t *testing.T) {
+	// Inspecting a plain .tim succeeds (reads config without a key).
+	src := t.TempDir()
+	if err := io.Local.Write(core.PathJoin(src, "f"), "x"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	timPath := core.PathJoin(t.TempDir(), "a.tim")
+	if r := timPack(src, timPath); !r.OK {
+		t.Fatalf("pack: %v", r.Error())
+	}
+	if r := timInspect(timPath); !r.OK {
+		t.Fatalf("inspect tim: %v", r.Error())
+	}
+}
+
+func TestCmdTim_timInspect_Bad(t *testing.T) {
+	// A file that is neither a valid tar nor a STIM container -> Fail.
+	bogus := core.PathJoin(t.TempDir(), "bogus.bin")
+	if err := io.Local.Write(bogus, "not a tim or stim"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if timInspect(bogus).OK {
+		t.Fatal("expected inspect of a bogus file to fail")
+	}
+	if timInspect(core.PathJoin(t.TempDir(), "missing.tim")).OK {
+		t.Fatal("expected inspect of a missing file to fail")
+	}
+}
