@@ -76,3 +76,71 @@ func TestCmdTim_timPack_Bad(t *testing.T) {
 		t.Fatal("expected failure packing a missing directory")
 	}
 }
+
+func TestCmdTim_timEncryptDecrypt_Good(t *testing.T) {
+	// pack -> encrypt -> decrypt round-trips the payload; the .stim hides it.
+	src := t.TempDir()
+	if err := io.Local.Write(core.PathJoin(src, "hello.txt"), "world"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	dir := t.TempDir()
+	timPath := core.PathJoin(dir, "app.tim")
+	stimPath := core.PathJoin(dir, "app.stim")
+	backPath := core.PathJoin(dir, "back.tim")
+	keyPath := core.PathJoin(dir, "k.key")
+	if err := io.Local.Write(keyPath, "correct horse battery staple"); err != nil {
+		t.Fatalf("seed key: %v", err)
+	}
+	keyOpts := core.NewOptions(core.Option{Key: "key-file", Value: keyPath})
+
+	if r := timPack(src, timPath); !r.OK {
+		t.Fatalf("pack: %v", r.Error())
+	}
+	if r := timEncrypt(timPath, stimPath, keyOpts); !r.OK {
+		t.Fatalf("encrypt: %v", r.Error())
+	}
+	stim, err := io.Local.Read(stimPath)
+	if err != nil {
+		t.Fatalf("read stim: %v", err)
+	}
+	if !timIsSTIM([]byte(stim)) {
+		t.Fatal("encrypted output should carry the STIM magic")
+	}
+	if core.Contains(stim, "world") {
+		t.Fatal("encrypted .stim must not contain the cleartext payload")
+	}
+	if r := timDecrypt(stimPath, backPath, keyOpts); !r.OK {
+		t.Fatalf("decrypt: %v", r.Error())
+	}
+	back, err := io.Local.Read(backPath)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if !core.Contains(back, "world") {
+		t.Fatal("decrypted .tim should restore the cleartext payload")
+	}
+}
+
+func TestCmdTim_timDecrypt_Bad(t *testing.T) {
+	// Wrong key -> FromSigil fails.
+	src := t.TempDir()
+	if err := io.Local.Write(core.PathJoin(src, "f"), "secret"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	dir := t.TempDir()
+	timPath := core.PathJoin(dir, "a.tim")
+	stimPath := core.PathJoin(dir, "a.stim")
+	goodKey := core.PathJoin(dir, "good.key")
+	badKey := core.PathJoin(dir, "bad.key")
+	_ = io.Local.Write(goodKey, "right-key")
+	_ = io.Local.Write(badKey, "wrong-key")
+	if r := timPack(src, timPath); !r.OK {
+		t.Fatalf("pack: %v", r.Error())
+	}
+	if r := timEncrypt(timPath, stimPath, core.NewOptions(core.Option{Key: "key-file", Value: goodKey})); !r.OK {
+		t.Fatalf("encrypt: %v", r.Error())
+	}
+	if timDecrypt(stimPath, core.PathJoin(dir, "out.tim"), core.NewOptions(core.Option{Key: "key-file", Value: badKey})).OK {
+		t.Fatal("expected decrypt with the wrong key to fail")
+	}
+}
