@@ -38,7 +38,7 @@ in-process; **remove** the native format. One format, the canonical one.
 |---|---|
 | Strategy | Import `forge.lthn.ai/Snider/Borg/pkg/tim` (+ `Enchantrix`) and call `ToTar`/`ToSigil`/`FromTar`/`FromSigil` in-process. No shelling out to a `borg` binary. |
 | Key source | `--key-file <path>` (env fallback `CORE_TIM_KEY`). The file's trimmed contents are the **passphrase** for `ToSigil`/`FromSigil`; Borg derives the AEAD key via `sha256`. The file holds a secret of any length (not a raw 32-byte key — Borg's API is passphrase-based). |
-| `pack` input | A source **directory** (`RootFS.AddPath(<dir>)`), matching RFC §6's `tim pack <dir>`. No Borgfile (`-f`) input this round. |
+| `pack` input | A source **directory** (`RootFS.AddPath(<dir>)`), matching RFC §6's `tim pack <dir>`. No Borgfile (`-f`) input this round. **No config flags** — Borg's TIM config is a minimal placeholder (`defaultConfig()` is an empty trix header; `borg compile` sets no entrypoint/env), so pack does not invent a config schema. Entrypoint/env customization is a follow-up for when Borg's config model grows. |
 | Placement | `core vm tim …` under the module's existing `vm` namespace (the RFC's top-level `core tim` is `core vm tim` here, like `core vm run`). |
 | Native format | **Removed** (`tim.go`, `datacube.go`, `datanode.go` + their tests/examples). One TIM format in the tree. |
 
@@ -64,10 +64,10 @@ to read the `.stim` header without a key. Transitive deps pulled in: only
 Registered as `vm/tim` (group) + `vm/tim/{pack,encrypt,decrypt,inspect}`,
 mirroring the `vm/system/*` nesting from ③a. Each `Action` returns `core.Result`.
 
-- **`vm tim pack <src-dir> <out.tim>`** `[--entrypoint <s>] [--env <k=v>…] [--workdir <s>] [--readonly]`
-  - `tim.New()` → `m.RootFS.AddPath(<src-dir>, …)` → build a config.json from the
-    flags and assign `m.Config` → `m.ToTar()` → write `<out.tim>`.
-  - `--env` is repeatable (read via `optionStrings(opts, "env")`).
+- **`vm tim pack <src-dir> <out.tim>`**
+  - `tim.New()` → `m.RootFS.AddPath(<src-dir>, datanode.AddPathOptions{})` →
+    `m.ToTar()` → write `<out.tim>`. No config flags — see §3 (Borg's config is a
+    placeholder; pack stores the directory tree into a Borg-default `.tim`).
 - **`vm tim encrypt <in.tim> <out.stim> --key-file <path>`**
   - read `<in.tim>` → `tim.FromTar(data)` → `m.ToSigil(passphrase)` → write `<out.stim>`.
 - **`vm tim decrypt <in.stim> <out.tim> --key-file <path>`**
@@ -81,8 +81,6 @@ mirroring the `vm/system/*` nesting from ③a. Each `Action` returns `core.Resul
 Shared helpers in `cmd_tim.go`:
 - `timKeyphrase(opts core.Options) core.Result` — resolve the passphrase from
   `--key-file` (read+trim) or `CORE_TIM_KEY`; Fail if neither is set/non-empty.
-- `timConfigJSON(opts core.Options) core.Result // []byte` — build the
-  Borg-compatible `config.json` bytes from the pack flags.
 - `timIsSTIM(data []byte) bool` — magic-byte sniff (`"STIM"` prefix).
 
 File I/O uses `io.Local` (the `io.Medium` abstraction), consistent with the rest
@@ -138,8 +136,9 @@ unrecognised file → Fail. Borg `(…, error)` returns are wrapped with
 Borg's `pkg/tim` is pure Go (filesystem + crypto), so the happy paths run under
 `go test` with no external runtime:
 
-- **pack → inspect:** pack a temp dir (via an in-memory or temp `io.Local` root)
-  to `<out.tim>`; `inspect` reports the config built from the flags.
+- **pack → inspect:** pack a temp dir (a real `t.TempDir()` with a file written
+  via `io.Local`) to `<out.tim>`; `FromTar` round-trips the packed file, and
+  `inspect` reports the bundle's (default) config.
 - **encrypt → decrypt round-trip:** pack → encrypt with a key → decrypt with the
   same key → the recovered `.tim` round-trips to the original tar bytes / config.
 - **wrong key:** `decrypt` with a different key → failed Result.
