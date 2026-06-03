@@ -21,48 +21,39 @@ type State struct {
 //
 // Usage:
 //
-//	dir, err := DefaultStateDir()
-func DefaultStateDir() (
-	string,
-	error,
-) {
+//	dir := core.MustCast[string](DefaultStateDir())
+func DefaultStateDir() core.Result { // Value: string
 	home := coreutil.HomeDir()
 	if home == "" {
-		return "", core.E("DefaultStateDir", "home directory not available", nil)
+		return core.Fail(core.E("DefaultStateDir", "home directory not available", nil))
 	}
-	return coreutil.JoinPath(home, ".core"), nil
+	return core.Ok(coreutil.JoinPath(home, ".core"))
 }
 
 // DefaultStatePath returns the default path for the state file.
 //
 // Usage:
 //
-//	path, err := DefaultStatePath()
-func DefaultStatePath() (
-	string,
-	error,
-) {
-	dir, err := DefaultStateDir()
-	if err != nil {
-		return "", err
+//	path := core.MustCast[string](DefaultStatePath())
+func DefaultStatePath() core.Result { // Value: string
+	r := DefaultStateDir()
+	if !r.OK {
+		return r
 	}
-	return coreutil.JoinPath(dir, "containers.json"), nil
+	return core.Ok(coreutil.JoinPath(core.MustCast[string](r), "containers.json"))
 }
 
 // DefaultLogsDir returns the default directory for container logs.
 //
 // Usage:
 //
-//	dir, err := DefaultLogsDir()
-func DefaultLogsDir() (
-	string,
-	error,
-) {
-	dir, err := DefaultStateDir()
-	if err != nil {
-		return "", err
+//	dir := core.MustCast[string](DefaultLogsDir())
+func DefaultLogsDir() core.Result { // Value: string
+	r := DefaultStateDir()
+	if !r.OK {
+		return r
 	}
-	return coreutil.JoinPath(dir, "logs"), nil
+	return core.Ok(coreutil.JoinPath(core.MustCast[string](r), "logs"))
 }
 
 // NewState creates a new State instance.
@@ -82,55 +73,51 @@ func NewState(filePath string) *State {
 //
 // Usage:
 //
-//	state, err := LoadState("/tmp/containers.json")
-func LoadState(filePath string) (
-	*State,
-	error,
-) {
+//	state := core.MustCast[*State](LoadState("/tmp/containers.json"))
+func LoadState(filePath string) core.Result { // Value: *State
 	state := NewState(filePath)
 
 	if !io.Local.Exists(filePath) {
-		return state, nil
+		return core.Ok(state)
 	}
 
 	dataStr, err := io.Local.Read(filePath)
 	if err != nil {
-		return nil, err
+		return core.Fail(core.E("LoadState", "read state file", err))
 	}
 
 	result := core.JSONUnmarshalString(dataStr, state)
 	if !result.OK {
-		return nil, result.Value.(error)
+		return result
 	}
 
-	return state, nil
+	return core.Ok(state)
 }
 
 // SaveState persists the state to the configured file path.
-func (s *State) SaveState() (
-	err error, // result
-) {
+func (s *State) SaveState() core.Result { // Value: nil
 	stateMutex.RLock()
 	defer stateMutex.RUnlock()
 
 	// Ensure the directory exists
 	dir := core.PathDir(s.filePath)
 	if err := io.Local.EnsureDir(dir); err != nil {
-		return err
+		return core.Fail(core.E("State.SaveState", "ensure state directory", err))
 	}
 
 	result := core.JSONMarshal(s)
 	if !result.OK {
-		return result.Value.(error)
+		return result
 	}
 
-	return io.Local.Write(s.filePath, string(result.Value.([]byte)))
+	if err := io.Local.Write(s.filePath, string(core.MustCast[[]byte](result))); err != nil {
+		return core.Fail(core.E("State.SaveState", "write state file", err))
+	}
+	return core.Ok(nil)
 }
 
 // Add adds a container to the state and persists it.
-func (s *State) Add(c *Container) (
-	err error, // result
-) {
+func (s *State) Add(c *Container) core.Result { // Value: nil
 	stateMutex.Lock()
 	s.Containers[c.ID] = c
 	stateMutex.Unlock()
@@ -154,9 +141,7 @@ func (s *State) Get(id string) (*Container, bool) {
 }
 
 // Update updates a container in the state and persists it.
-func (s *State) Update(c *Container) (
-	err error, // result
-) {
+func (s *State) Update(c *Container) core.Result { // Value: nil
 	stateMutex.Lock()
 	s.Containers[c.ID] = c
 	stateMutex.Unlock()
@@ -165,9 +150,7 @@ func (s *State) Update(c *Container) (
 }
 
 // Remove removes a container from the state and persists it.
-func (s *State) Remove(id string) (
-	err error, // result
-) {
+func (s *State) Remove(id string) core.Result { // Value: nil
 	stateMutex.Lock()
 	delete(s.Containers, id)
 	stateMutex.Unlock()
@@ -198,29 +181,27 @@ func (s *State) FilePath() string {
 //
 // Usage:
 //
-//	path, err := LogPath(containerID)
-func LogPath(id string) (
-	string,
-	error,
-) {
-	logsDir, err := DefaultLogsDir()
-	if err != nil {
-		return "", err
+//	path := core.MustCast[string](LogPath(containerID))
+func LogPath(id string) core.Result { // Value: string
+	r := DefaultLogsDir()
+	if !r.OK {
+		return r
 	}
-	return coreutil.JoinPath(logsDir, core.Concat(id, ".log")), nil
+	return core.Ok(coreutil.JoinPath(core.MustCast[string](r), core.Concat(id, ".log")))
 }
 
 // EnsureLogsDir ensures the logs directory exists.
 //
 // Usage:
 //
-//	err := EnsureLogsDir()
-func EnsureLogsDir() (
-	err error, // result
-) {
-	logsDir, err := DefaultLogsDir()
-	if err != nil {
-		return err
+//	if r := EnsureLogsDir(); !r.OK { return r }
+func EnsureLogsDir() core.Result { // Value: nil
+	r := DefaultLogsDir()
+	if !r.OK {
+		return r
 	}
-	return io.Local.EnsureDir(logsDir)
+	if err := io.Local.EnsureDir(core.MustCast[string](r)); err != nil {
+		return core.Fail(core.E("EnsureLogsDir", "ensure logs directory", err))
+	}
+	return core.Ok(nil)
 }

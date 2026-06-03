@@ -6,14 +6,12 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/json"
-	"os"
 	"runtime"
 	"strconv"
 	"time"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
+	coreio "dappco.re/go/io"
 
 	"dappco.re/go/container/internal/proc"
 )
@@ -106,25 +104,22 @@ func (a *AppleProvider) Available() bool {
 //
 // Usage:
 //
-//	img, _ := provider.Build(container.ContainerConfig{Source: "./Containerfile"})
-func (a *AppleProvider) Build(config ContainerConfig) (
-	*Image,
-	error,
-) {
+//	img := core.MustCast[*Image](provider.Build(container.ContainerConfig{Source: "./Containerfile"}))
+func (a *AppleProvider) Build(config ContainerConfig) core.Result { // Value: *Image
 	if !a.Available() {
-		return nil, coreerr.E("AppleProvider.Build", "apple container runtime not available on this host", nil)
+		return core.Fail(core.E("AppleProvider.Build", "apple container runtime not available on this host", nil))
 	}
 	if config.Source == "" {
-		return nil, coreerr.E("AppleProvider.Build", "ContainerConfig.Source is required", nil)
+		return core.Fail(core.E("AppleProvider.Build", "ContainerConfig.Source is required", nil))
 	}
 
 	name := config.Name
 	if name == "" {
-		id, err := GenerateID()
-		if err != nil {
-			return nil, coreerr.E("AppleProvider.Build", "generate image id", err)
+		idRes := GenerateID()
+		if !idRes.OK {
+			return core.Fail(core.E("AppleProvider.Build", "generate image id", idRes.Value.(error)))
 		}
-		name = id
+		name = core.MustCast[string](idRes)
 	}
 
 	args := []string{"build"}
@@ -134,7 +129,7 @@ func (a *AppleProvider) Build(config ContainerConfig) (
 
 	contextDir := "."
 	var isContainerfile bool
-	if info, err := os.Stat(config.Source); err == nil && !info.IsDir() {
+	if coreio.Local.IsFile(config.Source) {
 		isContainerfile = true
 		args = append(args, "--file", config.Source)
 		if workDir := core.PathDir(config.Source); workDir != "" {
@@ -152,24 +147,24 @@ func (a *AppleProvider) Build(config ContainerConfig) (
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, args...)
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Build", "container build", err)
+		return core.Fail(core.E("AppleProvider.Build", "container build", err))
 	}
 
 	digest := parseDigestFromOutput(out)
 
-	id, err := GenerateID()
-	if err != nil {
-		return nil, coreerr.E("AppleProvider.Build", "generate image id", err)
+	idRes := GenerateID()
+	if !idRes.OK {
+		return core.Fail(core.E("AppleProvider.Build", "generate image id", idRes.Value.(error)))
 	}
 
-	return &Image{
-		ID:       id,
+	return core.Ok(&Image{
+		ID:       core.MustCast[string](idRes),
 		Name:     name,
 		Path:     core.Concat(name, ":", digest),
 		Format:   FormatOCI,
 		Provider: string(RuntimeApple),
 		Digest:   digest,
-	}, nil
+	})
 }
 
 // parseDigestFromOutput extracts a content digest from container build stdout.
@@ -200,24 +195,22 @@ func firstLine(out []byte) string {
 //
 // Usage:
 //
-//	ctr, _ := provider.Run(img, container.WithMemory(2048), container.WithCPUs(2))
-func (a *AppleProvider) Run(image *Image, opts ...RunOption) (
-	*Container,
-	error,
-) {
+//	ctr := core.MustCast[*Container](provider.Run(img, container.WithMemory(2048), container.WithCPUs(2)))
+func (a *AppleProvider) Run(image *Image, opts ...RunOption) core.Result { // Value: *Container
 	if !a.Available() {
-		return nil, coreerr.E("AppleProvider.Run", "apple container runtime not available on this host", nil)
+		return core.Fail(core.E("AppleProvider.Run", "apple container runtime not available on this host", nil))
 	}
 	if image == nil || image.Path == "" {
-		return nil, coreerr.E("AppleProvider.Run", "image is required", nil)
+		return core.Fail(core.E("AppleProvider.Run", "image is required", nil))
 	}
 
 	ro := ApplyRunOptions(opts...)
 
-	id, err := GenerateID()
-	if err != nil {
-		return nil, coreerr.E("AppleProvider.Run", "generate container id", err)
+	idRes := GenerateID()
+	if !idRes.OK {
+		return core.Fail(core.E("AppleProvider.Run", "generate container id", idRes.Value.(error)))
 	}
+	id := core.MustCast[string](idRes)
 	name := ro.Name
 	if name == "" {
 		if image.Name != "" {
@@ -245,7 +238,7 @@ func (a *AppleProvider) Run(image *Image, opts ...RunOption) (
 	}
 	if ro.GPU {
 		if !isAppleSilicon() {
-			return nil, coreerr.E("AppleProvider.Run", "Metal GPU passthrough requires Apple Silicon", nil)
+			return core.Fail(core.E("AppleProvider.Run", "Metal GPU passthrough requires Apple Silicon", nil))
 		}
 		args = append(args, "--gpu", "--device", "metal")
 	}
@@ -253,7 +246,7 @@ func (a *AppleProvider) Run(image *Image, opts ...RunOption) (
 
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, args...)
 	if err := cmd.Start(); err != nil {
-		return nil, coreerr.E("AppleProvider.Run", "start apple container", err)
+		return core.Fail(core.E("AppleProvider.Run", "start apple container", err))
 	}
 
 	ctr := &Container{
@@ -271,7 +264,7 @@ func (a *AppleProvider) Run(image *Image, opts ...RunOption) (
 	}
 
 	a.track(ctr, cmd)
-	return ctr, nil
+	return core.Ok(ctr)
 }
 
 // track registers a running apple container with the provider so state can
@@ -335,21 +328,19 @@ func (a *AppleProvider) Tracked() []*Container {
 //
 // Usage:
 //
-//	err := p.Wait(ctx, ctr.ID)
-func (a *AppleProvider) Wait(ctx context.Context, id string) (
-	err error, // result
-) {
+//	if r := p.Wait(ctx, ctr.ID); !r.OK { return r }
+func (a *AppleProvider) Wait(ctx context.Context, id string) core.Result { // Value: nil
 	appleProviderLock.Lock()
 	entry, ok := a.tracked[id]
 	appleProviderLock.Unlock()
 	if !ok {
-		return coreerr.E("AppleProvider.Wait", "container not tracked: "+id, nil)
+		return core.Fail(core.E("AppleProvider.Wait", "container not tracked: "+id, nil))
 	}
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return core.Fail(core.E("AppleProvider.Wait", "context cancelled", ctx.Err()))
 	case <-entry.Done:
-		return nil
+		return core.Ok(nil)
 	}
 }
 
@@ -359,163 +350,159 @@ func (a *AppleProvider) Wait(ctx context.Context, id string) (
 //
 // Usage:
 //
-//	enc, _ := provider.Encrypt(img, workspaceKey)
-func (a *AppleProvider) Encrypt(image *Image, key []byte) (
-	*EncryptedImage,
-	error,
-) {
+//	enc := core.MustCast[*EncryptedImage](provider.Encrypt(img, workspaceKey))
+func (a *AppleProvider) Encrypt(image *Image, key []byte) core.Result { // Value: *EncryptedImage
 	if image == nil {
-		return nil, coreerr.E("AppleProvider.Encrypt", "image is required", nil)
+		return core.Fail(core.E("AppleProvider.Encrypt", "image is required", nil))
 	}
 	if len(key) == 0 {
-		return nil, coreerr.E("AppleProvider.Encrypt", "encryption key is required", nil)
+		return core.Fail(core.E("AppleProvider.Encrypt", "encryption key is required", nil))
 	}
 
-	plaintext, err := os.ReadFile(image.Path)
+	content, err := coreio.Local.Read(image.Path)
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Encrypt", "read image", err)
+		return core.Fail(core.E("AppleProvider.Encrypt", "read image", err))
 	}
+	plaintext := []byte(content)
 
 	block, err := aes.NewCipher(deriveKey256(key))
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Encrypt", "create cipher", err)
+		return core.Fail(core.E("AppleProvider.Encrypt", "create cipher", err))
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Encrypt", "create gcm", err)
+		return core.Fail(core.E("AppleProvider.Encrypt", "create gcm", err))
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := rand.Read(nonce); err != nil {
-		return nil, coreerr.E("AppleProvider.Encrypt", "generate nonce", err)
+		return core.Fail(core.E("AppleProvider.Encrypt", "generate nonce", err))
 	}
 
 	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
 
 	stimPath := core.Concat(image.Path, ".stim")
-	if err := os.WriteFile(stimPath, ciphertext, 0600); err != nil {
-		return nil, coreerr.E("AppleProvider.Encrypt", "write encrypted image", err)
+	if err := coreio.Local.WriteMode(stimPath, string(ciphertext), 0600); err != nil {
+		return core.Fail(core.E("AppleProvider.Encrypt", "write encrypted image", err))
 	}
 
-	id, err := GenerateID()
-	if err != nil {
-		return nil, coreerr.E("AppleProvider.Encrypt", "generate encrypted id", err)
+	idRes := GenerateID()
+	if !idRes.OK {
+		return core.Fail(core.E("AppleProvider.Encrypt", "generate encrypted id", idRes.Value.(error)))
 	}
 
-	return &EncryptedImage{
-		ID:       id,
+	return core.Ok(&EncryptedImage{
+		ID:       core.MustCast[string](idRes),
 		Path:     stimPath,
 		Provider: string(RuntimeApple),
 		Scheme:   "stim",
 		Size:     int64(len(ciphertext)),
-	}, nil
+	})
 }
 
 // Decrypt reverses Encrypt using the same workspace-derived key.
 //
 // Usage:
 //
-//	img, _ := provider.Decrypt(enc, workspaceKey)
-func (a *AppleProvider) Decrypt(encrypted *EncryptedImage, key []byte) (
-	*Image,
-	error,
-) {
+//	img := core.MustCast[*Image](provider.Decrypt(enc, workspaceKey))
+func (a *AppleProvider) Decrypt(encrypted *EncryptedImage, key []byte) core.Result { // Value: *Image
 	if encrypted == nil {
-		return nil, coreerr.E("AppleProvider.Decrypt", "encrypted image is required", nil)
+		return core.Fail(core.E("AppleProvider.Decrypt", "encrypted image is required", nil))
 	}
 	if len(key) == 0 {
-		return nil, coreerr.E("AppleProvider.Decrypt", "decryption key is required", nil)
+		return core.Fail(core.E("AppleProvider.Decrypt", "decryption key is required", nil))
 	}
 
-	ciphertext, err := os.ReadFile(encrypted.Path)
+	content, err := coreio.Local.Read(encrypted.Path)
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Decrypt", "read encrypted image", err)
+		return core.Fail(core.E("AppleProvider.Decrypt", "read encrypted image", err))
 	}
+	ciphertext := []byte(content)
 
 	block, err := aes.NewCipher(deriveKey256(key))
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Decrypt", "create cipher", err)
+		return core.Fail(core.E("AppleProvider.Decrypt", "create cipher", err))
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Decrypt", "create gcm", err)
+		return core.Fail(core.E("AppleProvider.Decrypt", "create gcm", err))
 	}
 
 	nonceSize := gcm.NonceSize()
 	if len(ciphertext) < nonceSize {
-		return nil, coreerr.E("AppleProvider.Decrypt", "ciphertext too short", nil)
+		return core.Fail(core.E("AppleProvider.Decrypt", "ciphertext too short", nil))
 	}
 
 	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Decrypt", "decrypt", err)
+		return core.Fail(core.E("AppleProvider.Decrypt", "decrypt", err))
 	}
 
 	path := encrypted.Path
 	if core.HasSuffix(path, ".stim") {
 		path = core.TrimSuffix(path, ".stim")
 	}
-	if err := os.WriteFile(path, plaintext, 0600); err != nil {
-		return nil, coreerr.E("AppleProvider.Decrypt", "write decrypted image", err)
+	if err := coreio.Local.WriteMode(path, string(plaintext), 0600); err != nil {
+		return core.Fail(core.E("AppleProvider.Decrypt", "write decrypted image", err))
 	}
 
-	id, err := GenerateID()
-	if err != nil {
-		return nil, coreerr.E("AppleProvider.Decrypt", "generate image id", err)
+	idRes := GenerateID()
+	if !idRes.OK {
+		return core.Fail(core.E("AppleProvider.Decrypt", "generate image id", idRes.Value.(error)))
 	}
 
-	return &Image{
-		ID:       id,
+	return core.Ok(&Image{
+		ID:       core.MustCast[string](idRes),
 		Path:     path,
 		Format:   DetectImageFormat(path),
 		Provider: string(RuntimeApple),
 		Size:     int64(len(plaintext)),
-	}, nil
+	})
 }
 
 // Stop stops a running container by ID through the Apple container CLI.
 //
 // Usage:
 //
-//	err := p.Stop(ctr.ID)
-func (a *AppleProvider) Stop(id string) error {
+//	if r := p.Stop(ctr.ID); !r.OK { return r }
+func (a *AppleProvider) Stop(id string) core.Result { // Value: nil
 	if id == "" {
-		return coreerr.E("AppleProvider.Stop", "container id is required", nil)
+		return core.Fail(core.E("AppleProvider.Stop", "container id is required", nil))
 	}
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "stop", id)
 	if err := cmd.Run(); err != nil {
-		return coreerr.E("AppleProvider.Stop", "stop container", err)
+		return core.Fail(core.E("AppleProvider.Stop", "stop container", err))
 	}
 	appleProviderLock.Lock()
 	if entry, ok := a.tracked[id]; ok {
 		entry.Container.Status = StatusStopped
 	}
 	appleProviderLock.Unlock()
-	return nil
+	return core.Ok(nil)
 }
 
 // Kill sends SIGKILL to a running container by ID through the Apple container CLI.
 //
 // Usage:
 //
-//	err := p.Kill(ctr.ID)
-func (a *AppleProvider) Kill(id string) error {
+//	if r := p.Kill(ctr.ID); !r.OK { return r }
+func (a *AppleProvider) Kill(id string) core.Result { // Value: nil
 	if id == "" {
-		return coreerr.E("AppleProvider.Kill", "container id is required", nil)
+		return core.Fail(core.E("AppleProvider.Kill", "container id is required", nil))
 	}
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "kill", id)
 	if err := cmd.Run(); err != nil {
-		return coreerr.E("AppleProvider.Kill", "kill container", err)
+		return core.Fail(core.E("AppleProvider.Kill", "kill container", err))
 	}
 	appleProviderLock.Lock()
 	if entry, ok := a.tracked[id]; ok {
 		entry.Container.Status = StatusKilled
 	}
 	appleProviderLock.Unlock()
-	return nil
+	return core.Ok(nil)
 }
 
 // Remove removes a container by ID through the Apple container CLI and
@@ -523,19 +510,19 @@ func (a *AppleProvider) Kill(id string) error {
 //
 // Usage:
 //
-//	err := p.Remove(ctr.ID)
-func (a *AppleProvider) Remove(id string) error {
+//	if r := p.Remove(ctr.ID); !r.OK { return r }
+func (a *AppleProvider) Remove(id string) core.Result { // Value: nil
 	if id == "" {
-		return coreerr.E("AppleProvider.Remove", "container id is required", nil)
+		return core.Fail(core.E("AppleProvider.Remove", "container id is required", nil))
 	}
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "rm", id)
 	if err := cmd.Run(); err != nil {
-		return coreerr.E("AppleProvider.Remove", "remove container", err)
+		return core.Fail(core.E("AppleProvider.Remove", "remove container", err))
 	}
 	appleProviderLock.Lock()
 	delete(a.tracked, id)
 	appleProviderLock.Unlock()
-	return nil
+	return core.Ok(nil)
 }
 
 // Logs returns the combined stdout/stderr log output for a container.
@@ -543,13 +530,10 @@ func (a *AppleProvider) Remove(id string) error {
 //
 // Usage:
 //
-//	out, _ := p.Logs(ctr.ID, 100)
-func (a *AppleProvider) Logs(id string, tail int) (
-	string,
-	error,
-) {
+//	out := core.MustCast[string](p.Logs(ctr.ID, 100))
+func (a *AppleProvider) Logs(id string, tail int) core.Result { // Value: string
 	if id == "" {
-		return "", coreerr.E("AppleProvider.Logs", "container id is required", nil)
+		return core.Fail(core.E("AppleProvider.Logs", "container id is required", nil))
 	}
 	n := tail
 	if n <= 0 {
@@ -558,51 +542,45 @@ func (a *AppleProvider) Logs(id string, tail int) (
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "logs", "--tail", strconv.Itoa(n), id)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", coreerr.E("AppleProvider.Logs", "get logs", err)
+		return core.Fail(core.E("AppleProvider.Logs", "get logs", err))
 	}
-	return string(out), nil
+	return core.Ok(string(out))
 }
 
 // Exec runs a command inside a container by ID through the Apple container CLI.
 //
 // Usage:
 //
-//	out, _ := p.Exec(ctr.ID, "/bin/sh", "-c", "echo hello")
-func (a *AppleProvider) Exec(id, command string, args ...string) (
-	string,
-	error,
-) {
+//	out := core.MustCast[string](p.Exec(ctr.ID, "/bin/sh", "-c", "echo hello"))
+func (a *AppleProvider) Exec(id, command string, args ...string) core.Result { // Value: string
 	if id == "" {
-		return "", coreerr.E("AppleProvider.Exec", "container id is required", nil)
+		return core.Fail(core.E("AppleProvider.Exec", "container id is required", nil))
 	}
 	if command == "" {
-		return "", coreerr.E("AppleProvider.Exec", "command is required", nil)
+		return core.Fail(core.E("AppleProvider.Exec", "command is required", nil))
 	}
 	cliArgs := append([]string{"exec", id, command}, args...)
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, cliArgs...)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", coreerr.E("AppleProvider.Exec", "exec command", err)
+		return core.Fail(core.E("AppleProvider.Exec", "exec command", err))
 	}
-	return string(out), nil
+	return core.Ok(string(out))
 }
 
 // List returns all containers known to the Apple container CLI.
 //
 // Usage:
 //
-//	containers, _ := p.List()
+//	containers := core.MustCast[[]*Container](p.List())
 //	for _, c := range containers {
-//	    fmt.Println(c.ID, c.Status)
+//	    core.Println(c.ID, c.Status)
 //	}
-func (a *AppleProvider) List() (
-	[]*Container,
-	error,
-) {
+func (a *AppleProvider) List() core.Result { // Value: []*Container
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "ls", "--format", "json")
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.List", "list containers", err)
+		return core.Fail(core.E("AppleProvider.List", "list containers", err))
 	}
 	return parseContainerList(out)
 }
@@ -612,18 +590,15 @@ func (a *AppleProvider) List() (
 //
 // Usage:
 //
-//	ctr, _ := p.Inspect(ctr.ID)
-func (a *AppleProvider) Inspect(id string) (
-	*Container,
-	error,
-) {
+//	ctr := core.MustCast[*Container](p.Inspect(ctr.ID))
+func (a *AppleProvider) Inspect(id string) core.Result { // Value: *Container
 	if id == "" {
-		return nil, coreerr.E("AppleProvider.Inspect", "container id is required", nil)
+		return core.Fail(core.E("AppleProvider.Inspect", "container id is required", nil))
 	}
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "inspect", id)
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Inspect", "inspect container", err)
+		return core.Fail(core.E("AppleProvider.Inspect", "inspect container", err))
 	}
 	return parseSingleContainer(out)
 }
@@ -632,87 +607,81 @@ func (a *AppleProvider) Inspect(id string) (
 //
 // Usage:
 //
-//	img, _ := p.Pull("ghcr.io/user/app:latest")
-func (a *AppleProvider) Pull(ref string) (
-	*Image,
-	error,
-) {
+//	img := core.MustCast[*Image](p.Pull("ghcr.io/user/app:latest"))
+func (a *AppleProvider) Pull(ref string) core.Result { // Value: *Image
 	if ref == "" {
-		return nil, coreerr.E("AppleProvider.Pull", "image reference is required", nil)
+		return core.Fail(core.E("AppleProvider.Pull", "image reference is required", nil))
 	}
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "pull", ref)
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.Pull", "pull image", err)
+		return core.Fail(core.E("AppleProvider.Pull", "pull image", err))
 	}
 
-	id, err := GenerateID()
-	if err != nil {
-		return nil, coreerr.E("AppleProvider.Pull", "generate image id", err)
+	idRes := GenerateID()
+	if !idRes.OK {
+		return core.Fail(core.E("AppleProvider.Pull", "generate image id", idRes.Value.(error)))
 	}
 
 	digest := parseDigestFromOutput(out)
-	return &Image{
-		ID:       id,
+	return core.Ok(&Image{
+		ID:       core.MustCast[string](idRes),
 		Name:     ref,
 		Path:     ref,
 		Format:   FormatOCI,
 		Provider: string(RuntimeApple),
 		Digest:   digest,
-	}, nil
+	})
 }
 
 // Push uploads an image to a registry using the Apple container CLI.
 //
 // Usage:
 //
-//	err := p.Push(img, "ghcr.io/user/app:v1")
-func (a *AppleProvider) Push(image *Image, ref string) error {
+//	if r := p.Push(img, "ghcr.io/user/app:v1"); !r.OK { return r }
+func (a *AppleProvider) Push(image *Image, ref string) core.Result { // Value: nil
 	if image == nil || image.Path == "" {
-		return coreerr.E("AppleProvider.Push", "image is required", nil)
+		return core.Fail(core.E("AppleProvider.Push", "image is required", nil))
 	}
 	if ref == "" {
-		return coreerr.E("AppleProvider.Push", "image reference is required", nil)
+		return core.Fail(core.E("AppleProvider.Push", "image reference is required", nil))
 	}
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "push", image.Path, ref)
 	if err := cmd.Run(); err != nil {
-		return coreerr.E("AppleProvider.Push", "push image", err)
+		return core.Fail(core.E("AppleProvider.Push", "push image", err))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 // RemoveImage removes a container image by ID using the Apple container CLI.
 //
 // Usage:
 //
-//	err := p.RemoveImage(img.ID)
-func (a *AppleProvider) RemoveImage(id string) error {
+//	if r := p.RemoveImage(img.ID); !r.OK { return r }
+func (a *AppleProvider) RemoveImage(id string) core.Result { // Value: nil
 	if id == "" {
-		return coreerr.E("AppleProvider.RemoveImage", "image id is required", nil)
+		return core.Fail(core.E("AppleProvider.RemoveImage", "image id is required", nil))
 	}
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "rmi", id)
 	if err := cmd.Run(); err != nil {
-		return coreerr.E("AppleProvider.RemoveImage", "remove image", err)
+		return core.Fail(core.E("AppleProvider.RemoveImage", "remove image", err))
 	}
-	return nil
+	return core.Ok(nil)
 }
 
 // ListImages returns all images known to the Apple container CLI.
 //
 // Usage:
 //
-//	images, _ := p.ListImages()
+//	images := core.MustCast[[]*Image](p.ListImages())
 //	for _, img := range images {
-//	    fmt.Println(img.ID, img.Name)
+//	    core.Println(img.ID, img.Name)
 //	}
-func (a *AppleProvider) ListImages() (
-	[]*Image,
-	error,
-) {
+func (a *AppleProvider) ListImages() core.Result { // Value: []*Image
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, "images", "--format", "json")
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, coreerr.E("AppleProvider.ListImages", "list images", err)
+		return core.Fail(core.E("AppleProvider.ListImages", "list images", err))
 	}
 	return parseImageList(out)
 }
@@ -751,26 +720,32 @@ type appleImageJSON struct {
 }
 
 // parseContainerList parses the JSON array output of `container ls --format json`.
-func parseContainerList(data []byte) ([]*Container, error) {
+func parseContainerList(data []byte) core.Result { // Value: []*Container
 	var raw []appleContainerJSON
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, coreerr.E("parseContainerList", "parse container list json", err)
+	if res := core.JSONUnmarshal(data, &raw); !res.OK {
+		if e, ok := res.Value.(error); ok {
+			return core.Fail(core.E("parseContainerList", "parse container list json", e))
+		}
+		return core.Fail(core.E("parseContainerList", "parse container list json", nil))
 	}
 	out := make([]*Container, 0, len(raw))
 	for _, r := range raw {
 		c := containerFromJSON(r)
 		out = append(out, c)
 	}
-	return out, nil
+	return core.Ok(out)
 }
 
 // parseSingleContainer parses the JSON output of `container inspect id`.
-func parseSingleContainer(data []byte) (*Container, error) {
+func parseSingleContainer(data []byte) core.Result { // Value: *Container
 	var raw appleContainerJSON
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, coreerr.E("parseSingleContainer", "parse container json", err)
+	if res := core.JSONUnmarshal(data, &raw); !res.OK {
+		if e, ok := res.Value.(error); ok {
+			return core.Fail(core.E("parseSingleContainer", "parse container json", e))
+		}
+		return core.Fail(core.E("parseSingleContainer", "parse container json", nil))
 	}
-	return containerFromJSON(raw), nil
+	return core.Ok(containerFromJSON(raw))
 }
 
 // containerFromJSON maps the Apple CLI JSON schema to a Container struct.
@@ -802,10 +777,13 @@ func containerFromJSON(raw appleContainerJSON) *Container {
 }
 
 // parseImageList parses the JSON array output of `container images --format json`.
-func parseImageList(data []byte) ([]*Image, error) {
+func parseImageList(data []byte) core.Result { // Value: []*Image
 	var raw []appleImageJSON
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, coreerr.E("parseImageList", "parse image list json", err)
+	if res := core.JSONUnmarshal(data, &raw); !res.OK {
+		if e, ok := res.Value.(error); ok {
+			return core.Fail(core.E("parseImageList", "parse image list json", e))
+		}
+		return core.Fail(core.E("parseImageList", "parse image list json", nil))
 	}
 	out := make([]*Image, 0, len(raw))
 	for _, r := range raw {
@@ -818,5 +796,5 @@ func parseImageList(data []byte) ([]*Image, error) {
 			Digest:   r.Digest,
 		})
 	}
-	return out, nil
+	return core.Ok(out)
 }

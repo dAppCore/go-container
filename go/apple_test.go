@@ -2,11 +2,12 @@ package container
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
+
+	core "dappco.re/go"
+	coreio "dappco.re/go/io"
 )
 
 func TestApple_IsAppleAvailable_Good(t *testing.T) {
@@ -67,8 +68,8 @@ func TestApple_Build_MissingSource_Bad(t *testing.T) {
 		t.Skip("apple container runtime not available")
 	}
 
-	_, err := p.Build(ContainerConfig{})
-	if err == nil {
+	r := p.Build(ContainerConfig{})
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -84,8 +85,8 @@ func TestApple_Run_NilImage_Bad(t *testing.T) {
 		t.Skip("apple container runtime not available")
 	}
 
-	_, err := p.Run(nil)
-	if err == nil {
+	r := p.Run(nil)
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -99,9 +100,9 @@ func TestApple_Encrypt_Decrypt_Ugly(t *testing.T) {
 	// Encrypt+Decrypt round-trip: write plaintext to a temp file,
 	// encrypt it, decrypt it, and verify the round-trip preserves content.
 	dir := t.TempDir()
-	plainPath := filepath.Join(dir, "example.qcow2")
+	plainPath := core.PathJoin(dir, "example.qcow2")
 	plaintext := []byte("hello, this is container image data for testing")
-	if err := os.WriteFile(plainPath, plaintext, 0600); err != nil {
+	if err := coreio.Local.WriteMode(plainPath, string(plaintext), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -109,10 +110,11 @@ func TestApple_Encrypt_Decrypt_Ugly(t *testing.T) {
 	img := &Image{ID: "test", Path: plainPath, Size: int64(len(plaintext))}
 	key := []byte("workspace-key")
 
-	enc, err := p.Encrypt(img, key)
-	if err != nil {
-		t.Fatal(err)
+	encRes := p.Encrypt(img, key)
+	if !encRes.OK {
+		t.Fatal(encRes.Error())
 	}
+	enc := core.MustCast[*EncryptedImage](encRes)
 	if enc == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -124,10 +126,11 @@ func TestApple_Encrypt_Decrypt_Ugly(t *testing.T) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
 
-	out, err := p.Decrypt(enc, key)
-	if err != nil {
-		t.Fatal(err)
+	outRes := p.Decrypt(enc, key)
+	if !outRes.OK {
+		t.Fatal(outRes.Error())
 	}
+	out := core.MustCast[*Image](outRes)
 	if out == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -139,11 +142,11 @@ func TestApple_Encrypt_Decrypt_Ugly(t *testing.T) {
 	}
 
 	// Verify decrypted content matches original plaintext.
-	gotData, err := os.ReadFile(plainPath)
+	gotData, err := coreio.Local.Read(plainPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(gotData) != string(plaintext) {
+	if gotData != string(plaintext) {
 		t.Fatalf("decrypted data mismatch: want %q, got %q", plaintext, gotData)
 	}
 }
@@ -157,8 +160,8 @@ func TestApple_Encrypt_MissingKey_Bad(t *testing.T) {
 	p := NewAppleProvider()
 	img := &Image{Path: "/tmp/foo"}
 
-	_, err := p.Encrypt(img, nil)
-	if err == nil {
+	r := p.Encrypt(img, nil)
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -172,8 +175,8 @@ func TestApple_Decrypt_MissingKey_Bad(t *testing.T) {
 	p := NewAppleProvider()
 	enc := &EncryptedImage{Path: "/tmp/foo.stim"}
 
-	_, err := p.Decrypt(enc, nil)
-	if err == nil {
+	r := p.Decrypt(enc, nil)
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -198,8 +201,8 @@ func TestApple_Wait_UnknownID_Bad(t *testing.T) {
 	}
 	p := NewAppleProvider()
 
-	err := p.Wait(context.Background(), "no-such-container")
-	if err == nil {
+	r := p.Wait(context.Background(), "no-such-container")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -633,8 +636,8 @@ func TestApple_AppleProvider_Stop_EmptyID_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	err := p.Stop("")
-	if err == nil {
+	r := p.Stop("")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -646,8 +649,8 @@ func TestApple_AppleProvider_Kill_EmptyID_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	err := p.Kill("")
-	if err == nil {
+	r := p.Kill("")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -659,8 +662,8 @@ func TestApple_AppleProvider_Remove_EmptyID_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	err := p.Remove("")
-	if err == nil {
+	r := p.Remove("")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -672,8 +675,8 @@ func TestApple_AppleProvider_Logs_EmptyID_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	_, err := p.Logs("", 100)
-	if err == nil {
+	r := p.Logs("", 100)
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -688,8 +691,8 @@ func TestApple_AppleProvider_Logs_ZeroTail_Good(t *testing.T) {
 	if !p.Available() {
 		t.Skip("apple container runtime not available")
 	}
-	_, err := p.Logs("no-such-container", 0)
-	if err == nil {
+	r := p.Logs("no-such-container", 0)
+	if r.OK {
 		t.Fatal("expected error for non-existent container")
 	}
 }
@@ -701,8 +704,8 @@ func TestApple_AppleProvider_Exec_EmptyID_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	_, err := p.Exec("", "echo")
-	if err == nil {
+	r := p.Exec("", "echo")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -714,8 +717,8 @@ func TestApple_AppleProvider_Exec_EmptyCommand_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	_, err := p.Exec("some-id", "")
-	if err == nil {
+	r := p.Exec("some-id", "")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -730,10 +733,11 @@ func TestApple_AppleProvider_List_Good(t *testing.T) {
 	if !p.Available() {
 		t.Skip("apple container runtime not available")
 	}
-	containers, err := p.List()
-	if err != nil {
-		t.Fatal(err)
+	r := p.List()
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	containers := core.MustCast[[]*Container](r)
 	if containers == nil {
 		t.Fatal("expected non-nil slice")
 	}
@@ -746,8 +750,8 @@ func TestApple_AppleProvider_Inspect_EmptyID_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	_, err := p.Inspect("")
-	if err == nil {
+	r := p.Inspect("")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -759,8 +763,8 @@ func TestApple_AppleProvider_Pull_EmptyRef_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	_, err := p.Pull("")
-	if err == nil {
+	r := p.Pull("")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -772,8 +776,8 @@ func TestApple_AppleProvider_Push_NilImage_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	err := p.Push(nil, "ref")
-	if err == nil {
+	r := p.Push(nil, "ref")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -785,8 +789,8 @@ func TestApple_AppleProvider_Push_EmptyRef_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	err := p.Push(&Image{Path: "some-image"}, "")
-	if err == nil {
+	r := p.Push(&Image{Path: "some-image"}, "")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -798,8 +802,8 @@ func TestApple_AppleProvider_RemoveImage_EmptyID_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	p := NewAppleProvider()
-	err := p.RemoveImage("")
-	if err == nil {
+	r := p.RemoveImage("")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -814,10 +818,11 @@ func TestApple_AppleProvider_ListImages_Good(t *testing.T) {
 	if !p.Available() {
 		t.Skip("apple container runtime not available")
 	}
-	images, err := p.ListImages()
-	if err != nil {
-		t.Fatal(err)
+	r := p.ListImages()
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	images := core.MustCast[[]*Image](r)
 	if images == nil {
 		t.Fatal("expected non-nil slice")
 	}
@@ -884,8 +889,8 @@ func TestApple_AppleProvider_Run_GPU_NonAppleSilicon_Ugly(t *testing.T) {
 		t.Skip("apple container runtime not available")
 	}
 	img := &Image{Path: "test-image"}
-	_, err := p.Run(img, WithGPU(true))
-	if err == nil {
+	r := p.Run(img, WithGPU(true))
+	if r.OK {
 		t.Fatal("expected error: Metal GPU requires Apple Silicon")
 	}
 }

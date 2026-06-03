@@ -15,12 +15,13 @@ func TestContainer_GenerateID_Good(t *core.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	id, err := GenerateID()
+	r := GenerateID()
 
-	core.RequireNoError(t, err)
+	core.RequireTrue(t, r.OK, "GenerateID must succeed")
+	id := core.MustCast[string](r)
 	core.AssertLen(t, id, 8, "container IDs must be 8 hex characters")
 
-	_, err = hex.DecodeString(id)
+	_, err := hex.DecodeString(id)
 	core.AssertNoError(t, err, "container ID must be valid hex")
 }
 
@@ -32,8 +33,9 @@ func TestContainer_GenerateID_Uniqueness_Bad(t *core.T) {
 	}
 	seen := make(map[string]bool)
 	for i := 0; i < 100; i++ {
-		id, err := GenerateID()
-		core.RequireNoError(t, err)
+		r := GenerateID()
+		core.RequireTrue(t, r.OK, "GenerateID must succeed")
+		id := core.MustCast[string](r)
 		core.AssertFalse(t, seen[id], core.Sprintf("GenerateID produced duplicate id %q", id))
 		seen[id] = true
 	}
@@ -46,11 +48,11 @@ func TestContainer_GenerateID_Repeatability_Ugly(t *core.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	// The contract is non-determinism — two consecutive calls must differ.
-	a, err := GenerateID()
-	core.RequireNoError(t, err)
-	b, err := GenerateID()
-	core.RequireNoError(t, err)
-	core.AssertNotEqual(t, a, b)
+	ra := GenerateID()
+	core.RequireTrue(t, ra.OK, "GenerateID must succeed")
+	rb := GenerateID()
+	core.RequireTrue(t, rb.OK, "GenerateID must succeed")
+	core.AssertNotEqual(t, core.MustCast[string](ra), core.MustCast[string](rb))
 }
 
 // --- Status constants ---

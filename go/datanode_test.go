@@ -15,30 +15,30 @@ type stubProvider struct {
 	ran      *Container
 }
 
-func (s *stubProvider) Build(config ContainerConfig) (*Image, error) {
+func (s *stubProvider) Build(config ContainerConfig) core.Result {
 	if s.buildErr != nil {
-		return nil, s.buildErr
+		return core.Fail(s.buildErr)
 	}
 	img := &Image{ID: "img-1", Name: config.Name, Path: "/tmp/img"}
 	s.built = img
-	return img, nil
+	return core.Ok(img)
 }
 
-func (s *stubProvider) Run(image *Image, opts ...RunOption) (*Container, error) {
+func (s *stubProvider) Run(image *Image, opts ...RunOption) core.Result {
 	if s.runErr != nil {
-		return nil, s.runErr
+		return core.Fail(s.runErr)
 	}
 	ctr := &Container{ID: "ctr-1", Image: image.Path, Status: StatusRunning}
 	s.ran = ctr
-	return ctr, nil
+	return core.Ok(ctr)
 }
 
-func (s *stubProvider) Encrypt(image *Image, key []byte) (*EncryptedImage, error) {
-	return &EncryptedImage{ID: "enc-1", Path: image.Path + ".stim", Scheme: "stim"}, nil
+func (s *stubProvider) Encrypt(image *Image, key []byte) core.Result {
+	return core.Ok(&EncryptedImage{ID: "enc-1", Path: image.Path + ".stim", Scheme: "stim"})
 }
 
-func (s *stubProvider) Decrypt(encrypted *EncryptedImage, key []byte) (*Image, error) {
-	return &Image{ID: "img-out", Path: encrypted.Path}, nil
+func (s *stubProvider) Decrypt(encrypted *EncryptedImage, key []byte) core.Result {
+	return core.Ok(&Image{ID: "img-out", Path: encrypted.Path})
 }
 
 func TestDataNode_NewDataNode_Good(t *testing.T) {
@@ -78,10 +78,11 @@ func TestDataNode_Build_Start_Good(t *testing.T) {
 	p := &stubProvider{}
 	node := NewDataNode("worker-01", p)
 
-	img, err := node.Build(ContainerConfig{Source: "./Containerfile"})
-	if err != nil {
-		t.Fatal(err)
+	buildRes := node.Build(ContainerConfig{Source: "./Containerfile"})
+	if !buildRes.OK {
+		t.Fatal(buildRes.Error())
 	}
+	img := core.MustCast[*Image](buildRes)
 	if got, want := p.built.Name, "worker-01"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -89,10 +90,11 @@ func TestDataNode_Build_Start_Good(t *testing.T) {
 		t.Fatalf("want same instance")
 	}
 
-	ctr, err := node.Start(img)
-	if err != nil {
-		t.Fatal(err)
+	startRes := node.Start(img)
+	if !startRes.OK {
+		t.Fatal(startRes.Error())
 	}
+	ctr := core.MustCast[*Container](startRes)
 	if got, want := ctr.Status, StatusRunning; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -109,8 +111,8 @@ func TestDataNode_Start_WithoutImage_Bad(t *testing.T) {
 	}
 	node := NewDataNode("n1", &stubProvider{})
 
-	_, err := node.Start(nil)
-	if err == nil {
+	r := node.Start(nil)
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -124,20 +126,18 @@ func TestDataNode_Stop_Ugly(t *testing.T) {
 	// Stop on a node that was never started must surface an error; Stop on
 	// a live node must transition the in-memory status.
 	node := NewDataNode("n1", &stubProvider{})
-	if err := node.Stop(); err == nil {
+	if r := node.Stop(); r.OK {
 		t.Fatal("expected error")
 	}
 
-	_, err := node.Build(ContainerConfig{Source: "x"})
-	if err != nil {
-		t.Fatal(err)
+	if r := node.Build(ContainerConfig{Source: "x"}); !r.OK {
+		t.Fatal(r.Error())
 	}
-	_, err = node.Start(node.Image)
-	if err != nil {
-		t.Fatal(err)
+	if r := node.Start(node.Image); !r.OK {
+		t.Fatal(r.Error())
 	}
-	if err := node.Stop(); err != nil {
-		t.Fatal(err)
+	if r := node.Stop(); !r.OK {
+		t.Fatal(r.Error())
 	}
 	if got, want := node.Container.Status, StatusStopped; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
@@ -151,15 +151,15 @@ func TestDataNode_Seal_Good(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	node := NewDataNode("worker-01", &stubProvider{})
-	_, err := node.Build(ContainerConfig{Source: "/tmp/img"})
-	if err != nil {
-		t.Fatal(err)
+	if r := node.Build(ContainerConfig{Source: "/tmp/img"}); !r.OK {
+		t.Fatal(r.Error())
 	}
 
-	stim, err := node.Seal([]byte("workspace-key"))
-	if err != nil {
-		t.Fatal(err)
+	sealRes := node.Seal([]byte("workspace-key"))
+	if !sealRes.OK {
+		t.Fatal(sealRes.Error())
 	}
+	stim := core.MustCast[*STIMBundle](sealRes)
 	if got, want := stim.ID, "worker-01"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}

@@ -7,7 +7,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 // DataCube wraps an io.Medium with per-path AES-GCM encryption keyed by the
@@ -36,25 +35,22 @@ type DataCube struct {
 //
 // Usage:
 //
-//	cube, _ := container.NewDataCube(io.Local, workspaceKey, "worker-01")
-func NewDataCube(medium io.Medium, workspaceKey []byte, containerID string) (
-	*DataCube,
-	error,
-) {
+//	cube := core.MustCast[*container.DataCube](container.NewDataCube(io.Local, workspaceKey, "worker-01"))
+func NewDataCube(medium io.Medium, workspaceKey []byte, containerID string) core.Result { // Value: *DataCube
 	if medium == nil {
-		return nil, coreerr.E("NewDataCube", "medium is required", nil)
+		return core.Fail(core.E("NewDataCube", "medium is required", nil))
 	}
 	if len(workspaceKey) == 0 {
-		return nil, coreerr.E("NewDataCube", "workspace key is required", nil)
+		return core.Fail(core.E("NewDataCube", "workspace key is required", nil))
 	}
 	if containerID == "" {
-		return nil, coreerr.E("NewDataCube", "container id is required", nil)
+		return core.Fail(core.E("NewDataCube", "container id is required", nil))
 	}
-	return &DataCube{
+	return core.Ok(&DataCube{
 		Medium:       medium,
 		ContainerID:  containerID,
 		workspaceKey: workspaceKey,
-	}, nil
+	})
 }
 
 // Read returns the plaintext content of the ciphertext stored at path.
@@ -72,11 +68,11 @@ func (c *DataCube) Read(path string) (
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	pt, err := DecryptLayer(c.workspaceKey, c.ContainerID, path, []byte(ct))
-	if err != nil {
-		return "", coreerr.E("DataCube.Read", "decrypt "+path, err)
+	ptRes := DecryptLayer(c.workspaceKey, c.ContainerID, path, []byte(ct))
+	if !ptRes.OK {
+		return "", core.E("DataCube.Read", "decrypt "+path, ptRes.Value.(error))
 	}
-	return string(pt), nil
+	return string(core.MustCast[[]byte](ptRes)), nil
 }
 
 // Write encrypts content under the derived path key and stores the ciphertext.
@@ -89,11 +85,11 @@ func (c *DataCube) Write(path, content string) (
 ) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	ct, err := EncryptLayer(c.workspaceKey, c.ContainerID, path, []byte(content))
-	if err != nil {
-		return coreerr.E("DataCube.Write", "encrypt "+path, err)
+	ctRes := EncryptLayer(c.workspaceKey, c.ContainerID, path, []byte(content))
+	if !ctRes.OK {
+		return core.E("DataCube.Write", "encrypt "+path, ctRes.Value.(error))
 	}
-	return c.Medium.Write(path, string(ct))
+	return c.Medium.Write(path, string(core.MustCast[[]byte](ctRes)))
 }
 
 // WriteMode encrypts content and writes it with the given file mode.
@@ -106,11 +102,11 @@ func (c *DataCube) WriteMode(path, content string, mode fs.FileMode) (
 ) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	ct, err := EncryptLayer(c.workspaceKey, c.ContainerID, path, []byte(content))
-	if err != nil {
-		return coreerr.E("DataCube.WriteMode", "encrypt "+path, err)
+	ctRes := EncryptLayer(c.workspaceKey, c.ContainerID, path, []byte(content))
+	if !ctRes.OK {
+		return core.E("DataCube.WriteMode", "encrypt "+path, ctRes.Value.(error))
 	}
-	return c.Medium.WriteMode(path, string(ct), mode)
+	return c.Medium.WriteMode(path, string(core.MustCast[[]byte](ctRes)), mode)
 }
 
 // EnsureDir creates the directory hierarchy below path on the underlying medium.
@@ -152,10 +148,10 @@ func (c *DataCube) Rename(oldPath, newPath string) (
 ) {
 	content, err := c.Read(oldPath)
 	if err != nil {
-		return coreerr.E("DataCube.Rename", "read "+oldPath, err)
+		return core.E("DataCube.Rename", "read "+oldPath, err)
 	}
 	if err := c.Write(newPath, content); err != nil {
-		return coreerr.E("DataCube.Rename", "write "+newPath, err)
+		return core.E("DataCube.Rename", "write "+newPath, err)
 	}
 	return c.Medium.Delete(oldPath)
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	core "dappco.re/go"
 	"dappco.re/go/io"
 )
 
@@ -49,10 +50,11 @@ func TestContainerBehaviour_ParseContainerList_Good(t *testing.T) {
 		{"id":"abc","name":"web","image":"nginx","status":"running","created_at":"2026-01-02T15:04:05Z","ports":{"8080":"80"}},
 		{"id":"def","name":"db","image":"pg","status":"stopped","ports":{}}
 	]`)
-	list, err := parseContainerList(data)
-	if err != nil {
-		t.Fatalf("parseContainerList error: %v", err)
+	r := parseContainerList(data)
+	if !r.OK {
+		t.Fatalf("parseContainerList error: %v", r.Error())
 	}
+	list := core.MustCast[[]*Container](r)
 	if len(list) != 2 {
 		t.Fatalf("parseContainerList returned %d containers, want 2", len(list))
 	}
@@ -69,8 +71,8 @@ func TestContainerBehaviour_ParseContainerList_Good(t *testing.T) {
 
 // TestContainerBehaviour_ParseContainerList_Bad errors on malformed JSON.
 func TestContainerBehaviour_ParseContainerList_Bad(t *testing.T) {
-	if _, err := parseContainerList([]byte("{not json")); err == nil {
-		t.Fatal("parseContainerList of malformed JSON returned nil error")
+	if r := parseContainerList([]byte("{not json")); r.OK {
+		t.Fatal("parseContainerList of malformed JSON returned an OK result")
 	}
 }
 
@@ -78,10 +80,11 @@ func TestContainerBehaviour_ParseContainerList_Bad(t *testing.T) {
 // and skips non-numeric port keys.
 func TestContainerBehaviour_ParseSingleContainer_Good(t *testing.T) {
 	data := []byte(`{"id":"xyz","name":"svc","image":"img","status":"running","ports":{"notnum":"80","2222":"22"}}`)
-	c, err := parseSingleContainer(data)
-	if err != nil {
-		t.Fatalf("parseSingleContainer error: %v", err)
+	r := parseSingleContainer(data)
+	if !r.OK {
+		t.Fatalf("parseSingleContainer error: %v", r.Error())
 	}
+	c := core.MustCast[*Container](r)
 	if c.ID != "xyz" {
 		t.Fatalf("container ID = %q, want xyz", c.ID)
 	}
@@ -95,18 +98,19 @@ func TestContainerBehaviour_ParseSingleContainer_Good(t *testing.T) {
 
 // TestContainerBehaviour_ParseSingleContainer_Bad errors on malformed JSON.
 func TestContainerBehaviour_ParseSingleContainer_Bad(t *testing.T) {
-	if _, err := parseSingleContainer([]byte("nope")); err == nil {
-		t.Fatal("parseSingleContainer of malformed JSON returned nil error")
+	if r := parseSingleContainer([]byte("nope")); r.OK {
+		t.Fatal("parseSingleContainer of malformed JSON returned an OK result")
 	}
 }
 
 // TestContainerBehaviour_ParseImageList_Good decodes the Apple CLI image list.
 func TestContainerBehaviour_ParseImageList_Good(t *testing.T) {
 	data := []byte(`[{"id":"i1","name":"ghcr.io/foo/bar:latest","digest":"sha256:abc"}]`)
-	imgs, err := parseImageList(data)
-	if err != nil {
-		t.Fatalf("parseImageList error: %v", err)
+	r := parseImageList(data)
+	if !r.OK {
+		t.Fatalf("parseImageList error: %v", r.Error())
 	}
+	imgs := core.MustCast[[]*Image](r)
 	if len(imgs) != 1 {
 		t.Fatalf("parseImageList returned %d images, want 1", len(imgs))
 	}
@@ -123,8 +127,8 @@ func TestContainerBehaviour_ParseImageList_Good(t *testing.T) {
 
 // TestContainerBehaviour_ParseImageList_Bad errors on malformed JSON.
 func TestContainerBehaviour_ParseImageList_Bad(t *testing.T) {
-	if _, err := parseImageList([]byte("garbage")); err == nil {
-		t.Fatal("parseImageList of malformed JSON returned nil error")
+	if r := parseImageList([]byte("garbage")); r.OK {
+		t.Fatal("parseImageList of malformed JSON returned an OK result")
 	}
 }
 
@@ -132,10 +136,11 @@ func TestContainerBehaviour_ParseImageList_Bad(t *testing.T) {
 // methods of a DataCube and confirms they mirror the underlying medium.
 func TestContainerBehaviour_DataCubeDelegation_Good(t *testing.T) {
 	mem := io.NewMemoryMedium()
-	cube, err := NewDataCube(mem, []byte("workspace-key"), "worker-01")
-	if err != nil {
-		t.Fatalf("NewDataCube error: %v", err)
+	cubeRes := NewDataCube(mem, []byte("workspace-key"), "worker-01")
+	if !cubeRes.OK {
+		t.Fatalf("NewDataCube error: %v", cubeRes.Error())
 	}
+	cube := core.MustCast[*DataCube](cubeRes)
 
 	if err := cube.EnsureDir("app/state"); err != nil {
 		t.Fatalf("EnsureDir error: %v", err)
@@ -169,10 +174,11 @@ func TestContainerBehaviour_DataCubeDelegation_Good(t *testing.T) {
 // TestContainerBehaviour_DataCubeRename_Good re-seals a Cube file under a new path.
 func TestContainerBehaviour_DataCubeRename_Good(t *testing.T) {
 	mem := io.NewMemoryMedium()
-	cube, err := NewDataCube(mem, []byte("workspace-key"), "worker-01")
-	if err != nil {
-		t.Fatalf("NewDataCube error: %v", err)
+	cubeRes := NewDataCube(mem, []byte("workspace-key"), "worker-01")
+	if !cubeRes.OK {
+		t.Fatalf("NewDataCube error: %v", cubeRes.Error())
 	}
+	cube := core.MustCast[*DataCube](cubeRes)
 	if err := cube.Write("drafts/todo.txt", "buy milk"); err != nil {
 		t.Fatalf("Write error: %v", err)
 	}
@@ -190,10 +196,11 @@ func TestContainerBehaviour_DataCubeRename_Good(t *testing.T) {
 // TestContainerBehaviour_DataCubeDelete_Good removes a Cube file and tree.
 func TestContainerBehaviour_DataCubeDelete_Good(t *testing.T) {
 	mem := io.NewMemoryMedium()
-	cube, err := NewDataCube(mem, []byte("workspace-key"), "worker-01")
-	if err != nil {
-		t.Fatalf("NewDataCube error: %v", err)
+	cubeRes := NewDataCube(mem, []byte("workspace-key"), "worker-01")
+	if !cubeRes.OK {
+		t.Fatalf("NewDataCube error: %v", cubeRes.Error())
 	}
+	cube := core.MustCast[*DataCube](cubeRes)
 	if err := cube.Write("logs/app.log", "line"); err != nil {
 		t.Fatalf("Write error: %v", err)
 	}
@@ -213,10 +220,11 @@ func TestContainerBehaviour_DataCubeDelete_Good(t *testing.T) {
 // Cube encryption and pass straight through to the underlying medium.
 func TestContainerBehaviour_DataCubeStreaming_Good(t *testing.T) {
 	mem := io.NewMemoryMedium()
-	cube, err := NewDataCube(mem, []byte("workspace-key"), "worker-01")
-	if err != nil {
-		t.Fatalf("NewDataCube error: %v", err)
+	cubeRes := NewDataCube(mem, []byte("workspace-key"), "worker-01")
+	if !cubeRes.OK {
+		t.Fatalf("NewDataCube error: %v", cubeRes.Error())
 	}
+	cube := core.MustCast[*DataCube](cubeRes)
 
 	if err := cube.WriteMode("keys/private", "secret", 0o600); err != nil {
 		t.Fatalf("WriteMode error: %v", err)

@@ -5,7 +5,6 @@ import (
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/proc"
 )
@@ -27,7 +26,7 @@ type Hypervisor interface {
 	// Available checks if the hypervisor is available on the system.
 	Available() bool
 	// BuildCommand builds the command to run a VM with the given options.
-	BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (*proc.Command, error)
+	BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) core.Result // Value: *proc.Command
 }
 
 // HypervisorOptions contains options for running a VM.
@@ -77,13 +76,10 @@ func (q *QemuHypervisor) Available() bool {
 }
 
 // BuildCommand creates the QEMU command for running a VM.
-func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (
-	*proc.Command,
-	error,
-) {
+func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) core.Result { // Value: *proc.Command
 	format := DetectImageFormat(image)
 	if format == FormatUnknown {
-		return nil, coreerr.E("QemuHypervisor.BuildCommand", "unknown image format: "+image, nil)
+		return core.Fail(core.E("QemuHypervisor.BuildCommand", "unknown image format: "+image, nil))
 	}
 
 	args := []string{
@@ -150,7 +146,7 @@ func (q *QemuHypervisor) BuildCommand(ctx context.Context, image string, opts *H
 		}
 	}
 
-	return proc.NewCommandContext(ctx, q.Binary, args...), nil
+	return core.Ok(proc.NewCommandContext(ctx, q.Binary, args...))
 }
 
 // isKVMAvailable checks if KVM is available on the system.
@@ -190,13 +186,10 @@ func (h *HyperkitHypervisor) Available() bool {
 }
 
 // BuildCommand creates the Hyperkit command for running a VM.
-func (h *HyperkitHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (
-	*proc.Command,
-	error,
-) {
+func (h *HyperkitHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) core.Result { // Value: *proc.Command
 	format := DetectImageFormat(image)
 	if format == FormatUnknown {
-		return nil, coreerr.E("HyperkitHypervisor.BuildCommand", "unknown image format: "+image, nil)
+		return core.Fail(core.E("HyperkitHypervisor.BuildCommand", "unknown image format: "+image, nil))
 	}
 
 	args := []string{
@@ -234,7 +227,7 @@ func (h *HyperkitHypervisor) BuildCommand(ctx context.Context, image string, opt
 	}
 	args = append(args, "-s", "3:0,"+netArgs)
 
-	return proc.NewCommandContext(ctx, h.Binary, args...), nil
+	return core.Ok(proc.NewCommandContext(ctx, h.Binary, args...))
 }
 
 // DetectImageFormat determines the image format from its file extension.
@@ -262,51 +255,45 @@ func DetectImageFormat(path string) ImageFormat {
 //
 // Usage:
 //
-//	hv, err := DetectHypervisor()
-func DetectHypervisor() (
-	Hypervisor,
-	error,
-) {
+//	hv := core.MustCast[Hypervisor](DetectHypervisor())
+func DetectHypervisor() core.Result { // Value: Hypervisor
 	// On macOS, prefer Hyperkit if available, fall back to QEMU
 	if discoverHostOS() == "darwin" {
 		hk := NewHyperkitHypervisor()
 		if hk.Available() {
-			return hk, nil
+			return core.Ok(Hypervisor(hk))
 		}
 	}
 
 	// Try QEMU on all platforms
 	qemu := NewQemuHypervisor()
 	if qemu.Available() {
-		return qemu, nil
+		return core.Ok(Hypervisor(qemu))
 	}
 
-	return nil, coreerr.E("DetectHypervisor", "no hypervisor available: install qemu or hyperkit (macOS)", nil)
+	return core.Fail(core.E("DetectHypervisor", "no hypervisor available: install qemu or hyperkit (macOS)", nil))
 }
 
 // GetHypervisor returns a specific hypervisor by name.
 //
 // Usage:
 //
-//	hv, err := GetHypervisor("qemu")
-func GetHypervisor(name string) (
-	Hypervisor,
-	error,
-) {
+//	hv := core.MustCast[Hypervisor](GetHypervisor("qemu"))
+func GetHypervisor(name string) core.Result { // Value: Hypervisor
 	switch core.Lower(name) {
 	case "qemu":
 		h := NewQemuHypervisor()
 		if !h.Available() {
-			return nil, coreerr.E("GetHypervisor", "qemu is not available", nil)
+			return core.Fail(core.E("GetHypervisor", "qemu is not available", nil))
 		}
-		return h, nil
+		return core.Ok(Hypervisor(h))
 	case "hyperkit":
 		h := NewHyperkitHypervisor()
 		if !h.Available() {
-			return nil, coreerr.E("GetHypervisor", "hyperkit is not available (requires macOS)", nil)
+			return core.Fail(core.E("GetHypervisor", "hyperkit is not available (requires macOS)", nil))
 		}
-		return h, nil
+		return core.Ok(Hypervisor(h))
 	default:
-		return nil, coreerr.E("GetHypervisor", "unknown hypervisor: "+name, nil)
+		return core.Fail(core.E("GetHypervisor", "unknown hypervisor: "+name, nil))
 	}
 }

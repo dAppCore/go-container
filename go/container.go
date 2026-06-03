@@ -9,6 +9,8 @@ import (
 	// Note: AX-6 — encoding/hex is structural here because container IDs are exposed as stable hex strings and no core primitive exists for this conversion yet.
 	"encoding/hex"
 	"time"
+
+	core "dappco.re/go"
 )
 
 // Container represents a running LinuxKit container/VM instance.
@@ -83,44 +85,39 @@ type ReadCloser interface {
 // Manager defines the interface for container lifecycle management.
 type Manager interface {
 	// Run starts a new container from the given image.
-	Run(ctx context.Context, image string, opts RunOptions) (*Container, error)
+	Run(ctx context.Context, image string, opts RunOptions) core.Result // Value: *Container
 	// Stop stops a running container by ID.
-	Stop(ctx context.Context, id string) error
+	Stop(ctx context.Context, id string) core.Result // Value: nil
 	// List returns all known containers.
-	List(ctx context.Context) ([]*Container, error)
+	List(ctx context.Context) core.Result // Value: []*Container
 	// Logs returns a reader for the container's log output.
 	// If follow is true, the reader will continue to stream new log entries.
-	Logs(ctx context.Context, id string, follow bool) (ReadCloser, error)
+	Logs(ctx context.Context, id string, follow bool) core.Result // Value: ReadCloser
 	// Exec executes a command inside the container via SSH.
-	Exec(ctx context.Context, id string, cmd []string) error
+	Exec(ctx context.Context, id string, cmd []string) core.Result // Value: nil
 }
 
 // GenerateID creates a new unique container ID (8 hex characters).
 //
 // Usage:
 //
-//	id, err := GenerateID()
-func GenerateID() (
-	string,
-	error,
-) {
-	bytes, err := randomBytes(4)
-	if err != nil {
-		return "", err
+//	r := GenerateID()
+//	id := core.MustCast[string](r)
+func GenerateID() core.Result { // Value: string
+	r := randomBytes(4)
+	if !r.OK {
+		return r
 	}
-	return hexID(bytes), nil
+	return core.Ok(hexID(core.MustCast[[]byte](r)))
 }
 
-func randomBytes(length int) (
-	[]byte,
-	error,
-) {
+func randomBytes(length int) core.Result { // Value: []byte
 	bytes := make([]byte, length)
 	// Note: crypto primitive - no core equivalent yet.
 	if _, err := rand.Read(bytes); err != nil {
-		return nil, err
+		return core.Fail(core.E("randomBytes", "read random bytes", err))
 	}
-	return bytes, nil
+	return core.Ok(bytes)
 }
 
 func hexID(bytes []byte) string {

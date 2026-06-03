@@ -1,7 +1,7 @@
 package container
 
 import (
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 )
 
 // WithGPU requests Metal (Apple) or NVIDIA (Linux) GPU passthrough for the
@@ -22,20 +22,18 @@ func WithGPU(enabled bool) RunOption {
 	}
 }
 
-// RequireGPU returns an error if the runtime does not support GPU passthrough.
-// Use this when GPU access is mandatory for the workload (e.g. LEM inference
-// inside the container).
+// RequireGPU returns a failed Result if the runtime does not support GPU
+// passthrough. Use this when GPU access is mandatory for the workload (e.g.
+// LEM inference inside the container).
 //
 // Usage:
 //
-//	if err := container.RequireGPU(container.Detect()); err != nil {
-//	    return err
+//	if r := container.RequireGPU(container.Detect()); !r.OK {
+//	    return r
 //	}
-func RequireGPU(rt ContainerRuntime) (
-	err error, // result
-) {
+func RequireGPU(rt ContainerRuntime) core.Result { // Value: nil
 	if rt.HasGPU() {
-		return nil
+		return core.Ok(nil)
 	}
-	return coreerr.E("RequireGPU", "container runtime does not support GPU passthrough", nil)
+	return core.Fail(core.E("RequireGPU", "container runtime does not support GPU passthrough", nil))
 }

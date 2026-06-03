@@ -14,10 +14,11 @@ func TestDataCube_NewDataCube_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	cube, err := NewDataCube(io.Local, []byte("workspace-key"), "worker-01")
-	if err != nil {
-		t.Fatal(err)
+	r := NewDataCube(io.Local, []byte("workspace-key"), "worker-01")
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	cube := core.MustCast[*DataCube](r)
 	if got, want := cube.ContainerID, "worker-01"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -32,8 +33,8 @@ func TestDataCube_NewDataCube_MissingMedium_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	_, err := NewDataCube(nil, []byte("k"), "n1")
-	if err == nil {
+	r := NewDataCube(nil, []byte("k"), "n1")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -44,8 +45,8 @@ func TestDataCube_NewDataCube_MissingKey_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	_, err := NewDataCube(io.Local, nil, "n1")
-	if err == nil {
+	r := NewDataCube(io.Local, nil, "n1")
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -63,10 +64,11 @@ func TestDataCube_Write_Read_Good(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cube, err := NewDataCube(sandbox, []byte("workspace-key"), "worker-01")
-	if err != nil {
-		t.Fatal(err)
+	cubeRes := NewDataCube(sandbox, []byte("workspace-key"), "worker-01")
+	if !cubeRes.OK {
+		t.Fatal(cubeRes.Error())
 	}
+	cube := core.MustCast[*DataCube](cubeRes)
 
 	err = cube.Write("app/config.yml", "port: 8080")
 	if err != nil {
@@ -103,18 +105,20 @@ func TestDataCube_Read_WrongKey_Ugly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writer, err := NewDataCube(sandbox, []byte("key-A"), "worker-01")
-	if err != nil {
-		t.Fatal(err)
+	writerRes := NewDataCube(sandbox, []byte("key-A"), "worker-01")
+	if !writerRes.OK {
+		t.Fatal(writerRes.Error())
 	}
+	writer := core.MustCast[*DataCube](writerRes)
 	if err := writer.Write("secrets/key", "hunter2"); err != nil {
 		t.Fatal(err)
 	}
 
-	reader, err := NewDataCube(sandbox, []byte("key-B"), "worker-01")
-	if err != nil {
-		t.Fatal(err)
+	readerRes := NewDataCube(sandbox, []byte("key-B"), "worker-01")
+	if !readerRes.OK {
+		t.Fatal(readerRes.Error())
 	}
+	reader := core.MustCast[*DataCube](readerRes)
 
 	_, err = reader.Read("secrets/key")
 	if err == nil {
@@ -134,10 +138,11 @@ func TestDataCube_Rename_Good(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cube, err := NewDataCube(sandbox, []byte("workspace-key"), "worker-01")
-	if err != nil {
-		t.Fatal(err)
+	cubeRes := NewDataCube(sandbox, []byte("workspace-key"), "worker-01")
+	if !cubeRes.OK {
+		t.Fatal(cubeRes.Error())
 	}
+	cube := core.MustCast[*DataCube](cubeRes)
 	if err := cube.Write("drafts/note.txt", "hello"); err != nil {
 		t.Fatal(err)
 	}
@@ -163,10 +168,11 @@ func TestDataCube_Describe_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	cube, err := NewDataCube(io.Local, []byte("k"), "n1")
-	if err != nil {
-		t.Fatal(err)
+	r := NewDataCube(io.Local, []byte("k"), "n1")
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	cube := core.MustCast[*DataCube](r)
 	if s, sub := cube.Describe(), "n1"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
@@ -180,10 +186,11 @@ func TestDataCube_ImplementsMedium_Good(t *testing.T) {
 	}
 	// Compile-time check: DataCube must implement io.Medium.
 	var _ io.Medium = (*DataCube)(nil)
-	cube, err := NewDataCube(io.Local, []byte("workspace-key"), "worker-01")
-	if err != nil {
-		t.Fatal(err)
+	r := NewDataCube(io.Local, []byte("workspace-key"), "worker-01")
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	cube := core.MustCast[*DataCube](r)
 	if cube == nil {
 		t.Fatal("expected non-nil value")
 	}
