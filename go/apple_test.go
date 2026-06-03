@@ -1064,6 +1064,29 @@ func TestApple_appleRunArgs_ContainerArgs_Good(t *testing.T) {
 	}
 }
 
+func TestApple_appleContainerID_Good(t *testing.T) {
+	// Explicit name wins; else the image name; else the generated fallback.
+	// For Apple this id is what `container run --name` registers and what
+	// stop/logs/exec address.
+	if got := appleContainerID(RunOptions{Name: "web"}, &Image{Name: "img"}, "fallback"); got != "web" {
+		t.Fatalf("explicit name: got %q, want web", got)
+	}
+	if got := appleContainerID(RunOptions{}, &Image{Name: "img"}, "fallback"); got != "img" {
+		t.Fatalf("image name: got %q, want img", got)
+	}
+	if got := appleContainerID(RunOptions{}, &Image{}, "fallback"); got != "fallback" {
+		t.Fatalf("fallback: got %q, want fallback", got)
+	}
+}
+
+func TestApple_appleSystemStatusArgs_Good(t *testing.T) {
+	got := appleSystemStatusArgs()
+	want := []string{"system", "status"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
 // TestApple_E2E_ImageLifecycle_Smoke certifies the image-subgroup reconciliation
 // against the LIVE `container` binary: pull → list (parse real JSON) → delete.
 // Opt-in (set CORE_APPLE_E2E=1) because it shells out to the runtime, requires
@@ -1130,6 +1153,10 @@ func TestApple_E2E_ContainerLifecycle_Smoke(t *testing.T) {
 	if !runRes.OK {
 		t.Fatalf("Run with args: %v", runRes.Error())
 	}
+	ctr := core.MustCast[*Container](runRes)
+	if ctr.ID != name {
+		t.Fatalf("Run().ID = %q, want %q (the --name is the real container id)", ctr.ID, name)
+	}
 
 	// `container run --detach` boots asynchronously; poll List (the path
 	// `vm ps` aggregates) until the container is running.
@@ -1167,8 +1194,8 @@ func TestApple_E2E_ContainerLifecycle_Smoke(t *testing.T) {
 		t.Fatalf("Logs: %v", r.Error())
 	}
 
-	// Stop halts it (the path `vm stop` dispatches).
-	if r := p.Stop(name); !r.OK {
+	// Stop halts it via the returned handle's id (round-trips #18).
+	if r := p.Stop(ctr.ID); !r.OK {
 		t.Fatalf("Stop: %v", r.Error())
 	}
 }

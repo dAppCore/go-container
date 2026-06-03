@@ -98,6 +98,18 @@ func (a *AppleProvider) Available() bool {
 	return true
 }
 
+// systemRunning reports whether the Apple container system services (apiserver
+// + plugins) are started. Build and Run require them; without them the CLI
+// fails with a "plugins unavailable" error. Bring them up with
+// `container system start`.
+func (a *AppleProvider) systemRunning() bool {
+	out, err := proc.NewCommand(a.Binary, appleSystemStatusArgs()...).Output()
+	if err != nil {
+		return false
+	}
+	return core.Contains(core.Lower(string(out)), "running")
+}
+
 // Build produces an Image from a declarative configuration. For Apple
 // containers the Source field must reference an existing OCI image tag or
 // Containerfile path recognised by the `container build` subcommand.
@@ -108,6 +120,9 @@ func (a *AppleProvider) Available() bool {
 func (a *AppleProvider) Build(config ContainerConfig) core.Result { // Value: *Image
 	if !a.Available() {
 		return core.Fail(core.E("AppleProvider.Build", "apple container runtime not available on this host", nil))
+	}
+	if !a.systemRunning() {
+		return core.Fail(core.E("AppleProvider.Build", "apple container system is not running; start it with: container system start", nil))
 	}
 	if config.Source == "" {
 		return core.Fail(core.E("AppleProvider.Build", "ContainerConfig.Source is required", nil))
@@ -254,6 +269,25 @@ func appleRunArgs(name string, image *Image, ro RunOptions) core.Result { // Val
 	return core.Ok(args)
 }
 
+// appleContainerID resolves the id/name for a container run: the explicit
+// RunOptions.Name, else the image name, else the generated fallback. For Apple
+// the `--name` value IS the container's id, so this is what stop/logs/exec
+// address and what Run records as Container.ID.
+func appleContainerID(ro RunOptions, image *Image, fallback string) string {
+	if ro.Name != "" {
+		return ro.Name
+	}
+	if image != nil && image.Name != "" {
+		return image.Name
+	}
+	return fallback
+}
+
+// appleSystemStatusArgs builds the `container system status` argument vector.
+func appleSystemStatusArgs() []string {
+	return []string{"system", "status"}
+}
+
 // Run boots an Image using the `container run` subcommand. RunOptions are
 // translated into CLI flags. Ports and volume mounts are forwarded.
 //
@@ -263,6 +297,9 @@ func appleRunArgs(name string, image *Image, ro RunOptions) core.Result { // Val
 func (a *AppleProvider) Run(image *Image, opts ...RunOption) core.Result { // Value: *Container
 	if !a.Available() {
 		return core.Fail(core.E("AppleProvider.Run", "apple container runtime not available on this host", nil))
+	}
+	if !a.systemRunning() {
+		return core.Fail(core.E("AppleProvider.Run", "apple container system is not running; start it with: container system start", nil))
 	}
 	if image == nil || image.Path == "" {
 		return core.Fail(core.E("AppleProvider.Run", "image is required", nil))
@@ -274,15 +311,7 @@ func (a *AppleProvider) Run(image *Image, opts ...RunOption) core.Result { // Va
 	if !idRes.OK {
 		return core.Fail(core.E("AppleProvider.Run", "generate container id", idRes.Value.(error)))
 	}
-	id := core.MustCast[string](idRes)
-	name := ro.Name
-	if name == "" {
-		if image.Name != "" {
-			name = image.Name
-		} else {
-			name = id
-		}
-	}
+	name := appleContainerID(ro, image, core.MustCast[string](idRes))
 
 	argsRes := appleRunArgs(name, image, ro)
 	if !argsRes.OK {
@@ -296,7 +325,7 @@ func (a *AppleProvider) Run(image *Image, opts ...RunOption) core.Result { // Va
 	}
 
 	ctr := &Container{
-		ID:        id,
+		ID:        name,
 		Name:      name,
 		Image:     image.Path,
 		Status:    StatusRunning,
