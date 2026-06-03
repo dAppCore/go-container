@@ -604,3 +604,141 @@ func execInContainer(id string, cmd []string) (
 	}
 	return nil
 }
+
+// addVMKillCommand adds the 'kill' command under vm.
+func addVMKillCommand(c *core.Core) {
+	registerVMCommand(c, "vm/kill", core.Command{
+		Description: "Kill a running container (SIGKILL)",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) == 0 {
+				return core.Fail(core.E("vm kill", vmT("cmd.vm.error.id_required"), nil))
+			}
+			return killContainer(args[0])
+		},
+	})
+}
+
+func killContainer(id string) core.Result {
+	if id == "" {
+		return core.Fail(core.E("vm kill", vmT("cmd.vm.error.id_required"), nil))
+	}
+	apple, fullID, err := resolveContainerOwner(id)
+	if err != nil {
+		return core.Fail(err)
+	}
+	core.Print(nil, "%s %s", dimStyle.Render("killing"), shortID(fullID))
+	if apple != nil {
+		if r := apple.Kill(fullID); !r.OK {
+			return r
+		}
+	} else {
+		mgrRes := container.NewLinuxKitManager(io.Local)
+		if !mgrRes.OK {
+			return mgrRes
+		}
+		if r := core.MustCast[*container.LinuxKitManager](mgrRes).Stop(context.Background(), fullID); !r.OK {
+			return r
+		}
+	}
+	core.Print(nil, "%s", successStyle.Render("killed"))
+	core.Println()
+	return core.Ok(nil)
+}
+
+// addVMRmCommand adds the 'rm' command under vm.
+func addVMRmCommand(c *core.Core) {
+	registerVMCommand(c, "vm/rm", core.Command{
+		Description: "Remove a container",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) == 0 {
+				return core.Fail(core.E("vm rm", vmT("cmd.vm.error.id_required"), nil))
+			}
+			return removeContainer(args[0])
+		},
+	})
+}
+
+func removeContainer(id string) core.Result {
+	if id == "" {
+		return core.Fail(core.E("vm rm", vmT("cmd.vm.error.id_required"), nil))
+	}
+	apple, fullID, err := resolveContainerOwner(id)
+	if err != nil {
+		return core.Fail(err)
+	}
+	if apple != nil {
+		if r := apple.Remove(fullID); !r.OK {
+			return r
+		}
+	} else {
+		mgrRes := container.NewLinuxKitManager(io.Local)
+		if !mgrRes.OK {
+			return mgrRes
+		}
+		manager := core.MustCast[*container.LinuxKitManager](mgrRes)
+		manager.Stop(context.Background(), fullID) // best-effort stop before remove
+		if r := manager.State().Remove(fullID); !r.OK {
+			return r
+		}
+	}
+	core.Print(nil, "%s %s", successStyle.Render("removed"), shortID(fullID))
+	core.Println()
+	return core.Ok(nil)
+}
+
+// addVMInspectCommand adds the 'inspect' command under vm.
+func addVMInspectCommand(c *core.Core) {
+	registerVMCommand(c, "vm/inspect", core.Command{
+		Description: "Show detailed container information (JSON)",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) == 0 {
+				return core.Fail(core.E("vm inspect", vmT("cmd.vm.error.id_required"), nil))
+			}
+			return inspectContainer(args[0])
+		},
+	})
+}
+
+func inspectContainer(id string) core.Result {
+	if id == "" {
+		return core.Fail(core.E("vm inspect", vmT("cmd.vm.error.id_required"), nil))
+	}
+	apple, fullID, err := resolveContainerOwner(id)
+	if err != nil {
+		return core.Fail(err)
+	}
+	var found *container.Container
+	if apple != nil {
+		ir := apple.Inspect(fullID)
+		if !ir.OK {
+			return ir
+		}
+		found = core.MustCast[*container.Container](ir)
+	} else {
+		mgrRes := container.NewLinuxKitManager(io.Local)
+		if !mgrRes.OK {
+			return mgrRes
+		}
+		lr := core.MustCast[*container.LinuxKitManager](mgrRes).List(context.Background())
+		if !lr.OK {
+			return lr
+		}
+		for _, x := range core.MustCast[[]*container.Container](lr) {
+			if x.ID == fullID {
+				found = x
+			}
+		}
+		if found == nil {
+			return core.Fail(core.E("vm inspect", "container not found: "+fullID, nil))
+		}
+	}
+	jr := core.JSONMarshalIndent(found, "", "  ")
+	if !jr.OK {
+		return jr
+	}
+	core.Println(string(core.MustCast[[]byte](jr)))
+	return core.Ok(nil)
+}

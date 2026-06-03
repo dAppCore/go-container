@@ -44,6 +44,9 @@ func AddVMCommands(c *core.Core) {
 	addVMPushCommand(c)
 	addVMImagesCommand(c)
 	addVMRmiCommand(c)
+	addVMKillCommand(c)
+	addVMRmCommand(c)
+	addVMInspectCommand(c)
 }
 
 func registerVMCommand(c *core.Core, path string, cmd core.Command) {

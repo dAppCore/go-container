@@ -76,3 +76,21 @@ func TestCmdContainer_parseEnv_Bad(t *testing.T) {
 		t.Fatal("expected error for missing '='")
 	}
 }
+
+func TestCmdContainer_killContainer_Bad(t *testing.T) {
+	if killContainer("").OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestCmdContainer_removeContainer_Bad(t *testing.T) {
+	if removeContainer("").OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestCmdContainer_inspectContainer_Bad(t *testing.T) {
+	if inspectContainer("").OK {
+		t.Fatal("expected error for empty id")
+	}
+}
