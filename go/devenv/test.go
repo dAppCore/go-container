@@ -5,7 +5,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 	"gopkg.in/yaml.v3"
 
 	"dappco.re/go/container/internal/coreutil"
@@ -32,15 +31,17 @@ type TestOptions struct {
 }
 
 // Test runs tests in the dev environment.
-func (d *DevOps) Test(ctx context.Context, projectDir string, opts TestOptions) (
-	err error, // result
-) {
-	running, err := d.IsRunning(ctx)
-	if err != nil {
-		return err
+//
+// Usage:
+//
+//	if r := dev.Test(ctx, ".", devenv.TestOptions{}); !r.OK { return r }
+func (d *DevOps) Test(ctx context.Context, projectDir string, opts TestOptions) core.Result { // Value: nil
+	runningRes := d.IsRunning(ctx)
+	if !runningRes.OK {
+		return runningRes
 	}
-	if !running {
-		return coreerr.E("DevOps.Test", "dev environment not running (run 'core dev boot' first)", nil)
+	if !core.MustCast[bool](runningRes) {
+		return core.Fail(core.E("DevOps.Test", "dev environment not running (run 'core dev boot' first)", nil))
 	}
 
 	var cmd string
@@ -49,10 +50,11 @@ func (d *DevOps) Test(ctx context.Context, projectDir string, opts TestOptions) 
 	if len(opts.Command) > 0 {
 		cmd = core.Join(" ", opts.Command...)
 	} else if opts.Name != "" {
-		cfg, err := LoadTestConfig(d.medium, projectDir)
-		if err != nil {
-			return err
+		cfgRes := LoadTestConfig(d.medium, projectDir)
+		if !cfgRes.OK {
+			return cfgRes
 		}
+		cfg := core.MustCast[*TestConfig](cfgRes)
 		for _, c := range cfg.Commands {
 			if c.Name == opts.Name {
 				cmd = c.Run
@@ -60,12 +62,12 @@ func (d *DevOps) Test(ctx context.Context, projectDir string, opts TestOptions) 
 			}
 		}
 		if cmd == "" {
-			return coreerr.E("DevOps.Test", "test command "+opts.Name+" not found in .core/test.yaml", nil)
+			return core.Fail(core.E("DevOps.Test", "test command "+opts.Name+" not found in .core/test.yaml", nil))
 		}
 	} else {
 		cmd = DetectTestCommand(d.medium, projectDir)
 		if cmd == "" {
-			return coreerr.E("DevOps.Test", "could not detect test command (create .core/test.yaml)", nil)
+			return core.Fail(core.E("DevOps.Test", "could not detect test command (create .core/test.yaml)", nil))
 		}
 	}
 
@@ -80,9 +82,10 @@ func (d *DevOps) Test(ctx context.Context, projectDir string, opts TestOptions) 
 //	cmd := DetectTestCommand(io.Local, ".")
 func DetectTestCommand(m io.Medium, projectDir string) string {
 	// 1. Check .core/test.yaml
-	cfg, err := LoadTestConfig(m, projectDir)
-	if err == nil && cfg.Command != "" {
-		return cfg.Command
+	if cfgRes := LoadTestConfig(m, projectDir); cfgRes.OK {
+		if cfg := core.MustCast[*TestConfig](cfgRes); cfg.Command != "" {
+			return cfg.Command
+		}
 	}
 
 	// 2. Check composer.json for test script
@@ -121,24 +124,21 @@ func DetectTestCommand(m io.Medium, projectDir string) string {
 //
 // Usage:
 //
-//	cfg, err := LoadTestConfig(io.Local, ".")
-func LoadTestConfig(m io.Medium, projectDir string) (
-	*TestConfig,
-	error,
-) {
+//	cfg := core.MustCast[*TestConfig](LoadTestConfig(io.Local, "."))
+func LoadTestConfig(m io.Medium, projectDir string) core.Result { // Value: *TestConfig
 	absPath := coreutil.AbsPath(coreutil.JoinPath(projectDir, ".core", "test.yaml"))
 
 	content, err := m.Read(absPath)
 	if err != nil {
-		return nil, err
+		return core.Fail(core.E("LoadTestConfig", "read test config", err))
 	}
 
 	var cfg TestConfig
 	if err := yaml.Unmarshal([]byte(content), &cfg); err != nil {
-		return nil, err
+		return core.Fail(core.E("LoadTestConfig", "parse test config", err))
 	}
 
-	return &cfg, nil
+	return core.Ok(&cfg)
 }
 
 func hasFile(m io.Medium, dir, name string) bool {

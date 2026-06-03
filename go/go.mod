@@ -6,7 +6,6 @@ require (
 	dappco.re/go/cli v0.9.0
 	dappco.re/go/config v0.9.0
 	dappco.re/go/io v0.9.0
-	dappco.re/go/log v0.9.0
 	gopkg.in/yaml.v3 v3.0.1 // Note: LinuxKit config YAML parse; no core.* YAML equivalent.
 )
 

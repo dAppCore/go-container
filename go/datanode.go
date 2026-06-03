@@ -4,7 +4,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
 )
 
 // DataNode wraps a TIM container with a Borg identity and lifecycle. Each
@@ -60,23 +59,21 @@ func (n *DataNode) WithSigil(sigil []byte) *DataNode {
 //
 // Usage:
 //
-//	img, err := node.Build(container.ContainerConfig{Source: "./Containerfile"})
-func (n *DataNode) Build(config ContainerConfig) (
-	*Image,
-	error,
-) {
+//	img := core.MustCast[*Image](node.Build(container.ContainerConfig{Source: "./Containerfile"}))
+func (n *DataNode) Build(config ContainerConfig) core.Result { // Value: *Image
 	if n.Provider == nil {
-		return nil, coreerr.E("DataNode.Build", "provider is required", nil)
+		return core.Fail(core.E("DataNode.Build", "provider is required", nil))
 	}
 	if config.Name == "" {
 		config.Name = n.ID
 	}
-	img, err := n.Provider.Build(config)
-	if err != nil {
-		return nil, err
+	r := n.Provider.Build(config)
+	if !r.OK {
+		return r
 	}
+	img := core.MustCast[*Image](r)
 	n.Image = img
-	return img, nil
+	return core.Ok(img)
 }
 
 // Start boots the image via the Provider and records the Container handle.
@@ -84,26 +81,24 @@ func (n *DataNode) Build(config ContainerConfig) (
 //
 // Usage:
 //
-//	_, err := node.Start(img, container.WithMemory(4096))
-func (n *DataNode) Start(img *Image, opts ...RunOption) (
-	*Container,
-	error,
-) {
+//	r := node.Start(img, container.WithMemory(4096)); if !r.OK { return r }
+func (n *DataNode) Start(img *Image, opts ...RunOption) core.Result { // Value: *Container
 	if n.Provider == nil {
-		return nil, coreerr.E("DataNode.Start", "provider is required", nil)
+		return core.Fail(core.E("DataNode.Start", "provider is required", nil))
 	}
 	if img == nil {
 		img = n.Image
 	}
 	if img == nil {
-		return nil, coreerr.E("DataNode.Start", "image is required — call Build first", nil)
+		return core.Fail(core.E("DataNode.Start", "image is required — call Build first", nil))
 	}
-	ctr, err := n.Provider.Run(img, opts...)
-	if err != nil {
-		return nil, err
+	r := n.Provider.Run(img, opts...)
+	if !r.OK {
+		return r
 	}
+	ctr := core.MustCast[*Container](r)
 	n.Container = ctr
-	return ctr, nil
+	return core.Ok(ctr)
 }
 
 // Stop marks the node as stopped. The Provider's own Stop surface (when
@@ -112,15 +107,13 @@ func (n *DataNode) Start(img *Image, opts ...RunOption) (
 //
 // Usage:
 //
-//	err := node.Stop()
-func (n *DataNode) Stop() (
-	err error, // result
-) {
+//	if r := node.Stop(); !r.OK { return r }
+func (n *DataNode) Stop() core.Result { // Value: nil
 	if n.Container == nil {
-		return coreerr.E("DataNode.Stop", "container has not been started", nil)
+		return core.Fail(core.E("DataNode.Stop", "container has not been started", nil))
 	}
 	n.Container.Status = StatusStopped
-	return nil
+	return core.Ok(nil)
 }
 
 // Seal produces a STIM record for the node's bundle using the supplied
@@ -129,13 +122,10 @@ func (n *DataNode) Stop() (
 //
 // Usage:
 //
-//	stim, err := node.Seal(workspaceKey)
-func (n *DataNode) Seal(workspaceKey []byte) (
-	*STIMBundle,
-	error,
-) {
+//	stim := core.MustCast[*STIMBundle](node.Seal(workspaceKey))
+func (n *DataNode) Seal(workspaceKey []byte) core.Result { // Value: *STIMBundle
 	if n.Image == nil {
-		return nil, coreerr.E("DataNode.Seal", "image is required", nil)
+		return core.Fail(core.E("DataNode.Seal", "image is required", nil))
 	}
 	bundle := NewTIMBundle(n.ID, n.Image.Path)
 	return EncryptTIM(bundle, workspaceKey)

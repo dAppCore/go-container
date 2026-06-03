@@ -1,5 +1,7 @@
 package container
 
+import core "dappco.re/go"
+
 // Provider abstracts the container backend (LinuxKit, TIM, Apple Containers).
 // Each provider implements a consistent lifecycle: build an image from a
 // declarative config, run it, and optionally encrypt/decrypt the image.
@@ -7,28 +9,29 @@ package container
 // Usage:
 //
 //	p := container.NewAppleProvider()
-//	img, err := p.Build(container.ContainerConfig{EntryPoint: []string{"/app"}})
-//	ctr, err := p.Run(img, container.WithMemory(4096))
+//	r := p.Build(container.ContainerConfig{EntryPoint: []string{"/app"}})
+//	img := core.MustCast[*container.Image](r)
+//	ctr := p.Run(img, container.WithMemory(4096))
 type Provider interface {
 	// Build produces an Image from a declarative container configuration.
 	//
-	// Example: img, _ := p.Build(container.ContainerConfig{Name: "api"})
-	Build(config ContainerConfig) (*Image, error)
+	// Example: r := p.Build(container.ContainerConfig{Name: "api"}); img := core.MustCast[*Image](r)
+	Build(config ContainerConfig) core.Result // Value: *Image
 
 	// Run boots an Image and returns the running Container record.
 	//
-	// Example: ctr, _ := p.Run(img, container.WithMemory(2048))
-	Run(image *Image, opts ...RunOption) (*Container, error)
+	// Example: r := p.Run(img, container.WithMemory(2048)); ctr := core.MustCast[*Container](r)
+	Run(image *Image, opts ...RunOption) core.Result // Value: *Container
 
 	// Encrypt wraps an Image with an encryption key producing an EncryptedImage.
 	//
-	// Example: enc, _ := p.Encrypt(img, workspaceKey)
-	Encrypt(image *Image, key []byte) (*EncryptedImage, error)
+	// Example: r := p.Encrypt(img, workspaceKey); enc := core.MustCast[*EncryptedImage](r)
+	Encrypt(image *Image, key []byte) core.Result // Value: *EncryptedImage
 
 	// Decrypt unwraps an EncryptedImage back into a plaintext Image.
 	//
-	// Example: img, _ := p.Decrypt(enc, workspaceKey)
-	Decrypt(encrypted *EncryptedImage, key []byte) (*Image, error)
+	// Example: r := p.Decrypt(enc, workspaceKey); img := core.MustCast[*Image](r)
+	Decrypt(encrypted *EncryptedImage, key []byte) core.Result // Value: *Image
 }
 
 // ContainerConfig is the declarative build input for a Provider.

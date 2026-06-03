@@ -62,16 +62,13 @@ func DefaultConfig() *Config {
 //
 // Usage:
 //
-//	path, err := ConfigPath()
-func ConfigPath() (
-	string,
-	error,
-) {
+//	path := core.MustCast[string](ConfigPath())
+func ConfigPath() core.Result { // Value: string
 	home := coreutil.HomeDir()
 	if home == "" {
-		return "", core.E("ConfigPath", "home directory not available", nil)
+		return core.Fail(core.E("ConfigPath", "home directory not available", nil))
 	}
-	return coreutil.JoinPath(home, ".core", "config.yaml"), nil
+	return core.Ok(coreutil.JoinPath(home, ".core", "config.yaml"))
 }
 
 // LoadConfig loads configuration from ~/.core/config.yaml using the provided medium.
@@ -79,35 +76,33 @@ func ConfigPath() (
 //
 // Usage:
 //
-//	cfg, err := LoadConfig(io.Local)
-func LoadConfig(m io.Medium) (
-	*Config,
-	error,
-) {
-	configPath, err := ConfigPath()
-	if err != nil {
-		return DefaultConfig(), nil
+//	cfg := core.MustCast[*Config](LoadConfig(io.Local))
+func LoadConfig(m io.Medium) core.Result { // Value: *Config
+	pathRes := ConfigPath()
+	if !pathRes.OK {
+		return core.Ok(DefaultConfig())
 	}
+	configPath := core.MustCast[string](pathRes)
 
 	cfg := DefaultConfig()
 
 	if !m.IsFile(configPath) {
-		return cfg, nil
+		return core.Ok(cfg)
 	}
 
 	// Use centralized config service.
 	r := config.New(config.WithMedium(configmedium{Medium: m}), config.WithPath(configPath))
 	if !r.OK {
-		return nil, r.Value.(error)
+		return r
 	}
 	c := r.Value.(*config.Config)
 
 	r = c.Get("", cfg)
 	if !r.OK {
-		return nil, r.Value.(error)
+		return r
 	}
 
-	return cfg, nil
+	return core.Ok(cfg)
 }
 
 type configmedium struct {

@@ -9,7 +9,6 @@ import (
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/proc"
 )
@@ -25,31 +24,28 @@ type LinuxKitManager struct {
 //
 // Usage:
 //
-//	manager, err := NewLinuxKitManager(io.Local)
-func NewLinuxKitManager(m coreio.Medium) (
-	*LinuxKitManager,
-	error,
-) {
-	statePath, err := DefaultStatePath()
-	if err != nil {
-		return nil, coreerr.E("NewLinuxKitManager", "failed to determine state path", err)
+//	manager := core.MustCast[*LinuxKitManager](NewLinuxKitManager(io.Local))
+func NewLinuxKitManager(m coreio.Medium) core.Result { // Value: *LinuxKitManager
+	statePathRes := DefaultStatePath()
+	if !statePathRes.OK {
+		return core.Fail(core.E("NewLinuxKitManager", "failed to determine state path", statePathRes.Value.(error)))
 	}
 
-	state, err := LoadState(statePath)
-	if err != nil {
-		return nil, coreerr.E("NewLinuxKitManager", "failed to load state", err)
+	stateRes := LoadState(core.MustCast[string](statePathRes))
+	if !stateRes.OK {
+		return core.Fail(core.E("NewLinuxKitManager", "failed to load state", stateRes.Value.(error)))
 	}
 
-	hypervisor, err := DetectHypervisor()
-	if err != nil {
-		return nil, err
+	hvRes := DetectHypervisor()
+	if !hvRes.OK {
+		return hvRes
 	}
 
-	return &LinuxKitManager{
-		state:      state,
-		hypervisor: hypervisor,
+	return core.Ok(&LinuxKitManager{
+		state:      core.MustCast[*State](stateRes),
+		hypervisor: core.MustCast[Hypervisor](hvRes),
 		medium:     m,
-	}, nil
+	})
 }
 
 // NewLinuxKitManagerWithHypervisor creates a manager with a specific hypervisor.
@@ -66,26 +62,24 @@ func NewLinuxKitManagerWithHypervisor(m coreio.Medium, state *State, hypervisor 
 }
 
 // Run starts a new LinuxKit VM from the given image.
-func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions) (
-	*Container,
-	error,
-) {
+func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions) core.Result { // Value: *Container
 	// Validate image exists
 	if !m.medium.IsFile(image) {
-		return nil, coreerr.E("LinuxKitManager.Run", "image not found: "+image, nil)
+		return core.Fail(core.E("LinuxKitManager.Run", "image not found: "+image, nil))
 	}
 
 	// Detect image format
 	format := DetectImageFormat(image)
 	if format == FormatUnknown {
-		return nil, coreerr.E("LinuxKitManager.Run", "unsupported image format: "+image, nil)
+		return core.Fail(core.E("LinuxKitManager.Run", "unsupported image format: "+image, nil))
 	}
 
 	// Generate container ID
-	id, err := GenerateID()
-	if err != nil {
-		return nil, coreerr.E("LinuxKitManager.Run", "failed to generate container ID", err)
+	idRes := GenerateID()
+	if !idRes.OK {
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to generate container ID", idRes.Value.(error)))
 	}
+	id := core.MustCast[string](idRes)
 
 	// Apply defaults
 	if opts.Memory <= 0 {
@@ -105,15 +99,16 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	}
 
 	// Ensure logs directory exists
-	if err := EnsureLogsDir(); err != nil {
-		return nil, coreerr.E("LinuxKitManager.Run", "failed to create logs directory", err)
+	if r := EnsureLogsDir(); !r.OK {
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to create logs directory", r.Value.(error)))
 	}
 
 	// Get log file path
-	logPath, err := LogPath(id)
-	if err != nil {
-		return nil, coreerr.E("LinuxKitManager.Run", "failed to determine log path", err)
+	logPathRes := LogPath(id)
+	if !logPathRes.OK {
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to determine log path", logPathRes.Value.(error)))
 	}
+	logPath := core.MustCast[string](logPathRes)
 
 	// Build hypervisor options
 	hvOpts := &HypervisorOptions{
@@ -127,15 +122,16 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	}
 
 	// Build the command
-	cmd, err := m.hypervisor.BuildCommand(ctx, image, hvOpts)
-	if err != nil {
-		return nil, coreerr.E("LinuxKitManager.Run", "failed to build hypervisor command", err)
+	cmdRes := m.hypervisor.BuildCommand(ctx, image, hvOpts)
+	if !cmdRes.OK {
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to build hypervisor command", cmdRes.Value.(error)))
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 
 	// Create log file
 	logFile, err := coreio.Local.Create(logPath)
 	if err != nil {
-		return nil, coreerr.E("LinuxKitManager.Run", "failed to create log file", err)
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to create log file", err))
 	}
 
 	// Create container record
@@ -160,34 +156,34 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 		// Start the process
 		if err := cmd.Start(); err != nil {
 			if closeErr := logFile.Close(); closeErr != nil {
-				return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+				return core.Fail(core.E("LinuxKitManager.Run", "failed to close log file", closeErr))
 			}
-			return nil, coreerr.E("LinuxKitManager.Run", "failed to start VM", err)
+			return core.Fail(core.E("LinuxKitManager.Run", "failed to start VM", err))
 		}
 
 		container.PID = cmd.Process.Pid
 
 		// Save state
-		if err := m.state.Add(container); err != nil {
+		if r := m.state.Add(container); !r.OK {
 			// Try to kill the process we just started
 			if killErr := cmd.Process.Kill(); killErr != nil {
 				// Process may already have exited; return the state error below.
 			}
 			if closeErr := logFile.Close(); closeErr != nil {
-				return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+				return core.Fail(core.E("LinuxKitManager.Run", "failed to close log file", closeErr))
 			}
-			return nil, coreerr.E("LinuxKitManager.Run", "failed to save state", err)
+			return core.Fail(core.E("LinuxKitManager.Run", "failed to save state", r.Value.(error)))
 		}
 
 		// Close log file handle (process has its own)
 		if err := logFile.Close(); err != nil {
-			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", err)
+			return core.Fail(core.E("LinuxKitManager.Run", "failed to close log file", err))
 		}
 
 		// Start a goroutine to wait for process exit and update state
 		go m.waitForExit(container.ID, cmd)
 
-		return container, nil
+		return core.Ok(container)
 	}
 
 	// Run in foreground
@@ -195,37 +191,37 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		if closeErr := logFile.Close(); closeErr != nil {
-			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+			return core.Fail(core.E("LinuxKitManager.Run", "failed to close log file", closeErr))
 		}
-		return nil, coreerr.E("LinuxKitManager.Run", "failed to get stdout pipe", err)
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to get stdout pipe", err))
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		if closeErr := logFile.Close(); closeErr != nil {
-			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+			return core.Fail(core.E("LinuxKitManager.Run", "failed to close log file", closeErr))
 		}
-		return nil, coreerr.E("LinuxKitManager.Run", "failed to get stderr pipe", err)
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to get stderr pipe", err))
 	}
 
 	if err := cmd.Start(); err != nil {
 		if closeErr := logFile.Close(); closeErr != nil {
-			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+			return core.Fail(core.E("LinuxKitManager.Run", "failed to close log file", closeErr))
 		}
-		return nil, coreerr.E("LinuxKitManager.Run", "failed to start VM", err)
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to start VM", err))
 	}
 
 	container.PID = cmd.Process.Pid
 
 	// Save state before waiting
-	if err := m.state.Add(container); err != nil {
+	if r := m.state.Add(container); !r.OK {
 		if killErr := cmd.Process.Kill(); killErr != nil {
 			// Process may already have exited; return the state error below.
 		}
 		if closeErr := logFile.Close(); closeErr != nil {
-			return nil, coreerr.E("LinuxKitManager.Run", "failed to close log file", closeErr)
+			return core.Fail(core.E("LinuxKitManager.Run", "failed to close log file", closeErr))
 		}
-		return nil, coreerr.E("LinuxKitManager.Run", "failed to save state", err)
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to save state", r.Value.(error)))
 	}
 
 	// Copy output to both log and stdout
@@ -246,13 +242,13 @@ func (m *LinuxKitManager) Run(ctx context.Context, image string, opts RunOptions
 	}
 
 	if err := logFile.Close(); err != nil {
-		return container, coreerr.E("LinuxKitManager.Run", "failed to close log file", err)
+		return core.Fail(core.E("LinuxKitManager.Run", "failed to close log file", err))
 	}
-	if err := m.state.Update(container); err != nil {
-		return container, coreerr.E("LinuxKitManager.Run", "update container state", err)
+	if r := m.state.Update(container); !r.OK {
+		return core.Fail(core.E("LinuxKitManager.Run", "update container state", r.Value.(error)))
 	}
 
-	return container, nil
+	return core.Ok(container)
 }
 
 // waitForExit monitors a detached process and updates state when it exits.
@@ -266,26 +262,24 @@ func (m *LinuxKitManager) waitForExit(id string, cmd *proc.Command) {
 		} else {
 			container.Status = StatusStopped
 		}
-		if updateErr := m.state.Update(container); updateErr != nil {
+		if r := m.state.Update(container); !r.OK {
 			// Detached monitor has no caller; List will repair stale state later.
 		}
 	}
 }
 
 // Stop stops a running container by sending SIGTERM.
-func (m *LinuxKitManager) Stop(ctx context.Context, id string) (
-	err error, // result
-) {
+func (m *LinuxKitManager) Stop(ctx context.Context, id string) core.Result { // Value: nil
 	if err := ctx.Err(); err != nil {
-		return err
+		return core.Fail(core.E("LinuxKitManager.Stop", "context cancelled", err))
 	}
 	container, ok := m.state.Get(id)
 	if !ok {
-		return coreerr.E("LinuxKitManager.Stop", "container not found: "+id, nil)
+		return core.Fail(core.E("LinuxKitManager.Stop", "container not found: "+id, nil))
 	}
 
 	if container.Status != StatusRunning {
-		return coreerr.E("LinuxKitManager.Stop", "container is not running: "+id, nil)
+		return core.Fail(core.E("LinuxKitManager.Stop", "container is not running: "+id, nil))
 	}
 
 	// Find the process
@@ -293,10 +287,10 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) (
 	if err := process.Signal(syscall.SIGTERM); err != nil {
 		// Process might already be gone
 		container.Status = StatusStopped
-		if updateErr := m.state.Update(container); updateErr != nil {
-			return coreerr.E("LinuxKitManager.Stop", "update container state", updateErr)
+		if r := m.state.Update(container); !r.OK {
+			return core.Fail(core.E("LinuxKitManager.Stop", "update container state", r.Value.(error)))
 		}
-		return nil
+		return core.Ok(nil)
 	}
 
 	// Honour already-cancelled contexts before waiting
@@ -304,7 +298,7 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) (
 		if killErr := process.Kill(); killErr != nil {
 			// Process may already have exited; return the context error below.
 		}
-		return err
+		return core.Fail(core.E("LinuxKitManager.Stop", "context cancelled", err))
 	}
 
 	deadline := time.After(10 * time.Second)
@@ -321,7 +315,7 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) (
 			if err := process.Kill(); err != nil {
 				// Process may already have exited; return the context error below.
 			}
-			return ctx.Err()
+			return core.Fail(core.E("LinuxKitManager.Stop", "context cancelled", ctx.Err()))
 		case <-ticker.C:
 		}
 	}
@@ -331,12 +325,9 @@ func (m *LinuxKitManager) Stop(ctx context.Context, id string) (
 }
 
 // List returns all known containers, verifying process state.
-func (m *LinuxKitManager) List(ctx context.Context) (
-	[]*Container,
-	error,
-) {
+func (m *LinuxKitManager) List(ctx context.Context) core.Result { // Value: []*Container
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return core.Fail(core.E("LinuxKitManager.List", "context cancelled", err))
 	}
 	containers := m.state.All()
 
@@ -345,14 +336,14 @@ func (m *LinuxKitManager) List(ctx context.Context) (
 		if c.Status == StatusRunning {
 			if !isProcessRunning(c.PID) {
 				c.Status = StatusStopped
-				if err := m.state.Update(c); err != nil {
-					return nil, coreerr.E("LinuxKitManager.List", "update container state", err)
+				if r := m.state.Update(c); !r.OK {
+					return core.Fail(core.E("LinuxKitManager.List", "update container state", r.Value.(error)))
 				}
 			}
 		}
 	}
 
-	return containers, nil
+	return core.Ok(containers)
 }
 
 // isProcessRunning checks if a process with the given PID is still running.
@@ -364,30 +355,32 @@ func isProcessRunning(pid int) bool {
 }
 
 // Logs returns a reader for the container's log output.
-func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) (
-	ReadCloser,
-	error,
-) {
+func (m *LinuxKitManager) Logs(ctx context.Context, id string, follow bool) core.Result { // Value: ReadCloser
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return core.Fail(core.E("LinuxKitManager.Logs", "context cancelled", err))
 	}
 	_, ok := m.state.Get(id)
 	if !ok {
-		return nil, coreerr.E("LinuxKitManager.Logs", "container not found: "+id, nil)
+		return core.Fail(core.E("LinuxKitManager.Logs", "container not found: "+id, nil))
 	}
 
-	logPath, err := LogPath(id)
-	if err != nil {
-		return nil, coreerr.E("LinuxKitManager.Logs", "failed to determine log path", err)
+	logPathRes := LogPath(id)
+	if !logPathRes.OK {
+		return core.Fail(core.E("LinuxKitManager.Logs", "failed to determine log path", logPathRes.Value.(error)))
 	}
+	logPath := core.MustCast[string](logPathRes)
 
 	if !m.medium.IsFile(logPath) {
-		return nil, coreerr.E("LinuxKitManager.Logs", "no logs available for container: "+id, nil)
+		return core.Fail(core.E("LinuxKitManager.Logs", "no logs available for container: "+id, nil))
 	}
 
 	if !follow {
 		// Simple case: just open and return the file
-		return m.medium.Open(logPath)
+		file, err := m.medium.Open(logPath)
+		if err != nil {
+			return core.Fail(core.E("LinuxKitManager.Logs", "open log file", err))
+		}
+		return core.Ok(ReadCloser(file))
 	}
 
 	// Follow mode: create a reader that tails the file
@@ -405,24 +398,21 @@ type followreader struct {
 	pending []byte
 }
 
-func newFollowReader(ctx context.Context, m coreio.Medium, path string) (
-	*followreader,
-	error,
-) {
+func newFollowReader(ctx context.Context, m coreio.Medium, path string) core.Result { // Value: *followreader
 	file, err := m.Open(path)
 	if err != nil {
-		return nil, err
+		return core.Fail(core.E("newFollowReader", "open log file", err))
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	return &followreader{
+	return core.Ok(&followreader{
 		file:   file,
 		ctx:    ctx,
 		cancel: cancel,
 		medium: m,
 		path:   path,
-	}, nil
+	})
 }
 
 func (f *followreader) Read(p []byte) (
@@ -480,19 +470,17 @@ func (f *followreader) Close() (
 }
 
 // Exec executes a command inside the container via SSH.
-func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) (
-	err error, // result
-) {
+func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) core.Result { // Value: nil
 	if err := ctx.Err(); err != nil {
-		return err
+		return core.Fail(core.E("LinuxKitManager.Exec", "context cancelled", err))
 	}
 	container, ok := m.state.Get(id)
 	if !ok {
-		return coreerr.E("LinuxKitManager.Exec", "container not found: "+id, nil)
+		return core.Fail(core.E("LinuxKitManager.Exec", "container not found: "+id, nil))
 	}
 
 	if container.Status != StatusRunning {
-		return coreerr.E("LinuxKitManager.Exec", "container is not running: "+id, nil)
+		return core.Fail(core.E("LinuxKitManager.Exec", "container is not running: "+id, nil))
 	}
 
 	// Use the container's configured SSH port, falling back to the default.
@@ -519,7 +507,10 @@ func (m *LinuxKitManager) Exec(ctx context.Context, id string, cmd []string) (
 	sshCmd.Stdout = proc.Stdout
 	sshCmd.Stderr = proc.Stderr
 
-	return sshCmd.Run()
+	if err := sshCmd.Run(); err != nil {
+		return core.Fail(core.E("LinuxKitManager.Exec", "ssh exec", err))
+	}
+	return core.Ok(nil)
 }
 
 // State returns the manager's state (for testing).

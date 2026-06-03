@@ -43,15 +43,15 @@ func TestTIM_SaveTIM_LoadTIM_Good(t *testing.T) {
 		ReadOnly:   true,
 	}
 
-	err := SaveTIM(io.Local, bundle)
-	if err != nil {
-		t.Fatal(err)
+	if r := SaveTIM(io.Local, bundle); !r.OK {
+		t.Fatal(r.Error())
 	}
 
-	loaded, err := LoadTIM(io.Local, root)
-	if err != nil {
-		t.Fatal(err)
+	loadedRes := LoadTIM(io.Local, root)
+	if !loadedRes.OK {
+		t.Fatal(loadedRes.Error())
 	}
+	loaded := core.MustCast[*TIMBundle](loadedRes)
 	if got, want := loaded.Config.EntryPoint, []string{"/app/server"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -66,8 +66,7 @@ func TestTIM_SaveTIM_MissingBundle_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	err := SaveTIM(io.Local, nil)
-	if err == nil {
+	if r := SaveTIM(io.Local, nil); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -80,8 +79,7 @@ func TestTIM_LoadTIM_MissingConfig_Bad(t *testing.T) {
 	}
 	tmp := t.TempDir()
 
-	_, err := LoadTIM(io.Local, tmp)
-	if err == nil {
+	if r := LoadTIM(io.Local, tmp); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -97,10 +95,11 @@ func TestTIM_EncryptTIM_DecryptSTIM_Good(t *testing.T) {
 	bundle.Config.EntryPoint = []string{"/app"}
 	key := []byte("workspace-key-32-bytes-xxxxxxxxxx")
 
-	stim, err := EncryptTIM(bundle, key)
-	if err != nil {
-		t.Fatal(err)
+	stimRes := EncryptTIM(bundle, key)
+	if !stimRes.OK {
+		t.Fatal(stimRes.Error())
 	}
+	stim := core.MustCast[*STIMBundle](stimRes)
 	if got, want := stim.Scheme, "stim"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -108,10 +107,11 @@ func TestTIM_EncryptTIM_DecryptSTIM_Good(t *testing.T) {
 		t.Fatalf("want len %v, got %v", want, got)
 	}
 
-	out, err := DecryptSTIM(stim, key)
-	if err != nil {
-		t.Fatal(err)
+	outRes := DecryptSTIM(stim, key)
+	if !outRes.OK {
+		t.Fatal(outRes.Error())
 	}
+	out := core.MustCast[*TIMBundle](outRes)
 	if got, want := out.ID, bundle.ID; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -128,8 +128,7 @@ func TestTIM_EncryptTIM_MissingKey_Bad(t *testing.T) {
 	}
 	bundle := NewTIMBundle("a", "/tmp/a")
 
-	_, err := EncryptTIM(bundle, nil)
-	if err == nil {
+	if r := EncryptTIM(bundle, nil); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -144,18 +143,20 @@ func TestTIM_EncryptLayer_DecryptLayer_Good(t *testing.T) {
 	key := []byte("workspace-key-32-bytes-xxxxxxxxxx")
 	plain := []byte("hello TIM layer")
 
-	ct, err := EncryptLayer(key, "worker-01", TIMLayerApp, plain)
-	if err != nil {
-		t.Fatal(err)
+	ctRes := EncryptLayer(key, "worker-01", TIMLayerApp, plain)
+	if !ctRes.OK {
+		t.Fatal(ctRes.Error())
 	}
+	ct := core.MustCast[[]byte](ctRes)
 	if got, want := ct, plain; reflect.DeepEqual(got, want) {
 		t.Fatalf("did not expect %v", got)
 	}
 
-	pt, err := DecryptLayer(key, "worker-01", TIMLayerApp, ct)
-	if err != nil {
-		t.Fatal(err)
+	ptRes := DecryptLayer(key, "worker-01", TIMLayerApp, ct)
+	if !ptRes.OK {
+		t.Fatal(ptRes.Error())
 	}
+	pt := core.MustCast[[]byte](ptRes)
 	if !(core.DeepEqual(plain, pt)) {
 		t.Fatal("expected true")
 	}
@@ -169,8 +170,7 @@ func TestTIM_DecryptLayer_ShortCiphertext_Bad(t *testing.T) {
 	}
 	key := []byte("workspace-key-32-bytes-xxxxxxxxxx")
 
-	_, err := DecryptLayer(key, "worker-01", TIMLayerApp, []byte("x"))
-	if err == nil {
+	if r := DecryptLayer(key, "worker-01", TIMLayerApp, []byte("x")); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -184,13 +184,13 @@ func TestTIM_DecryptLayer_WrongKey_Ugly(t *testing.T) {
 	// A ciphertext produced with workspace key A must not decrypt with key B.
 	keyA := []byte("key-a-32-bytes-xxxxxxxxxxxxxxxxx")
 	keyB := []byte("key-b-32-bytes-xxxxxxxxxxxxxxxxx")
-	ct, err := EncryptLayer(keyA, "worker-01", TIMLayerApp, []byte("secret"))
-	if err != nil {
-		t.Fatal(err)
+	ctRes := EncryptLayer(keyA, "worker-01", TIMLayerApp, []byte("secret"))
+	if !ctRes.OK {
+		t.Fatal(ctRes.Error())
 	}
+	ct := core.MustCast[[]byte](ctRes)
 
-	_, err = DecryptLayer(keyB, "worker-01", TIMLayerApp, ct)
-	if err == nil {
+	if r := DecryptLayer(keyB, "worker-01", TIMLayerApp, ct); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -221,10 +221,11 @@ func TestTIM_EncryptTIMOnMedium_DecryptSTIMOnMedium_Good(t *testing.T) {
 	bundle := NewTIMBundle("worker-01", root)
 	key := []byte("workspace-key-32-bytes-xxxxxxxxx")
 
-	stim, err := EncryptTIMOnMedium(sandbox, bundle, key)
-	if err != nil {
-		t.Fatal(err)
+	stimRes := EncryptTIMOnMedium(sandbox, bundle, key)
+	if !stimRes.OK {
+		t.Fatal(stimRes.Error())
 	}
+	stim := core.MustCast[*STIMBundle](stimRes)
 	if got, want := stim.Scheme, "stim"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -238,10 +239,11 @@ func TestTIM_EncryptTIMOnMedium_DecryptSTIMOnMedium_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := DecryptSTIMOnMedium(sandbox, stim, key)
-	if err != nil {
-		t.Fatal(err)
+	outRes := DecryptSTIMOnMedium(sandbox, stim, key)
+	if !outRes.OK {
+		t.Fatal(outRes.Error())
 	}
+	out := core.MustCast[*TIMBundle](outRes)
 	if got, want := out.ID, "worker-01"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -258,8 +260,7 @@ func TestTIM_EncryptTIMOnMedium_MissingMedium_Bad(t *testing.T) {
 	}
 	bundle := NewTIMBundle("worker-01", "/tmp/x")
 
-	_, err := EncryptTIMOnMedium(nil, bundle, []byte("k"))
-	if err == nil {
+	if r := EncryptTIMOnMedium(nil, bundle, []byte("k")); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -288,13 +289,13 @@ func TestTIM_DecryptSTIMOnMedium_WrongKey_Ugly(t *testing.T) {
 	}
 
 	bundle := NewTIMBundle("worker-01", root)
-	stim, err := EncryptTIMOnMedium(sandbox, bundle, []byte("key-a-32-bytes-xxxxxxxxxxxxxxxxx"))
-	if err != nil {
-		t.Fatal(err)
+	stimRes := EncryptTIMOnMedium(sandbox, bundle, []byte("key-a-32-bytes-xxxxxxxxxxxxxxxxx"))
+	if !stimRes.OK {
+		t.Fatal(stimRes.Error())
 	}
+	stim := core.MustCast[*STIMBundle](stimRes)
 
-	_, err = DecryptSTIMOnMedium(sandbox, stim, []byte("key-b-32-bytes-xxxxxxxxxxxxxxxxx"))
-	if err == nil {
+	if r := DecryptSTIMOnMedium(sandbox, stim, []byte("key-b-32-bytes-xxxxxxxxxxxxxxxxx")); r.OK {
 		t.Fatal("expected error")
 	}
 }

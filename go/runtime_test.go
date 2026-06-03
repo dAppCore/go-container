@@ -110,13 +110,13 @@ func TestRuntime_RequireGPU_Ugly(t *testing.T) {
 	// RequireGPU must error when the runtime has no GPU capability,
 	// and succeed when it does.
 	noGPU := ContainerRuntime{Type: RuntimeDocker}
-	if err := RequireGPU(noGPU); err == nil {
+	if r := RequireGPU(noGPU); r.OK {
 		t.Fatal("expected error")
 	}
 
 	gpu := ContainerRuntime{Type: RuntimeApple, caps: capGPU}
-	if err := RequireGPU(gpu); err != nil {
-		t.Fatal(err)
+	if r := RequireGPU(gpu); !r.OK {
+		t.Fatal(r.Error())
 	}
 }
 
@@ -126,8 +126,8 @@ func TestRuntime_ProviderFor_UnsupportedType_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	_, err := ProviderFor(RuntimeDocker)
-	if err == nil {
+	r := ProviderFor(RuntimeDocker)
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -138,8 +138,8 @@ func TestRuntime_ProviderFor_Unknown_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	_, err := ProviderFor(RuntimeType("not-a-runtime"))
-	if err == nil {
+	r := ProviderFor(RuntimeType("not-a-runtime"))
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }

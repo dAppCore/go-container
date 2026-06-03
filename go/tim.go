@@ -8,7 +8,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/coreutil"
 )
@@ -113,27 +112,24 @@ func NewTIMBundle(id, root string) *TIMBundle {
 //
 // Usage:
 //
-//	tim, err := container.LoadTIM(io.Local, "/var/tim/worker-01")
-func LoadTIM(medium io.Medium, root string) (
-	*TIMBundle,
-	error,
-) {
+//	tim := core.MustCast[*TIMBundle](container.LoadTIM(io.Local, "/var/tim/worker-01"))
+func LoadTIM(medium io.Medium, root string) core.Result { // Value: *TIMBundle
 	configPath := coreutil.JoinPath(root, "config.json")
 	if !medium.IsFile(configPath) {
-		return nil, coreerr.E("LoadTIM", "config.json missing at "+configPath, nil)
+		return core.Fail(core.E("LoadTIM", "config.json missing at "+configPath, nil))
 	}
 
 	raw, err := medium.Read(configPath)
 	if err != nil {
-		return nil, coreerr.E("LoadTIM", "read config.json", err)
+		return core.Fail(core.E("LoadTIM", "read config.json", err))
 	}
 
 	var cfg TIMConfig
 	if res := core.JSONUnmarshalString(raw, &cfg); !res.OK {
 		if e, ok := res.Value.(error); ok {
-			return nil, coreerr.E("LoadTIM", "decode config.json", e)
+			return core.Fail(core.E("LoadTIM", "decode config.json", e))
 		}
-		return nil, coreerr.E("LoadTIM", "decode config.json", nil)
+		return core.Fail(core.E("LoadTIM", "decode config.json", nil))
 	}
 
 	layers := []string{}
@@ -144,12 +140,12 @@ func LoadTIM(medium io.Medium, root string) (
 		}
 	}
 
-	return &TIMBundle{
+	return core.Ok(&TIMBundle{
 		ID:     core.PathBase(root),
 		Root:   root,
 		Config: cfg,
 		Layers: layers,
-	}, nil
+	})
 }
 
 // SaveTIM serialises a TIMBundle's config to disk. Rootfs management is out
@@ -157,28 +153,29 @@ func LoadTIM(medium io.Medium, root string) (
 //
 // Usage:
 //
-//	err := container.SaveTIM(io.Local, tim)
-func SaveTIM(medium io.Medium, bundle *TIMBundle) (
-	err error, // result
-) {
+//	if r := container.SaveTIM(io.Local, tim); !r.OK { return r }
+func SaveTIM(medium io.Medium, bundle *TIMBundle) core.Result { // Value: nil
 	if bundle == nil {
-		return coreerr.E("SaveTIM", "bundle is required", nil)
+		return core.Fail(core.E("SaveTIM", "bundle is required", nil))
 	}
 	if bundle.Root == "" {
-		return coreerr.E("SaveTIM", "bundle.Root is required", nil)
+		return core.Fail(core.E("SaveTIM", "bundle.Root is required", nil))
 	}
 	if err := medium.EnsureDir(bundle.Root); err != nil {
-		return coreerr.E("SaveTIM", "ensure bundle root", err)
+		return core.Fail(core.E("SaveTIM", "ensure bundle root", err))
 	}
 	res := core.JSONMarshal(&bundle.Config)
 	if !res.OK {
 		if e, ok := res.Value.(error); ok {
-			return coreerr.E("SaveTIM", "encode config.json", e)
+			return core.Fail(core.E("SaveTIM", "encode config.json", e))
 		}
-		return coreerr.E("SaveTIM", "encode config.json", nil)
+		return core.Fail(core.E("SaveTIM", "encode config.json", nil))
 	}
 	configPath := coreutil.JoinPath(bundle.Root, "config.json")
-	return medium.Write(configPath, string(res.Value.([]byte)))
+	if err := medium.Write(configPath, string(core.MustCast[[]byte](res))); err != nil {
+		return core.Fail(core.E("SaveTIM", "write config.json", err))
+	}
+	return core.Ok(nil)
 }
 
 // EncryptTIM encrypts a TIMBundle into a STIMBundle using the Borg sigil
@@ -190,16 +187,13 @@ func SaveTIM(medium io.Medium, bundle *TIMBundle) (
 //
 // Usage:
 //
-//	stim, err := container.EncryptTIM(tim, workspaceKey)
-func EncryptTIM(bundle *TIMBundle, workspaceKey []byte) (
-	*STIMBundle,
-	error,
-) {
+//	stim := core.MustCast[*STIMBundle](container.EncryptTIM(tim, workspaceKey))
+func EncryptTIM(bundle *TIMBundle, workspaceKey []byte) core.Result { // Value: *STIMBundle
 	if bundle == nil {
-		return nil, coreerr.E("EncryptTIM", "bundle is required", nil)
+		return core.Fail(core.E("EncryptTIM", "bundle is required", nil))
 	}
 	if len(workspaceKey) == 0 {
-		return nil, coreerr.E("EncryptTIM", "workspace key is required", nil)
+		return core.Fail(core.E("EncryptTIM", "workspace key is required", nil))
 	}
 	containerKey := deriveContainerKey(workspaceKey, bundle.ID)
 
@@ -210,13 +204,13 @@ func EncryptTIM(bundle *TIMBundle, workspaceKey []byte) (
 		layers = append(layers, core.Concat(name, ".stim"))
 	}
 
-	return &STIMBundle{
+	return core.Ok(&STIMBundle{
 		ID:     bundle.ID,
 		Root:   bundle.Root,
 		Config: bundle.Config,
 		Layers: layers,
 		Scheme: "stim",
-	}, nil
+	})
 }
 
 // DecryptSTIM reverses EncryptTIM, yielding the plaintext TIMBundle record.
@@ -224,16 +218,13 @@ func EncryptTIM(bundle *TIMBundle, workspaceKey []byte) (
 //
 // Usage:
 //
-//	tim, err := container.DecryptSTIM(stim, workspaceKey)
-func DecryptSTIM(stim *STIMBundle, workspaceKey []byte) (
-	*TIMBundle,
-	error,
-) {
+//	tim := core.MustCast[*TIMBundle](container.DecryptSTIM(stim, workspaceKey))
+func DecryptSTIM(stim *STIMBundle, workspaceKey []byte) core.Result { // Value: *TIMBundle
 	if stim == nil {
-		return nil, coreerr.E("DecryptSTIM", "stim bundle is required", nil)
+		return core.Fail(core.E("DecryptSTIM", "stim bundle is required", nil))
 	}
 	if len(workspaceKey) == 0 {
-		return nil, coreerr.E("DecryptSTIM", "workspace key is required", nil)
+		return core.Fail(core.E("DecryptSTIM", "workspace key is required", nil))
 	}
 	containerKey := deriveContainerKey(workspaceKey, stim.ID)
 	_ = containerKey // Key derivation validated; payload opening happens in DecryptSTIMOnMedium.
@@ -242,12 +233,12 @@ func DecryptSTIM(stim *STIMBundle, workspaceKey []byte) (
 	for _, name := range stim.Layers {
 		layers = append(layers, core.TrimSuffix(name, ".stim"))
 	}
-	return &TIMBundle{
+	return core.Ok(&TIMBundle{
 		ID:     stim.ID,
 		Root:   stim.Root,
 		Config: stim.Config,
 		Layers: layers,
-	}, nil
+	})
 }
 
 // EncryptTIMOnMedium is the full-fidelity encrypt-on-disk flow. For each
@@ -258,22 +249,19 @@ func DecryptSTIM(stim *STIMBundle, workspaceKey []byte) (
 //
 // Usage:
 //
-//	stim, err := container.EncryptTIMOnMedium(io.Local, tim, workspaceKey)
-func EncryptTIMOnMedium(medium io.Medium, bundle *TIMBundle, workspaceKey []byte) (
-	*STIMBundle,
-	error,
-) {
+//	stim := core.MustCast[*STIMBundle](container.EncryptTIMOnMedium(io.Local, tim, workspaceKey))
+func EncryptTIMOnMedium(medium io.Medium, bundle *TIMBundle, workspaceKey []byte) core.Result { // Value: *STIMBundle
 	if medium == nil {
-		return nil, coreerr.E("EncryptTIMOnMedium", "medium is required", nil)
+		return core.Fail(core.E("EncryptTIMOnMedium", "medium is required", nil))
 	}
 	if bundle == nil {
-		return nil, coreerr.E("EncryptTIMOnMedium", "bundle is required", nil)
+		return core.Fail(core.E("EncryptTIMOnMedium", "bundle is required", nil))
 	}
 	if len(workspaceKey) == 0 {
-		return nil, coreerr.E("EncryptTIMOnMedium", "workspace key is required", nil)
+		return core.Fail(core.E("EncryptTIMOnMedium", "workspace key is required", nil))
 	}
 	if bundle.Root == "" {
-		return nil, coreerr.E("EncryptTIMOnMedium", "bundle.Root is required", nil)
+		return core.Fail(core.E("EncryptTIMOnMedium", "bundle.Root is required", nil))
 	}
 
 	rootfs := coreutil.JoinPath(bundle.Root, "rootfs")
@@ -285,27 +273,27 @@ func EncryptTIMOnMedium(medium io.Medium, bundle *TIMBundle, workspaceKey []byte
 			encryptedLayers = append(encryptedLayers, core.Concat(name, ".stim"))
 			continue
 		}
-		payload, err := collectLayer(medium, layerDir)
-		if err != nil {
-			return nil, coreerr.E("EncryptTIMOnMedium", "collect layer "+name, err)
+		payloadRes := collectLayer(medium, layerDir)
+		if !payloadRes.OK {
+			return core.Fail(core.E("EncryptTIMOnMedium", "collect layer "+name, payloadRes.Value.(error)))
 		}
-		sealed, err := EncryptLayer(workspaceKey, bundle.ID, name, payload)
-		if err != nil {
-			return nil, coreerr.E("EncryptTIMOnMedium", "encrypt layer "+name, err)
+		sealedRes := EncryptLayer(workspaceKey, bundle.ID, name, core.MustCast[[]byte](payloadRes))
+		if !sealedRes.OK {
+			return core.Fail(core.E("EncryptTIMOnMedium", "encrypt layer "+name, sealedRes.Value.(error)))
 		}
 		outPath := coreutil.JoinPath(rootfs, core.Concat(name, ".stim"))
-		if err := medium.Write(outPath, string(sealed)); err != nil {
-			return nil, coreerr.E("EncryptTIMOnMedium", "write sealed layer "+name, err)
+		if err := medium.Write(outPath, string(core.MustCast[[]byte](sealedRes))); err != nil {
+			return core.Fail(core.E("EncryptTIMOnMedium", "write sealed layer "+name, err))
 		}
 		encryptedLayers = append(encryptedLayers, core.Concat(name, ".stim"))
 	}
-	return &STIMBundle{
+	return core.Ok(&STIMBundle{
 		ID:     bundle.ID,
 		Root:   bundle.Root,
 		Config: bundle.Config,
 		Layers: encryptedLayers,
 		Scheme: "stim",
-	}, nil
+	})
 }
 
 // DecryptSTIMOnMedium reverses EncryptTIMOnMedium. Each rootfs/<name>.stim
@@ -314,22 +302,19 @@ func EncryptTIMOnMedium(medium io.Medium, bundle *TIMBundle, workspaceKey []byte
 //
 // Usage:
 //
-//	tim, err := container.DecryptSTIMOnMedium(io.Local, stim, workspaceKey)
-func DecryptSTIMOnMedium(medium io.Medium, stim *STIMBundle, workspaceKey []byte) (
-	*TIMBundle,
-	error,
-) {
+//	tim := core.MustCast[*TIMBundle](container.DecryptSTIMOnMedium(io.Local, stim, workspaceKey))
+func DecryptSTIMOnMedium(medium io.Medium, stim *STIMBundle, workspaceKey []byte) core.Result { // Value: *TIMBundle
 	if medium == nil {
-		return nil, coreerr.E("DecryptSTIMOnMedium", "medium is required", nil)
+		return core.Fail(core.E("DecryptSTIMOnMedium", "medium is required", nil))
 	}
 	if stim == nil {
-		return nil, coreerr.E("DecryptSTIMOnMedium", "stim bundle is required", nil)
+		return core.Fail(core.E("DecryptSTIMOnMedium", "stim bundle is required", nil))
 	}
 	if len(workspaceKey) == 0 {
-		return nil, coreerr.E("DecryptSTIMOnMedium", "workspace key is required", nil)
+		return core.Fail(core.E("DecryptSTIMOnMedium", "workspace key is required", nil))
 	}
 	if stim.Root == "" {
-		return nil, coreerr.E("DecryptSTIMOnMedium", "stim.Root is required", nil)
+		return core.Fail(core.E("DecryptSTIMOnMedium", "stim.Root is required", nil))
 	}
 
 	rootfs := coreutil.JoinPath(stim.Root, "rootfs")
@@ -343,41 +328,38 @@ func DecryptSTIMOnMedium(medium io.Medium, stim *STIMBundle, workspaceKey []byte
 		}
 		sealed, err := medium.Read(sealedPath)
 		if err != nil {
-			return nil, coreerr.E("DecryptSTIMOnMedium", "read sealed layer "+sealedName, err)
+			return core.Fail(core.E("DecryptSTIMOnMedium", "read sealed layer "+sealedName, err))
 		}
-		payload, err := DecryptLayer(workspaceKey, stim.ID, plainName, []byte(sealed))
-		if err != nil {
-			return nil, coreerr.E("DecryptSTIMOnMedium", "decrypt layer "+plainName, err)
+		payloadRes := DecryptLayer(workspaceKey, stim.ID, plainName, []byte(sealed))
+		if !payloadRes.OK {
+			return core.Fail(core.E("DecryptSTIMOnMedium", "decrypt layer "+plainName, payloadRes.Value.(error)))
 		}
 		layerDir := coreutil.JoinPath(rootfs, plainName)
 		if err := medium.EnsureDir(layerDir); err != nil {
-			return nil, coreerr.E("DecryptSTIMOnMedium", "ensure layer dir "+plainName, err)
+			return core.Fail(core.E("DecryptSTIMOnMedium", "ensure layer dir "+plainName, err))
 		}
 		payloadPath := coreutil.JoinPath(layerDir, "payload.bin")
-		if err := medium.Write(payloadPath, string(payload)); err != nil {
-			return nil, coreerr.E("DecryptSTIMOnMedium", "write payload "+plainName, err)
+		if err := medium.Write(payloadPath, string(core.MustCast[[]byte](payloadRes))); err != nil {
+			return core.Fail(core.E("DecryptSTIMOnMedium", "write payload "+plainName, err))
 		}
 		plaintextLayers = append(plaintextLayers, plainName)
 	}
-	return &TIMBundle{
+	return core.Ok(&TIMBundle{
 		ID:     stim.ID,
 		Root:   stim.Root,
 		Config: stim.Config,
 		Layers: plaintextLayers,
-	}, nil
+	})
 }
 
 // collectLayer serialises a layer directory into a single flat buffer. Each
 // entry is encoded as a length-prefixed name followed by a length-prefixed
 // content blob. This deterministic encoding lets EncryptLayer seal the whole
 // layer as one AEAD block.
-func collectLayer(medium io.Medium, dir string) (
-	[]byte,
-	error,
-) {
+func collectLayer(medium io.Medium, dir string) core.Result { // Value: []byte
 	entries, err := medium.List(dir)
 	if err != nil {
-		return nil, err
+		return core.Fail(core.E("collectLayer", "list layer dir", err))
 	}
 	var buf []byte
 	for _, e := range entries {
@@ -388,14 +370,14 @@ func collectLayer(medium io.Medium, dir string) (
 		path := coreutil.JoinPath(dir, name)
 		content, err := medium.Read(path)
 		if err != nil {
-			return nil, err
+			return core.Fail(core.E("collectLayer", "read "+path, err))
 		}
 		buf = append(buf, encodeLen(uint32(len(name)))...)
 		buf = append(buf, []byte(name)...)
 		buf = append(buf, encodeLen(uint32(len(content)))...)
 		buf = append(buf, []byte(content)...)
 	}
-	return buf, nil
+	return core.Ok(buf)
 }
 
 // encodeLen writes a 4-byte big-endian length prefix.
@@ -408,54 +390,48 @@ func encodeLen(n uint32) []byte {
 //
 // Usage:
 //
-//	ct, err := container.EncryptLayer(workspaceKey, "worker-01", "app", plaintext)
-func EncryptLayer(workspaceKey []byte, containerID, layer string, plaintext []byte) (
-	[]byte,
-	error,
-) {
+//	ct := core.MustCast[[]byte](container.EncryptLayer(workspaceKey, "worker-01", "app", plaintext))
+func EncryptLayer(workspaceKey []byte, containerID, layer string, plaintext []byte) core.Result { // Value: []byte
 	key := deriveLayerKey(deriveContainerKey(workspaceKey, containerID), layer)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, coreerr.E("EncryptLayer", "new cipher", err)
+		return core.Fail(core.E("EncryptLayer", "new cipher", err))
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, coreerr.E("EncryptLayer", "new gcm", err)
+		return core.Fail(core.E("EncryptLayer", "new gcm", err))
 	}
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := rand.Read(nonce); err != nil {
-		return nil, coreerr.E("EncryptLayer", "read nonce", err)
+		return core.Fail(core.E("EncryptLayer", "read nonce", err))
 	}
-	return gcm.Seal(nonce, nonce, plaintext, nil), nil
+	return core.Ok(gcm.Seal(nonce, nonce, plaintext, nil))
 }
 
 // DecryptLayer reverses EncryptLayer. Input must be nonce‖ciphertext.
 //
 // Usage:
 //
-//	pt, err := container.DecryptLayer(workspaceKey, "worker-01", "app", ciphertext)
-func DecryptLayer(workspaceKey []byte, containerID, layer string, ciphertext []byte) (
-	[]byte,
-	error,
-) {
+//	pt := core.MustCast[[]byte](container.DecryptLayer(workspaceKey, "worker-01", "app", ciphertext))
+func DecryptLayer(workspaceKey []byte, containerID, layer string, ciphertext []byte) core.Result { // Value: []byte
 	key := deriveLayerKey(deriveContainerKey(workspaceKey, containerID), layer)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, coreerr.E("DecryptLayer", "new cipher", err)
+		return core.Fail(core.E("DecryptLayer", "new cipher", err))
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, coreerr.E("DecryptLayer", "new gcm", err)
+		return core.Fail(core.E("DecryptLayer", "new gcm", err))
 	}
 	if len(ciphertext) < gcm.NonceSize() {
-		return nil, coreerr.E("DecryptLayer", "ciphertext too short", nil)
+		return core.Fail(core.E("DecryptLayer", "ciphertext too short", nil))
 	}
 	nonce, ct := ciphertext[:gcm.NonceSize()], ciphertext[gcm.NonceSize():]
 	pt, err := gcm.Open(nil, nonce, ct, nil)
 	if err != nil {
-		return nil, coreerr.E("DecryptLayer", "gcm open", err)
+		return core.Fail(core.E("DecryptLayer", "gcm open", err))
 	}
-	return pt, nil
+	return core.Ok(pt)
 }
 
 // deriveContainerKey derives a container-specific key from the workspace key

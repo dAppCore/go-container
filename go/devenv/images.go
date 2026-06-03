@@ -8,7 +8,6 @@ import (
 	core "dappco.re/go"
 	"dappco.re/go/container/sources"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/coreutil"
 )
@@ -36,31 +35,42 @@ type ImageInfo struct {
 	Source     string    `json:"source"`
 }
 
+// UpdateInfo is the result of an ImageManager.CheckUpdate call. It carries
+// the currently-installed version, the latest available version, and whether
+// an update is available.
+type UpdateInfo struct {
+	// Current is the installed image version.
+	Current string
+	// Latest is the latest available image version.
+	Latest string
+	// HasUpdate reports whether Latest differs from Current.
+	HasUpdate bool
+}
+
 // NewImageManager creates a new image manager.
 //
 // Usage:
 //
-//	manager, err := NewImageManager(io.Local, cfg)
-func NewImageManager(m io.Medium, cfg *Config) (
-	*ImageManager,
-	error,
-) {
-	imagesDir, err := ImagesDir()
-	if err != nil {
-		return nil, err
+//	manager := core.MustCast[*ImageManager](NewImageManager(io.Local, cfg))
+func NewImageManager(m io.Medium, cfg *Config) core.Result { // Value: *ImageManager
+	dirRes := ImagesDir()
+	if !dirRes.OK {
+		return dirRes
 	}
+	imagesDir := core.MustCast[string](dirRes)
 
 	// Ensure images directory exists
 	if err := m.EnsureDir(imagesDir); err != nil {
-		return nil, err
+		return core.Fail(core.E("NewImageManager", "ensure images directory", err))
 	}
 
 	// Load or create manifest
 	manifestPath := coreutil.JoinPath(imagesDir, "manifest.json")
-	manifest, err := loadManifest(m, manifestPath)
-	if err != nil {
-		return nil, err
+	manifestRes := loadManifest(m, manifestPath)
+	if !manifestRes.OK {
+		return manifestRes
 	}
+	manifest := core.MustCast[*Manifest](manifestRes)
 
 	// Build source list based on config
 	imageName := ImageName()
@@ -84,31 +94,34 @@ func NewImageManager(m io.Medium, cfg *Config) (
 		}
 	}
 
-	return &ImageManager{
+	return core.Ok(&ImageManager{
 		medium:   m,
 		config:   cfg,
 		manifest: manifest,
 		sources:  srcs,
-	}, nil
+	})
 }
 
 // IsInstalled checks if the dev image is installed.
 func (m *ImageManager) IsInstalled() bool {
-	path, err := ImagePath()
-	if err != nil {
+	pathRes := ImagePath()
+	if !pathRes.OK {
 		return false
 	}
-	return m.medium.IsFile(path)
+	return m.medium.IsFile(core.MustCast[string](pathRes))
 }
 
 // Install downloads and installs the dev image.
-func (m *ImageManager) Install(ctx context.Context, progress func(downloaded, total int64)) (
-	err error, // result
-) {
-	imagesDir, err := ImagesDir()
-	if err != nil {
-		return err
+//
+// Usage:
+//
+//	if r := mgr.Install(ctx, nil); !r.OK { return r }
+func (m *ImageManager) Install(ctx context.Context, progress func(downloaded, total int64)) core.Result { // Value: nil
+	dirRes := ImagesDir()
+	if !dirRes.OK {
+		return dirRes
 	}
+	imagesDir := core.MustCast[string](dirRes)
 
 	// Find first available source
 	var src sources.ImageSource
@@ -119,20 +132,21 @@ func (m *ImageManager) Install(ctx context.Context, progress func(downloaded, to
 		}
 	}
 	if src == nil {
-		return coreerr.E("ImageManager.Install", "no image source available", nil)
+		return core.Fail(core.E("ImageManager.Install", "no image source available", nil))
 	}
 
 	// Get version
-	version, err := src.LatestVersion(ctx)
-	if err != nil {
-		return coreerr.E("ImageManager.Install", "failed to get latest version", err)
+	versionRes := src.LatestVersion(ctx)
+	if !versionRes.OK {
+		return core.Fail(core.E("ImageManager.Install", "failed to get latest version", versionRes.Value.(error)))
 	}
+	version := core.MustCast[string](versionRes)
 
 	core.Print(nil, "Downloading %s from %s...", ImageName(), src.Name())
 
 	// Download
-	if err := src.Download(ctx, m.medium, imagesDir, progress); err != nil {
-		return err
+	if r := src.Download(ctx, m.medium, imagesDir, progress); !r.OK {
+		return r
 	}
 
 	// Update manifest
@@ -146,17 +160,16 @@ func (m *ImageManager) Install(ctx context.Context, progress func(downloaded, to
 }
 
 // CheckUpdate checks if an update is available.
-func (m *ImageManager) CheckUpdate(ctx context.Context) (
-	current,
-	latest string,
-	hasUpdate bool,
-	err error,
-) {
+//
+// Usage:
+//
+//	info := core.MustCast[*UpdateInfo](mgr.CheckUpdate(ctx))
+func (m *ImageManager) CheckUpdate(ctx context.Context) core.Result { // Value: *UpdateInfo
 	info, ok := m.manifest.Images[ImageName()]
 	if !ok {
-		return "", "", false, coreerr.E("ImageManager.CheckUpdate", "image not installed", nil)
+		return core.Fail(core.E("ImageManager.CheckUpdate", "image not installed", nil))
 	}
-	current = info.Version
+	current := info.Version
 
 	// Find first available source
 	var src sources.ImageSource
@@ -167,22 +180,23 @@ func (m *ImageManager) CheckUpdate(ctx context.Context) (
 		}
 	}
 	if src == nil {
-		return current, "", false, coreerr.E("ImageManager.CheckUpdate", "no image source available", nil)
+		return core.Fail(core.E("ImageManager.CheckUpdate", "no image source available", nil))
 	}
 
-	latest, err = src.LatestVersion(ctx)
-	if err != nil {
-		return current, "", false, err
+	versionRes := src.LatestVersion(ctx)
+	if !versionRes.OK {
+		return core.Fail(core.E("ImageManager.CheckUpdate", "failed to get latest version", versionRes.Value.(error)))
 	}
+	latest := core.MustCast[string](versionRes)
 
-	hasUpdate = current != latest
-	return current, latest, hasUpdate, nil
+	return core.Ok(&UpdateInfo{
+		Current:   current,
+		Latest:    latest,
+		HasUpdate: current != latest,
+	})
 }
 
-func loadManifest(m io.Medium, path string) (
-	*Manifest,
-	error,
-) {
+func loadManifest(m io.Medium, path string) core.Result { // Value: *Manifest
 	manifest := &Manifest{
 		medium: m,
 		Images: make(map[string]ImageInfo),
@@ -192,28 +206,33 @@ func loadManifest(m io.Medium, path string) (
 	content, err := m.Read(path)
 	if err != nil {
 		if core.Is(err, fs.ErrNotExist) {
-			return manifest, nil
+			return core.Ok(manifest)
 		}
-		return nil, err
+		return core.Fail(core.E("loadManifest", "read manifest", err))
 	}
 
 	result := core.JSONUnmarshalString(content, manifest)
 	if !result.OK {
-		return nil, result.Value.(error)
+		return result
 	}
 	manifest.medium = m
 	manifest.path = path
 
-	return manifest, nil
+	return core.Ok(manifest)
 }
 
 // Save writes the manifest to disk.
-func (m *Manifest) Save() (
-	err error, // result
-) {
+//
+// Usage:
+//
+//	if r := manifest.Save(); !r.OK { return r }
+func (m *Manifest) Save() core.Result { // Value: nil
 	result := core.JSONMarshal(m)
 	if !result.OK {
-		return result.Value.(error)
+		return result
 	}
-	return m.medium.Write(m.path, string(result.Value.([]byte)))
+	if err := m.medium.Write(m.path, string(core.MustCast[[]byte](result))); err != nil {
+		return core.Fail(core.E("Manifest.Save", "write manifest", err))
+	}
+	return core.Ok(nil)
 }
