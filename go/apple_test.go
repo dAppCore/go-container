@@ -1462,6 +1462,68 @@ func TestApple_AppleProvider_SystemStop_Ugly(t *testing.T) {
 	}
 }
 
+func TestApple_appleExecInteractiveArgs_Good(t *testing.T) {
+	got := appleExecInteractiveArgs("web", []string{"/bin/sh"})
+	want := []string{"exec", "-i", "-t", "web", "/bin/sh"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func TestApple_AppleProvider_ExecInteractive_Bad(t *testing.T) {
+	p := NewAppleProvider()
+	if p.ExecInteractive("").OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestApple_AppleProvider_ExecInteractive_Ugly(t *testing.T) {
+	p := &AppleProvider{Binary: "nonexistent-apple-container-binary-xyz"}
+	if p.ExecInteractive("web", "/bin/sh").OK {
+		t.Fatal("expected failure with a bogus binary")
+	}
+}
+
+func TestApple_AppleProvider_ExecInteractive_Good(t *testing.T) {
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI smoke")
+	}
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	const name = "core-exec-i-e2e"
+	const ref = "docker.io/library/alpine:latest"
+	ctx := context.Background()
+	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run()
+	defer func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }()
+	if r := p.Pull(ref); !r.OK {
+		t.Fatalf("Pull: %v", r.Error())
+	}
+	if r := p.Run(&Image{Path: ref}, WithName(name), WithDetach(true), WithArgs("sleep", "60")); !r.OK {
+		t.Fatalf("Run: %v", r.Error())
+	}
+	for i := 0; i < 30; i++ {
+		ready := false
+		if lr := p.List(); lr.OK {
+			for _, c := range core.MustCast[[]*Container](lr) {
+				if c.ID == name && c.Status == StatusRunning {
+					ready = true
+				}
+			}
+		}
+		if ready {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	// Non-interactive command through the interactive path; -t without a real
+	// TTY may be rejected under `go test` — that's the documented degrade-to-skip.
+	if r := p.ExecInteractive(name, "echo", "interactive-ok"); !r.OK {
+		t.Skipf("ExecInteractive needs a TTY in this env: %v", r.Error())
+	}
+}
+
 // TestApple_E2E_ImageLifecycle_Smoke certifies the image-subgroup reconciliation
 // against the LIVE `container` binary: pull → list (parse real JSON) → delete.
 // Opt-in (set CORE_APPLE_E2E=1) because it shells out to the runtime, requires

@@ -119,3 +119,9 @@ func ExampleAppleProvider_SystemStatus() {
 	// SystemStatus returns the raw `container system status` output.
 	_ = p.SystemStatus()
 }
+
+func ExampleAppleProvider_ExecInteractive() {
+	p := NewAppleProvider()
+	// ExecInteractive opens an interactive TTY session in a container.
+	_ = p.ExecInteractive("web", "/bin/sh")
+}

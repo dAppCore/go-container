@@ -697,6 +697,33 @@ func (a *AppleProvider) Exec(id, command string, args ...string) core.Result { /
 	return core.Ok(string(out))
 }
 
+// appleExecInteractiveArgs builds `container exec -i -t <id> <cmd…>`.
+func appleExecInteractiveArgs(id string, cmd []string) []string {
+	return append([]string{"exec", "-i", "-t", id}, cmd...)
+}
+
+// ExecInteractive runs an interactive command in a container with a TTY, wiring
+// the child's stdin/stdout/stderr to the terminal and blocking until it exits.
+// Unlike Exec (which captures output), this is for shells and other interactive
+// programs.
+//
+// Usage:
+//
+//	if r := p.ExecInteractive(id, "/bin/sh"); !r.OK { return r }
+func (a *AppleProvider) ExecInteractive(id string, cmd ...string) core.Result { // Value: nil
+	if id == "" {
+		return core.Fail(core.E("AppleProvider.ExecInteractive", "container id is required", nil))
+	}
+	c := proc.NewCommandContext(context.Background(), a.Binary, appleExecInteractiveArgs(id, cmd)...)
+	c.Stdin = proc.Stdin
+	c.Stdout = proc.Stdout
+	c.Stderr = proc.Stderr
+	if err := c.Run(); err != nil {
+		return core.Fail(core.E("AppleProvider.ExecInteractive", "interactive exec", err))
+	}
+	return core.Ok(nil)
+}
+
 // List returns all containers known to the Apple container CLI.
 //
 // Usage:
