@@ -20,6 +20,11 @@
 //   - images: List images
 //   - rmi: Remove an image
 //
+// Apple system management (requires the macOS `container` runtime):
+//   - system start: Start the apiserver + default kernel (--no-kernel-install to skip)
+//   - system status: Show system status
+//   - system stop: Stop the system services
+//
 // kill/rm/inspect dispatch to whichever runtime owns the container id; the
-// image commands are Apple-only (LinuxKit has no OCI image management).
+// image and system commands are Apple-only (LinuxKit has no OCI image management).
 package vm
