@@ -630,99 +630,227 @@ func TestApple_AppleProvider_Decrypt_Ugly(t *testing.T) {
 	}
 }
 
-// --- Task 4-14 new method tests ---
+// --- AX-7 canonical lifecycle triplets (Stop/Kill/Remove/Logs/Exec/Inspect/
+// Pull/Push/RemoveImage + List/ListImages Bad/Ugly). Each Good is gated on a
+// live `container` runtime; methods that mutate a real container are further
+// gated on CORE_APPLE_E2E and mirror TestApple_E2E_ContainerLifecycle_Smoke
+// (pre-clean, Run a sleeper, poll List, exercise, defer delete --force). Bad is
+// the empty/invalid-input guard clause (no binary needed); Ugly is a different
+// real edge (second guard branch, whitespace-only id, or a non-JSON CLI). ---
 
-func TestApple_AppleProvider_Stop_EmptyID_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Stop"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
+// runningAppleContainer boots a throwaway detached `sleep` container through the
+// provider and polls List until it is running, mirroring the E2E smoke. It
+// returns the container id and a cleanup func. Callers must already have gated
+// on Available() and CORE_APPLE_E2E.
+func runningAppleContainer(t *testing.T, p *AppleProvider, name string) (string, func()) {
+	t.Helper()
+	const ref = "docker.io/library/alpine:latest"
+	ctx := context.Background()
+	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() // pre-clean
+	cleanup := func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }
+
+	if r := p.Pull(ref); !r.OK {
+		cleanup()
+		t.Fatalf("Pull: %v", r.Error())
 	}
-	p := NewAppleProvider()
-	r := p.Stop("")
-	if r.OK {
-		t.Fatal("expected error")
+	runRes := p.Run(&Image{Path: ref}, WithName(name), WithDetach(true), WithArgs("sleep", "60"))
+	if !runRes.OK {
+		cleanup()
+		t.Fatalf("Run with args: %v", runRes.Error())
 	}
+	var got *Container
+	for i := 0; i < 30 && got == nil; i++ {
+		if listRes := p.List(); listRes.OK {
+			for _, c := range core.MustCast[[]*Container](listRes) {
+				if c.ID == name && c.Status == StatusRunning {
+					got = c
+				}
+			}
+		}
+		if got == nil {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if got == nil {
+		cleanup()
+		t.Fatalf("container %q not running after Run(WithArgs sleep)", name)
+	}
+	return name, cleanup
 }
 
-func TestApple_AppleProvider_Kill_EmptyID_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Kill"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
-	p := NewAppleProvider()
-	r := p.Kill("")
-	if r.OK {
-		t.Fatal("expected error")
-	}
-}
-
-func TestApple_AppleProvider_Remove_EmptyID_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Remove"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
-	p := NewAppleProvider()
-	r := p.Remove("")
-	if r.OK {
-		t.Fatal("expected error")
-	}
-}
-
-func TestApple_AppleProvider_Logs_EmptyID_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Logs"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
-	p := NewAppleProvider()
-	r := p.Logs("", 100)
-	if r.OK {
-		t.Fatal("expected error")
-	}
-}
-
-func TestApple_AppleProvider_Logs_ZeroTail_Good(t *testing.T) {
-	auditTarget := "AppleProvider Logs"
-	auditVariant := "Good"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
+func TestApple_AppleProvider_Stop_Good(t *testing.T) {
 	p := NewAppleProvider()
 	if !p.Available() {
 		t.Skip("apple container runtime not available")
 	}
-	r := p.Logs("no-such-container", 0)
-	if r.OK {
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI lifecycle")
+	}
+	id, cleanup := runningAppleContainer(t, p, "core-stop-good-e2e")
+	defer cleanup()
+	if r := p.Stop(id); !r.OK {
+		t.Fatalf("Stop on a running container: %v", r.Error())
+	}
+}
+
+func TestApple_AppleProvider_Stop_Bad(t *testing.T) {
+	// Guard clause: an empty id is rejected before the CLI is touched.
+	p := NewAppleProvider()
+	if p.Stop("").OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestApple_AppleProvider_Stop_Ugly(t *testing.T) {
+	// Whitespace-only id slips past the empty-string guard but addresses no
+	// real container, so the underlying `container stop` must still fail.
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if p.Stop("   ").OK {
+		t.Fatal("expected error for whitespace-only id")
+	}
+}
+
+func TestApple_AppleProvider_Kill_Good(t *testing.T) {
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI lifecycle")
+	}
+	id, cleanup := runningAppleContainer(t, p, "core-kill-good-e2e")
+	defer cleanup()
+	if r := p.Kill(id); !r.OK {
+		t.Fatalf("Kill on a running container: %v", r.Error())
+	}
+}
+
+func TestApple_AppleProvider_Kill_Bad(t *testing.T) {
+	p := NewAppleProvider()
+	if p.Kill("").OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestApple_AppleProvider_Kill_Ugly(t *testing.T) {
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if p.Kill("   ").OK {
+		t.Fatal("expected error for whitespace-only id")
+	}
+}
+
+func TestApple_AppleProvider_Remove_Good(t *testing.T) {
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI lifecycle")
+	}
+	id, cleanup := runningAppleContainer(t, p, "core-remove-good-e2e")
+	defer cleanup()
+	// Stop first so the container can be removed cleanly, then Remove it.
+	_ = p.Stop(id)
+	if r := p.Remove(id); !r.OK {
+		t.Fatalf("Remove: %v", r.Error())
+	}
+}
+
+func TestApple_AppleProvider_Remove_Bad(t *testing.T) {
+	p := NewAppleProvider()
+	if p.Remove("").OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestApple_AppleProvider_Remove_Ugly(t *testing.T) {
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if p.Remove("   ").OK {
+		t.Fatal("expected error for whitespace-only id")
+	}
+}
+
+func TestApple_AppleProvider_Logs_Good(t *testing.T) {
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI lifecycle")
+	}
+	id, cleanup := runningAppleContainer(t, p, "core-logs-good-e2e")
+	defer cleanup()
+	r := p.Logs(id, 10)
+	if !r.OK {
+		t.Fatalf("Logs on a running container: %v", r.Error())
+	}
+	if _, ok := r.Value.(string); !ok {
+		t.Fatalf("Logs Value: want string, got %T", r.Value)
+	}
+}
+
+func TestApple_AppleProvider_Logs_Bad(t *testing.T) {
+	// Guard clause: empty id rejected before the CLI runs (tail value ignored).
+	p := NewAppleProvider()
+	if p.Logs("", 100).OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestApple_AppleProvider_Logs_Ugly(t *testing.T) {
+	// A non-existent container with a non-positive tail (exercises the n<=0
+	// default branch) must fail against the live CLI.
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if p.Logs("no-such-container", 0).OK {
 		t.Fatal("expected error for non-existent container")
 	}
 }
 
-func TestApple_AppleProvider_Exec_EmptyID_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Exec"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
+func TestApple_AppleProvider_Exec_Good(t *testing.T) {
 	p := NewAppleProvider()
-	r := p.Exec("", "echo")
-	if r.OK {
-		t.Fatal("expected error")
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI lifecycle")
+	}
+	id, cleanup := runningAppleContainer(t, p, "core-exec-good-e2e")
+	defer cleanup()
+	r := p.Exec(id, "echo", "hello-from-exec")
+	if !r.OK {
+		t.Fatalf("Exec: %v", r.Error())
+	}
+	if !core.Contains(core.MustCast[string](r), "hello-from-exec") {
+		t.Fatalf("Exec output = %q, want it to contain hello-from-exec", core.MustCast[string](r))
 	}
 }
 
-func TestApple_AppleProvider_Exec_EmptyCommand_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Exec"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
+func TestApple_AppleProvider_Exec_Bad(t *testing.T) {
+	// First guard: empty id is rejected.
 	p := NewAppleProvider()
-	r := p.Exec("some-id", "")
-	if r.OK {
-		t.Fatal("expected error")
+	if p.Exec("", "echo").OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestApple_AppleProvider_Exec_Ugly(t *testing.T) {
+	// Second guard: a valid id but an empty command is rejected — a different
+	// branch from the empty-id Bad case, and it needs no runtime.
+	p := NewAppleProvider()
+	if p.Exec("some-id", "").OK {
+		t.Fatal("expected error for empty command")
 	}
 }
 
@@ -746,68 +874,167 @@ func TestApple_AppleProvider_List_Good(t *testing.T) {
 	}
 }
 
-func TestApple_AppleProvider_Inspect_EmptyID_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Inspect"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
-	p := NewAppleProvider()
-	r := p.Inspect("")
-	if r.OK {
-		t.Fatal("expected error")
+func TestApple_AppleProvider_List_Bad(t *testing.T) {
+	// A bogus binary cannot be executed, so the `ls` shell-out fails.
+	p := &AppleProvider{Binary: "nonexistent-apple-container-binary-xyz"}
+	if p.List().OK {
+		t.Fatal("expected error when the container binary cannot be executed")
 	}
 }
 
-func TestApple_AppleProvider_Pull_EmptyRef_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Pull"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
-	p := NewAppleProvider()
-	r := p.Pull("")
-	if r.OK {
-		t.Fatal("expected error")
+func TestApple_AppleProvider_List_Ugly(t *testing.T) {
+	// A real binary that emits non-JSON (`echo` echoes its args) drives the
+	// parse-failure branch — distinct from the exec-failure Bad case.
+	p := &AppleProvider{Binary: "echo"}
+	if p.List().OK {
+		t.Fatal("expected parse error when the CLI emits non-JSON output")
 	}
 }
 
-func TestApple_AppleProvider_Push_NilImage_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Push"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
+func TestApple_AppleProvider_Inspect_Good(t *testing.T) {
 	p := NewAppleProvider()
-	r := p.Push(nil, "ref")
-	if r.OK {
-		t.Fatal("expected error")
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI lifecycle")
+	}
+	id, cleanup := runningAppleContainer(t, p, "core-inspect-good-e2e")
+	defer cleanup()
+	r := p.Inspect(id)
+	if !r.OK {
+		t.Fatalf("Inspect: %v", r.Error())
+	}
+	c := core.MustCast[*Container](r)
+	if c.ID != id {
+		t.Fatalf("Inspect().ID = %q, want %q", c.ID, id)
 	}
 }
 
-func TestApple_AppleProvider_Push_EmptyRef_Bad(t *testing.T) {
-	auditTarget := "AppleProvider Push"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
+func TestApple_AppleProvider_Inspect_Bad(t *testing.T) {
 	p := NewAppleProvider()
-	r := p.Push(&Image{Path: "some-image"}, "")
-	if r.OK {
-		t.Fatal("expected error")
+	if p.Inspect("").OK {
+		t.Fatal("expected error for empty id")
 	}
 }
 
-func TestApple_AppleProvider_RemoveImage_EmptyID_Bad(t *testing.T) {
-	auditTarget := "AppleProvider RemoveImage"
-	auditVariant := "Bad"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
+func TestApple_AppleProvider_Inspect_Ugly(t *testing.T) {
+	// Whitespace-only id passes the empty guard but inspects nothing real.
 	p := NewAppleProvider()
-	r := p.RemoveImage("")
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if p.Inspect("   ").OK {
+		t.Fatal("expected error for whitespace-only id")
+	}
+}
+
+func TestApple_AppleProvider_Pull_Good(t *testing.T) {
+	// Pull exercises the live binary directly (no running container needed).
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI pull")
+	}
+	const ref = "docker.io/library/alpine:latest"
+	r := p.Pull(ref)
+	if !r.OK {
+		t.Fatalf("Pull: %v", r.Error())
+	}
+	img := core.MustCast[*Image](r)
+	if img.Name != ref {
+		t.Fatalf("Pull().Name = %q, want %q", img.Name, ref)
+	}
+}
+
+func TestApple_AppleProvider_Pull_Bad(t *testing.T) {
+	p := NewAppleProvider()
+	if p.Pull("").OK {
+		t.Fatal("expected error for empty reference")
+	}
+}
+
+func TestApple_AppleProvider_Pull_Ugly(t *testing.T) {
+	// A whitespace-only reference passes the empty guard but is not a valid
+	// image reference, so the live pull must fail.
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if p.Pull("   ").OK {
+		t.Fatal("expected error for whitespace-only reference")
+	}
+}
+
+func TestApple_AppleProvider_Push_Good(t *testing.T) {
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI push")
+	}
+	// Push to an unreachable local registry: the call reaches the CLI (guards
+	// pass) and the push attempt itself fails with no registry listening.
+	r := p.Push(&Image{Path: "alpine:latest"}, "127.0.0.1:1/core/nope:v1")
 	if r.OK {
-		t.Fatal("expected error")
+		t.Fatal("expected push to an unreachable registry to fail")
+	}
+}
+
+func TestApple_AppleProvider_Push_Bad(t *testing.T) {
+	// First guard: a nil image is rejected.
+	p := NewAppleProvider()
+	if p.Push(nil, "ref").OK {
+		t.Fatal("expected error for nil image")
+	}
+}
+
+func TestApple_AppleProvider_Push_Ugly(t *testing.T) {
+	// Second guard: a valid image but an empty reference is rejected — a
+	// different branch from the nil-image Bad case, and it needs no runtime.
+	p := NewAppleProvider()
+	if p.Push(&Image{Path: "some-image"}, "").OK {
+		t.Fatal("expected error for empty reference")
+	}
+}
+
+func TestApple_AppleProvider_RemoveImage_Good(t *testing.T) {
+	// RemoveImage exercises the live binary directly: pull, then delete.
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI image lifecycle")
+	}
+	const ref = "docker.io/library/alpine:latest"
+	if r := p.Pull(ref); !r.OK {
+		t.Fatalf("Pull (setup for RemoveImage): %v", r.Error())
+	}
+	if r := p.RemoveImage(ref); !r.OK {
+		t.Fatalf("RemoveImage: %v", r.Error())
+	}
+}
+
+func TestApple_AppleProvider_RemoveImage_Bad(t *testing.T) {
+	p := NewAppleProvider()
+	if p.RemoveImage("").OK {
+		t.Fatal("expected error for empty id")
+	}
+}
+
+func TestApple_AppleProvider_RemoveImage_Ugly(t *testing.T) {
+	// Whitespace-only id passes the empty guard but matches no image, so the
+	// live `image delete` must fail.
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	if p.RemoveImage("   ").OK {
+		t.Fatal("expected error for whitespace-only id")
 	}
 }
 
@@ -828,6 +1055,23 @@ func TestApple_AppleProvider_ListImages_Good(t *testing.T) {
 	images := core.MustCast[[]*Image](r)
 	if images == nil {
 		t.Fatal("expected non-nil slice")
+	}
+}
+
+func TestApple_AppleProvider_ListImages_Bad(t *testing.T) {
+	// A bogus binary cannot be executed, so the `image ls` shell-out fails.
+	p := &AppleProvider{Binary: "nonexistent-apple-container-binary-xyz"}
+	if p.ListImages().OK {
+		t.Fatal("expected error when the container binary cannot be executed")
+	}
+}
+
+func TestApple_AppleProvider_ListImages_Ugly(t *testing.T) {
+	// A real binary emitting non-JSON drives the parse-failure branch —
+	// distinct from the exec-failure Bad case.
+	p := &AppleProvider{Binary: "echo"}
+	if p.ListImages().OK {
+		t.Fatal("expected parse error when the CLI emits non-JSON output")
 	}
 }
 
