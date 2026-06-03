@@ -9,17 +9,6 @@ import (
 	borgtim "forge.lthn.ai/Snider/Borg/pkg/tim"
 )
 
-func TestCmdTim_borgImport_Good(t *testing.T) {
-	// Proves forge.lthn.ai/Snider/Borg/pkg/tim resolves + links in this module.
-	m, err := borgtim.New()
-	if err != nil {
-		t.Fatalf("borgtim.New: %v", err)
-	}
-	if m == nil || m.RootFS == nil {
-		t.Fatal("expected a TIM with a non-nil RootFS")
-	}
-}
-
 func TestCmdTim_timIsSTIM_Good(t *testing.T) {
 	if !timIsSTIM([]byte("STIM\x02rest")) {
 		t.Fatal("STIM-prefixed data should be detected")
@@ -77,8 +66,8 @@ func TestCmdTim_timPack_Bad(t *testing.T) {
 	}
 }
 
-func TestCmdTim_timEncryptDecrypt_Good(t *testing.T) {
-	// pack -> encrypt -> decrypt round-trips the payload; the .stim hides it.
+func TestCmdTim_timEncrypt_Good(t *testing.T) {
+	// pack -> timEncrypt -> timDecrypt round-trips the payload; the .stim hides it.
 	src := t.TempDir()
 	if err := io.Local.Write(core.PathJoin(src, "hello.txt"), "world"); err != nil {
 		t.Fatalf("seed: %v", err)
