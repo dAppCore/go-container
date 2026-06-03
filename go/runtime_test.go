@@ -702,3 +702,20 @@ func TestRuntime_runtimeerror_Error_Ugly(t *testing.T) {
 		t.Fatal("expected callable symbol")
 	}
 }
+
+func TestRuntime_detectApple_Good(t *testing.T) {
+	rt, ok := detectApple()
+	if !ok {
+		t.Skip("apple container runtime not detected on this host")
+	}
+	// Apple's framework has no GPU passthrough today (appleRunArgs rejects a GPU
+	// request), so the detected runtime must NOT advertise GPU — otherwise the
+	// documented HasGPU()->WithGPU->Run pattern is a guaranteed failure.
+	if rt.HasGPU() {
+		t.Fatal("detected Apple runtime must not report GPU passthrough")
+	}
+	// The remaining Apple capabilities are unaffected by the GPU correction.
+	if !rt.IsHardwareIsolated() || !rt.HasSubSecondStart() {
+		t.Fatal("Apple runtime should still report hardware isolation + sub-second start")
+	}
+}

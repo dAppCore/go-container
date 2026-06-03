@@ -163,10 +163,11 @@ func detectApple() (ContainerRuntime, bool) {
 		Path:    path,
 		Version: captureVersion(path, "--version"),
 	}
+	// Apple's Containerisation framework has no GPU passthrough yet — a GPU run
+	// request is rejected in appleRunArgs — so capGPU is intentionally NOT set.
+	// HasGPU() stays false for Apple until the framework ships passthrough,
+	// keeping the documented HasGPU()->WithGPU->Run pattern honest. See RFC.md §15.
 	rt.caps = capNetworkIsolation | capVolumeMounts | capHardwareIsolation | capSubSecondStart
-	if runtime.GOARCH == "arm64" && runtime.GOOS == "darwin" {
-		rt.caps |= capGPU
-	}
 	return rt, true
 }
 
