@@ -43,6 +43,21 @@ func addVMRunCommand(c *core.Core) {
 			core.Option{Key: "gpu", Value: false},
 		),
 		Action: func(opts core.Options) core.Result {
+			// --publish/--volume/--env are repeatable (read like --var); no
+			// short forms (core.Option carries no short alias).
+			publishRes := parsePublish(optionStrings(opts, "publish"))
+			if !publishRes.OK {
+				return publishRes
+			}
+			volumeRes := parseVolumes(optionStrings(opts, "volume"))
+			if !volumeRes.OK {
+				return volumeRes
+			}
+			envRes := parseEnv(optionStrings(opts, "env"))
+			if !envRes.OK {
+				return envRes
+			}
+
 			runOpts := container.RunOptions{
 				Name:    opts.String("name"),
 				Detach:  opts.Bool("detach"),
@@ -50,33 +65,25 @@ func addVMRunCommand(c *core.Core) {
 				CPUs:    opts.Int("cpus"),
 				SSHPort: opts.Int("ssh-port"),
 				GPU:     opts.Bool("gpu"),
+				Ports:   core.MustCast[map[int]int](publishRes),
+				Volumes: core.MustCast[map[string]string](volumeRes),
+				Env:     core.MustCast[[]string](envRes),
 			}
 
-			// If template is specified, build and run from template
+			// If template is specified, build and run from template.
 			if templateName := opts.String("template"); templateName != "" {
 				vars := ParseVarFlags(optionStrings(opts, "var"))
 				return resultFromError(RunFromTemplate(templateName, vars, runOpts))
 			}
 
-			// Otherwise, require an image path
+			// Otherwise, require an image path; trailing args are the container command.
 			args := optionArgs(opts)
 			if len(args) == 0 {
 				return core.Fail(core.E("vm run", vmT("cmd.vm.run.error.image_required"), nil))
 			}
-			image := args[0]
-			containerArgs := args[1:]
+			runOpts.Args = args[1:]
 
-			return resultFromError(runContainer(
-				image,
-				opts.String("name"),
-				opts.Bool("detach"),
-				opts.Int("memory"),
-				opts.Int("cpus"),
-				opts.Int("ssh-port"),
-				opts.String("runtime"),
-				opts.Bool("gpu"),
-				containerArgs,
-			))
+			return resultFromError(runContainer(args[0], opts.String("runtime"), runOpts))
 		},
 	})
 }
@@ -114,7 +121,7 @@ func resolveRuntime(flag string) (
 	}
 }
 
-func runContainer(image, name string, detach bool, memory, cpus, sshPort int, runtimeFlag string, gpu bool, containerArgs []string) (
+func runContainer(image, runtimeFlag string, opts container.RunOptions) (
 	err error, // result
 ) {
 	rtType, err := resolveRuntime(runtimeFlag)
@@ -122,24 +129,14 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int, ru
 		return err
 	}
 
-	opts := container.RunOptions{
-		Name:    name,
-		Detach:  detach,
-		Memory:  memory,
-		CPUs:    cpus,
-		SSHPort: sshPort,
-		GPU:     gpu,
-		Args:    containerArgs,
-	}
-
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("image")), image)
-	if name != "" {
-		core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.name")), name)
+	if opts.Name != "" {
+		core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.name")), opts.Name)
 	}
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.runtime")), string(rtType))
 
 	if rtType == container.RuntimeApple {
-		return runContainerApple(image, name, detach, memory, cpus, gpu, containerArgs)
+		return runContainerApple(image, opts)
 	}
 
 	// LinuxKit (default) path — also used for Docker/Podman which route through
@@ -159,12 +156,12 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int, ru
 	}
 	c := core.MustCast[*container.Container](runRes)
 
-	if detach {
+	if opts.Detach {
 		core.Print(nil, "%s %s", successStyle.Render(vmT("started")), c.ID)
 		core.Print(nil, "%s %d", dimStyle.Render(vmT("cmd.vm.label.pid")), c.PID)
 		core.Println()
-		core.Println(vmT("cmd.vm.hint.view_logs", map[string]any{"ID": c.ID[:8]}))
-		core.Println(vmT("cmd.vm.hint.stop", map[string]any{"ID": c.ID[:8]}))
+		core.Println(vmT("cmd.vm.hint.view_logs", map[string]any{"ID": shortID(c.ID)}))
+		core.Println(vmT("cmd.vm.hint.stop", map[string]any{"ID": shortID(c.ID)}))
 	} else {
 		core.Println()
 		core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.container_stopped")), c.ID)
@@ -173,10 +170,10 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int, ru
 	return nil
 }
 
-// runContainerApple boots an image through the AppleProvider. Ports and
-// volumes are omitted — they are handled via the Apple CLI directly when
-// declared on the image's source config.
-func runContainerApple(image, name string, detach bool, memory, cpus int, gpu bool, args []string) (
+// runContainerApple boots an image through the AppleProvider, forwarding the
+// resolved RunOptions: name, resources, published ports, volume mounts, env,
+// container args, and GPU request.
+func runContainerApple(image string, opts container.RunOptions) (
 	err error, // result
 ) {
 	p := container.NewAppleProvider()
@@ -186,26 +183,29 @@ func runContainerApple(image, name string, detach bool, memory, cpus int, gpu bo
 	core.Println()
 
 	img := &container.Image{
-		Name:     name,
+		Name:     opts.Name,
 		Path:     image,
 		Format:   container.DetectImageFormat(image),
 		Provider: string(container.RuntimeApple),
 	}
 
-	opts := []container.RunOption{
-		container.WithName(name),
-		container.WithMemory(memory),
-		container.WithCPUs(cpus),
-		container.WithDetach(detach),
+	runOpts := []container.RunOption{
+		container.WithName(opts.Name),
+		container.WithMemory(opts.Memory),
+		container.WithCPUs(opts.CPUs),
+		container.WithDetach(opts.Detach),
+		container.WithPorts(opts.Ports),
+		container.WithVolumes(opts.Volumes),
+		container.WithEnv(opts.Env...),
 	}
-	if len(args) > 0 {
-		opts = append(opts, container.WithArgs(args...))
+	if len(opts.Args) > 0 {
+		runOpts = append(runOpts, container.WithArgs(opts.Args...))
 	}
-	if gpu {
-		opts = append(opts, container.WithGPU(true))
+	if opts.GPU {
+		runOpts = append(runOpts, container.WithGPU(true))
 	}
 
-	runRes := p.Run(img, opts...)
+	runRes := p.Run(img, runOpts...)
 	if !runRes.OK {
 		return core.E("runContainerApple", vmT("i18n.fail.run", "container"), runRes.Value.(error))
 	}
@@ -225,6 +225,67 @@ func shortID(id string) string {
 		return id
 	}
 	return id[:8]
+}
+
+// parsePublish parses docker-style "[host-ip:]host:container[/proto]" port
+// specs into a host→container map. The host-ip prefix and /proto suffix are
+// dropped (tcp assumed; RunOptions.Ports is map[int]int).
+//
+// Usage:
+//
+//	ports := core.MustCast[map[int]int](parsePublish([]string{"8080:80"}))
+func parsePublish(specs []string) core.Result { // Value: map[int]int
+	ports := make(map[int]int, len(specs))
+	for _, s := range specs {
+		spec := s
+		if core.Contains(spec, "/") {
+			spec = core.Split(spec, "/")[0]
+		}
+		parts := core.Split(spec, ":")
+		if len(parts) < 2 {
+			return core.Fail(core.E("vm run", core.Sprintf("invalid --publish %q: want host:container", s), nil))
+		}
+		hr := core.Atoi(parts[len(parts)-2])
+		cr := core.Atoi(parts[len(parts)-1])
+		if !hr.OK || !cr.OK {
+			return core.Fail(core.E("vm run", core.Sprintf("invalid --publish %q: non-numeric port", s), nil))
+		}
+		ports[core.MustCast[int](hr)] = core.MustCast[int](cr)
+	}
+	return core.Ok(ports)
+}
+
+// parseVolumes parses "host:container" mount specs into a host→container map.
+//
+// Usage:
+//
+//	vols := core.MustCast[map[string]string](parseVolumes([]string{"/data:/app"}))
+func parseVolumes(specs []string) core.Result { // Value: map[string]string
+	vols := make(map[string]string, len(specs))
+	for _, s := range specs {
+		parts := core.SplitN(s, ":", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return core.Fail(core.E("vm run", core.Sprintf("invalid --volume %q: want host:container", s), nil))
+		}
+		vols[parts[0]] = parts[1]
+	}
+	return core.Ok(vols)
+}
+
+// parseEnv validates KEY=VALUE env specs (the value may be empty or contain '=').
+//
+// Usage:
+//
+//	env := core.MustCast[[]string](parseEnv([]string{"PORT=8080"}))
+func parseEnv(specs []string) core.Result { // Value: []string
+	out := make([]string, 0, len(specs))
+	for _, s := range specs {
+		if !core.Contains(s, "=") {
+			return core.Fail(core.E("vm run", core.Sprintf("invalid --env %q: want KEY=VALUE", s), nil))
+		}
+		out = append(out, s)
+	}
+	return core.Ok(out)
 }
 
 // appleProvider returns an available AppleProvider, or nil when the Apple

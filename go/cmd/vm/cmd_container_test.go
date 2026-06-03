@@ -1,6 +1,10 @@
 package vm
 
-import "testing"
+import (
+	"testing"
+
+	core "dappco.re/go"
+)
 
 func TestCmdContainer_shortID_Good(t *testing.T) {
 	// Long ids truncate to 8 chars; short Apple-style names (the container id
@@ -16,5 +20,59 @@ func TestCmdContainer_shortID_Good(t *testing.T) {
 		if got := shortID(in); got != want {
 			t.Fatalf("shortID(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestCmdContainer_parsePublish_Good(t *testing.T) {
+	r := parsePublish([]string{"8080:80", "127.0.0.1:5432:5432/tcp"})
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	got := core.MustCast[map[int]int](r)
+	if got[8080] != 80 || got[5432] != 5432 {
+		t.Fatalf("parsePublish => %v, want 8080->80, 5432->5432", got)
+	}
+}
+
+func TestCmdContainer_parsePublish_Bad(t *testing.T) {
+	if parsePublish([]string{"8080"}).OK {
+		t.Fatal("expected error for missing colon")
+	}
+	if parsePublish([]string{"http:80"}).OK {
+		t.Fatal("expected error for non-numeric host port")
+	}
+}
+
+func TestCmdContainer_parseVolumes_Good(t *testing.T) {
+	r := parseVolumes([]string{"/data:/app", "./cfg:/etc/app"})
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	got := core.MustCast[map[string]string](r)
+	if got["/data"] != "/app" || got["./cfg"] != "/etc/app" {
+		t.Fatalf("parseVolumes => %v", got)
+	}
+}
+
+func TestCmdContainer_parseVolumes_Bad(t *testing.T) {
+	if parseVolumes([]string{"/data"}).OK {
+		t.Fatal("expected error for missing colon")
+	}
+}
+
+func TestCmdContainer_parseEnv_Good(t *testing.T) {
+	r := parseEnv([]string{"FOO=bar", "URL=https://x?a=b", "EMPTY="})
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	got := core.MustCast[[]string](r)
+	if len(got) != 3 || got[0] != "FOO=bar" || got[2] != "EMPTY=" {
+		t.Fatalf("parseEnv => %v", got)
+	}
+}
+
+func TestCmdContainer_parseEnv_Bad(t *testing.T) {
+	if parseEnv([]string{"NOEQUALS"}).OK {
+		t.Fatal("expected error for missing '='")
 	}
 }
