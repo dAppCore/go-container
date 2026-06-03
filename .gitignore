@@ -5,3 +5,4 @@
 .core/runtime/
 .core/*.duckdb*
 .core/coderabbit-findings.txt
+GOAL.md
