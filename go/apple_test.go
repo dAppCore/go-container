@@ -1141,14 +1141,21 @@ func TestApple_E2E_ContainerLifecycle_Smoke(t *testing.T) {
 		t.Skip("apple container runtime not available")
 	}
 	const name = "core-lifecycle-e2e"
+	const ref = "docker.io/library/alpine:latest"
 	ctx := context.Background()
 	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() // pre-clean leftovers
 	defer func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }()
 
+	// Ensure the image is local so the boot below isn't gated on a registry
+	// pull — keeps this test independent of the image-lifecycle test's order.
+	if r := p.Pull(ref); !r.OK {
+		t.Fatalf("Pull: %v", r.Error())
+	}
+
 	// Boot a long-running container THROUGH the API (#17: Run forwards args).
 	// Without forwarded args, alpine's default CMD exits immediately and the
 	// container would not stay running — so a running container proves it.
-	runRes := p.Run(&Image{Path: "docker.io/library/alpine:latest"},
+	runRes := p.Run(&Image{Path: ref},
 		WithName(name), WithDetach(true), WithArgs("sleep", "60"))
 	if !runRes.OK {
 		t.Fatalf("Run with args: %v", runRes.Error())
