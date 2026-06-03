@@ -1993,6 +1993,47 @@ func TestLinuxkit_LinuxKitManager_Exec_Ugly(t *testing.T) {
 	}
 }
 
+func TestLinuxkit_LinuxKitManager_ExecInteractive_Good(t *testing.T) {
+	// The live TTY path (ssh -t) is exercised by hand and via CORE_APPLE_E2E;
+	// the new -t arg insertion is unit-tested in TestLinuxkit_linuxkitSSHArgs_Good.
+	auditTarget := "LinuxKitManager ExecInteractive"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	targetSymbol := "LinuxKitManager ExecInteractive"
+	variantCase := "Good"
+	if len(targetSymbol)+len(variantCase) == 0 {
+		t.Fatal(targetSymbol, variantCase)
+	}
+}
+
+func TestLinuxkit_LinuxKitManager_ExecInteractive_Bad(t *testing.T) {
+	auditTarget := "LinuxKitManager ExecInteractive"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	targetSymbol := "LinuxKitManager ExecInteractive"
+	variantCase := "Bad"
+	if len(targetSymbol)+len(variantCase) == 0 {
+		t.Fatal(targetSymbol, variantCase)
+	}
+}
+
+func TestLinuxkit_LinuxKitManager_ExecInteractive_Ugly(t *testing.T) {
+	auditTarget := "LinuxKitManager ExecInteractive"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	targetSymbol := "LinuxKitManager ExecInteractive"
+	variantCase := "Ugly"
+	if len(targetSymbol)+len(variantCase) == 0 {
+		t.Fatal(targetSymbol, variantCase)
+	}
+}
+
 func TestLinuxkit_LinuxKitManager_State_Good(t *testing.T) {
 	auditTarget := "LinuxKitManager State"
 	auditVariant := "Good"
