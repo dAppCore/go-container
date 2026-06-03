@@ -167,7 +167,7 @@ func formatImages(imgs []*container.Image) string {
 		}
 		core.Print(w, "%s\t%s", img.Name, digest)
 	}
-	_ = w.Flush()
+	w.Flush() // strings.Builder never errors
 	return b.String()
 }
 
