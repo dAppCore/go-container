@@ -1358,6 +1358,110 @@ func TestApple_appleSystemStatusArgs_Good(t *testing.T) {
 	}
 }
 
+func TestApple_appleSystemStartArgs_Good(t *testing.T) {
+	if got, want := appleSystemStartArgs(true), []string{"system", "start", "--enable-kernel-install"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("install: got %v, want %v", got, want)
+	}
+	if got, want := appleSystemStartArgs(false), []string{"system", "start", "--disable-kernel-install"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("no-install: got %v, want %v", got, want)
+	}
+}
+
+func TestApple_appleSystemStopArgs_Good(t *testing.T) {
+	if got, want := appleSystemStopArgs(), []string{"system", "stop"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", want, got)
+	}
+}
+
+func TestApple_AppleProvider_SystemStatus_Good(t *testing.T) {
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI smoke")
+	}
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	r := p.SystemStatus()
+	if !r.OK || !core.Contains(core.Lower(core.MustCast[string](r)), "running") {
+		t.Fatalf("SystemStatus OK=%v err=%q", r.OK, r.Error())
+	}
+}
+
+func TestApple_AppleProvider_SystemStatus_Bad(t *testing.T) {
+	p := &AppleProvider{Binary: "nonexistent-apple-container-binary-xyz"}
+	if p.SystemStatus().OK {
+		t.Fatal("expected failure with a bogus binary")
+	}
+}
+
+func TestApple_AppleProvider_SystemStatus_Ugly(t *testing.T) {
+	// Empty binary name must yield a failed Result, not a panic.
+	p := &AppleProvider{Binary: ""}
+	if p.SystemStatus().OK {
+		t.Fatal("expected failure with an empty binary")
+	}
+}
+
+func TestApple_AppleProvider_SystemStart_Good(t *testing.T) {
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI smoke")
+	}
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	// Idempotent — the daemon is already up.
+	if r := p.SystemStart(true); !r.OK {
+		t.Fatalf("SystemStart: %v", r.Error())
+	}
+}
+
+func TestApple_AppleProvider_SystemStart_Bad(t *testing.T) {
+	p := &AppleProvider{Binary: "nonexistent-apple-container-binary-xyz"}
+	if p.SystemStart(true).OK {
+		t.Fatal("expected failure with a bogus binary")
+	}
+}
+
+func TestApple_AppleProvider_SystemStart_Ugly(t *testing.T) {
+	// The --disable-kernel-install path also fails cleanly on a bogus binary.
+	p := &AppleProvider{Binary: "nonexistent-apple-container-binary-xyz"}
+	if p.SystemStart(false).OK {
+		t.Fatal("expected failure with a bogus binary")
+	}
+}
+
+func TestApple_AppleProvider_SystemStop_Good(t *testing.T) {
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI smoke")
+	}
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	// Stop then restart so the runtime is restored for the other live tests.
+	if r := p.SystemStop(); !r.OK {
+		t.Fatalf("SystemStop: %v", r.Error())
+	}
+	if r := p.SystemStart(true); !r.OK {
+		t.Fatalf("SystemStart (restore): %v", r.Error())
+	}
+}
+
+func TestApple_AppleProvider_SystemStop_Bad(t *testing.T) {
+	p := &AppleProvider{Binary: "nonexistent-apple-container-binary-xyz"}
+	if p.SystemStop().OK {
+		t.Fatal("expected failure with a bogus binary")
+	}
+}
+
+func TestApple_AppleProvider_SystemStop_Ugly(t *testing.T) {
+	p := &AppleProvider{Binary: ""}
+	if p.SystemStop().OK {
+		t.Fatal("expected failure with an empty binary")
+	}
+}
+
 // TestApple_E2E_ImageLifecycle_Smoke certifies the image-subgroup reconciliation
 // against the LIVE `container` binary: pull → list (parse real JSON) → delete.
 // Opt-in (set CORE_APPLE_E2E=1) because it shells out to the runtime, requires

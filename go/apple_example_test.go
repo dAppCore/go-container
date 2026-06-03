@@ -101,3 +101,21 @@ func ExampleAppleProvider_ListImages() {
 	// ListImages returns every image known to the Apple container CLI.
 	_ = p.ListImages()
 }
+
+func ExampleAppleProvider_SystemStart() {
+	p := NewAppleProvider()
+	// SystemStart brings up the apiserver, installing the default kernel.
+	_ = p.SystemStart(true)
+}
+
+func ExampleAppleProvider_SystemStop() {
+	p := NewAppleProvider()
+	// SystemStop stops all container services.
+	_ = p.SystemStop()
+}
+
+func ExampleAppleProvider_SystemStatus() {
+	p := NewAppleProvider()
+	// SystemStatus returns the raw `container system status` output.
+	_ = p.SystemStatus()
+}

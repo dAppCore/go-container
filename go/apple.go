@@ -103,11 +103,8 @@ func (a *AppleProvider) Available() bool {
 // fails with a "plugins unavailable" error. Bring them up with
 // `container system start`.
 func (a *AppleProvider) systemRunning() bool {
-	out, err := proc.NewCommand(a.Binary, appleSystemStatusArgs()...).Output()
-	if err != nil {
-		return false
-	}
-	return core.Contains(core.Lower(string(out)), "running")
+	r := a.SystemStatus()
+	return r.OK && core.Contains(core.Lower(core.MustCast[string](r)), "running")
 }
 
 // Build produces an Image from a declarative configuration. For Apple
@@ -289,6 +286,60 @@ func appleContainerID(ro RunOptions, image *Image, fallback string) string {
 // appleSystemStatusArgs builds the `container system status` argument vector.
 func appleSystemStatusArgs() []string {
 	return []string{"system", "status"}
+}
+
+// appleSystemStartArgs builds the `container system start` argument vector. The
+// kernel-install flag is forced because the CLI otherwise prompts interactively.
+func appleSystemStartArgs(installKernel bool) []string {
+	flag := "--enable-kernel-install"
+	if !installKernel {
+		flag = "--disable-kernel-install"
+	}
+	return []string{"system", "start", flag}
+}
+
+// appleSystemStopArgs builds the `container system stop` argument vector.
+func appleSystemStopArgs() []string {
+	return []string{"system", "stop"}
+}
+
+// SystemStart brings up the apiserver + background services. installKernel
+// chooses --enable-kernel-install vs --disable-kernel-install (the CLI would
+// otherwise prompt, which is impossible non-interactively).
+//
+// Usage:
+//
+//	if r := p.SystemStart(true); !r.OK { return r }
+func (a *AppleProvider) SystemStart(installKernel bool) core.Result { // Value: nil
+	if err := proc.NewCommand(a.Binary, appleSystemStartArgs(installKernel)...).Run(); err != nil {
+		return core.Fail(core.E("AppleProvider.SystemStart", "start container system", err))
+	}
+	return core.Ok(nil)
+}
+
+// SystemStop stops all `container` services.
+//
+// Usage:
+//
+//	if r := p.SystemStop(); !r.OK { return r }
+func (a *AppleProvider) SystemStop() core.Result { // Value: nil
+	if err := proc.NewCommand(a.Binary, appleSystemStopArgs()...).Run(); err != nil {
+		return core.Fail(core.E("AppleProvider.SystemStop", "stop container system", err))
+	}
+	return core.Ok(nil)
+}
+
+// SystemStatus returns the raw `container system status` output.
+//
+// Usage:
+//
+//	status := core.MustCast[string](p.SystemStatus())
+func (a *AppleProvider) SystemStatus() core.Result { // Value: string
+	out, err := proc.NewCommand(a.Binary, appleSystemStatusArgs()...).Output()
+	if err != nil {
+		return core.Fail(core.E("AppleProvider.SystemStatus", "container system status", err))
+	}
+	return core.Ok(string(out))
 }
 
 // Run boots an Image using the `container run` subcommand. RunOptions are
