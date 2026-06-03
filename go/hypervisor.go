@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"runtime"
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
@@ -9,14 +10,16 @@ import (
 	"dappco.re/go/container/internal/proc"
 )
 
-const hostOSDefault = "linux"
-
+// discoverHostOS reports the host operating system. A GOOS override (used by
+// tests to simulate other platforms) takes precedence; otherwise the actual
+// compiled OS is reported. Defaulting to a literal would silently mis-detect
+// the host — e.g. report "linux" on macOS, disabling the Apple runtime even
+// when the `container` binary is installed.
 func discoverHostOS() string {
-	goos := core.Env("GOOS")
-	if goos != "" {
+	if goos := core.Env("GOOS"); goos != "" {
 		return goos
 	}
-	return hostOSDefault
+	return runtime.GOOS
 }
 
 // Hypervisor defines the interface for VM hypervisors.

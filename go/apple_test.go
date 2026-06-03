@@ -875,15 +875,9 @@ func TestApple_NewAppleProvider_RetentionWindow_Ugly(t *testing.T) {
 	}
 }
 
-func TestApple_AppleProvider_Run_GPU_NonAppleSilicon_Ugly(t *testing.T) {
-	auditTarget := "AppleProvider Run GPU"
-	auditVariant := "Ugly"
-	if len(auditTarget)+len(auditVariant) == 0 {
-		t.Fatal(auditTarget, auditVariant)
-	}
-	if isAppleSilicon() {
-		t.Skip("run requires non-Apple Silicon host for this error path")
-	}
+func TestApple_AppleProvider_Run_GPU_Unsupported_Ugly(t *testing.T) {
+	// Metal GPU passthrough is not supported by the Apple container runtime on
+	// any architecture (RFC.apple.md §15); a GPU request to Run must fail.
 	p := NewAppleProvider()
 	if !p.Available() {
 		t.Skip("apple container runtime not available")
@@ -891,6 +885,203 @@ func TestApple_AppleProvider_Run_GPU_NonAppleSilicon_Ugly(t *testing.T) {
 	img := &Image{Path: "test-image"}
 	r := p.Run(img, WithGPU(true))
 	if r.OK {
-		t.Fatal("expected error: Metal GPU requires Apple Silicon")
+		t.Fatal("expected GPU request to be rejected as unsupported")
+	}
+}
+
+// --- W1: real `container` 0.12.3 JSON schema parsing ---
+
+// realContainerLsJSON is a trimmed-but-real element of `container ls --format
+// json` / `container inspect` output, captured from container 0.12.3. The
+// schema is deeply nested under "configuration" with a CFAbsoluteTime
+// "startedDate" float — not the flat shape the provider originally assumed.
+const realContainerLsJSON = `[{"status":"running","startedDate":802181959.432204,"configuration":{"id":"coreprobe","image":{"reference":"docker.io/library/alpine:latest","descriptor":{"digest":"sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11","size":9218}},"resources":{"cpus":4,"memoryInBytes":1073741824},"publishedPorts":[{"hostPort":8080,"hostAddress":"0.0.0.0","containerPort":80,"proto":"tcp","count":1}]}}]`
+
+// realImageLsJSON is a real element of `container image ls --format json`.
+const realImageLsJSON = `[{"fullSize":"4.2 MB","reference":"docker.io/library/alpine:latest","descriptor":{"size":9218,"digest":"sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11"}}]`
+
+func TestApple_parseContainerList_RealSchema_Good(t *testing.T) {
+	r := parseContainerList([]byte(realContainerLsJSON))
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	containers := core.MustCast[[]*Container](r)
+	if len(containers) != 1 {
+		t.Fatalf("want 1 container, got %d", len(containers))
+	}
+	c := containers[0]
+	if c.ID != "coreprobe" {
+		t.Fatalf("ID: want coreprobe, got %q", c.ID)
+	}
+	if c.Image != "docker.io/library/alpine:latest" {
+		t.Fatalf("Image: want docker.io/library/alpine:latest, got %q", c.Image)
+	}
+	if c.Status != StatusRunning {
+		t.Fatalf("Status: want running, got %q", c.Status)
+	}
+	if c.CPUs != 4 {
+		t.Fatalf("CPUs: want 4, got %d", c.CPUs)
+	}
+	if c.Memory != 1024 {
+		t.Fatalf("Memory: want 1024 MB (1073741824 bytes), got %d", c.Memory)
+	}
+	if c.Ports[8080] != 80 {
+		t.Fatalf("Ports[8080]: want 80, got %d", c.Ports[8080])
+	}
+	if c.StartedAt.Year() != 2026 {
+		t.Fatalf("StartedAt year: want 2026 (CFAbsoluteTime+978307200), got %d (%v)", c.StartedAt.Year(), c.StartedAt)
+	}
+}
+
+func TestApple_parseImageList_RealSchema_Good(t *testing.T) {
+	r := parseImageList([]byte(realImageLsJSON))
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	images := core.MustCast[[]*Image](r)
+	if len(images) != 1 {
+		t.Fatalf("want 1 image, got %d", len(images))
+	}
+	img := images[0]
+	if img.Name != "docker.io/library/alpine:latest" {
+		t.Fatalf("Name: want reference, got %q", img.Name)
+	}
+	if img.Path != "docker.io/library/alpine:latest" {
+		t.Fatalf("Path: want reference, got %q", img.Path)
+	}
+	const wantDigest = "sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11"
+	if img.Digest != wantDigest {
+		t.Fatalf("Digest: want descriptor.digest, got %q", img.Digest)
+	}
+}
+
+func TestApple_parseSingleContainer_RealSchema_Good(t *testing.T) {
+	// `container inspect <id>` returns a JSON ARRAY even for a single id.
+	r := parseSingleContainer([]byte(realContainerLsJSON))
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	c := core.MustCast[*Container](r)
+	if c.ID != "coreprobe" {
+		t.Fatalf("ID: want coreprobe, got %q", c.ID)
+	}
+	if c.Image != "docker.io/library/alpine:latest" {
+		t.Fatalf("Image: want reference, got %q", c.Image)
+	}
+}
+
+// --- W1: real `container` 0.12.3 CLI argument vectors ---
+// Image operations live under the `image` subgroup; `images`/`pull`/`push`/`rmi`
+// at top level do not exist on container 0.12.x.
+
+func TestApple_appleImageLsArgs_Good(t *testing.T) {
+	got := appleImageLsArgs()
+	want := []string{"image", "ls", "--format", "json"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func TestApple_applePullArgs_Good(t *testing.T) {
+	got := applePullArgs("docker.io/library/alpine:latest")
+	want := []string{"image", "pull", "docker.io/library/alpine:latest"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func TestApple_applePushArgs_Good(t *testing.T) {
+	got := applePushArgs("ghcr.io/acme/app:v1")
+	want := []string{"image", "push", "ghcr.io/acme/app:v1"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func TestApple_appleRemoveImageArgs_Good(t *testing.T) {
+	got := appleRemoveImageArgs("alpine:latest")
+	want := []string{"image", "delete", "alpine:latest"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func TestApple_appleLogsArgs_Good(t *testing.T) {
+	got := appleLogsArgs("c123", 50)
+	want := []string{"logs", "-n", "50", "c123"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func TestApple_appleRunArgs_GPUUnsupported_Bad(t *testing.T) {
+	// Metal GPU passthrough is not offered by the Apple container runtime
+	// (RFC.apple.md §15), so a GPU request must be rejected — not emitted as
+	// flags the CLI does not understand.
+	r := appleRunArgs("web", &Image{Path: "alpine:latest"}, RunOptions{GPU: true})
+	if r.OK {
+		t.Fatal("expected GPU request to be rejected as unsupported")
+	}
+}
+
+func TestApple_appleRunArgs_Good(t *testing.T) {
+	r := appleRunArgs("web", &Image{Path: "alpine:latest"}, RunOptions{
+		Memory: 2048, CPUs: 2, Detach: true, Ports: map[int]int{8080: 80},
+	})
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	args := core.MustCast[[]string](r)
+	joined := core.Join(" ", args...)
+	for _, want := range []string{"run", "--name web", "--detach", "--memory 2048M", "--cpus 2", "--publish 8080:80", "alpine:latest"} {
+		if !core.Contains(joined, want) {
+			t.Fatalf("args %q missing %q", joined, want)
+		}
+	}
+	for _, a := range args {
+		if a == "--gpu" || a == "--device" {
+			t.Fatalf("args must not emit unsupported GPU flags: %v", args)
+		}
+	}
+}
+
+// TestApple_E2E_ImageLifecycle_Smoke certifies the image-subgroup reconciliation
+// against the LIVE `container` binary: pull → list (parse real JSON) → delete.
+// Opt-in (set CORE_APPLE_E2E=1) because it shells out to the runtime, requires
+// `container system start`, and pulls from a registry.
+func TestApple_E2E_ImageLifecycle_Smoke(t *testing.T) {
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI smoke")
+	}
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	const ref = "docker.io/library/alpine:latest"
+
+	if r := p.Pull(ref); !r.OK {
+		t.Fatalf("Pull: %v", r.Error())
+	}
+
+	listRes := p.ListImages()
+	if !listRes.OK {
+		t.Fatalf("ListImages: %v", listRes.Error())
+	}
+	images := core.MustCast[[]*Image](listRes)
+	var found *Image
+	for _, img := range images {
+		if core.Contains(img.Name, "alpine") {
+			found = img
+		}
+	}
+	if found == nil {
+		t.Fatalf("ListImages did not return the pulled alpine image; got %d images", len(images))
+	}
+	if found.Digest == "" {
+		t.Fatalf("pulled image %q parsed with empty digest (schema drift)", found.Name)
+	}
+
+	if r := p.RemoveImage(ref); !r.OK {
+		t.Fatalf("RemoveImage: %v", r.Error())
 	}
 }

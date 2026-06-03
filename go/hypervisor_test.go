@@ -1126,3 +1126,16 @@ func TestHypervisor_GetHypervisor_Ugly(t *testing.T) {
 		t.Fatal("expected callable symbol")
 	}
 }
+
+func TestHypervisor_discoverHostOS_Default_Good(t *testing.T) {
+	// With no GOOS override, host discovery must reflect the actual compiled
+	// OS (runtime.GOOS). A hardcoded default makes AppleProvider.Available()
+	// always false on macOS, silently disabling the Apple runtime even when
+	// the `container` binary is installed.
+	if core.Env("GOOS") != "" {
+		t.Skip("GOOS override active; this test covers the default path")
+	}
+	if got := discoverHostOS(); got != runtime.GOOS {
+		t.Fatalf("discoverHostOS() = %q, want runtime.GOOS %q", got, runtime.GOOS)
+	}
+}

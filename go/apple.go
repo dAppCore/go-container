@@ -190,6 +190,69 @@ func firstLine(out []byte) string {
 	return s
 }
 
+// --- CLI argument builders (container 0.12.x) ---
+// Image operations are nested under the `image` subgroup; the top-level
+// `images`/`pull`/`push`/`rmi` verbs of older assumptions do not exist.
+
+// appleImageLsArgs builds the `container image ls --format json` argument vector.
+func appleImageLsArgs() []string {
+	return []string{"image", "ls", "--format", "json"}
+}
+
+// applePullArgs builds the `container image pull <ref>` argument vector.
+func applePullArgs(ref string) []string {
+	return []string{"image", "pull", ref}
+}
+
+// applePushArgs builds the `container image push <ref>` argument vector. The
+// reference must already be tagged locally.
+func applePushArgs(ref string) []string {
+	return []string{"image", "push", ref}
+}
+
+// appleRemoveImageArgs builds the `container image delete <ref>` argument vector.
+func appleRemoveImageArgs(ref string) []string {
+	return []string{"image", "delete", ref}
+}
+
+// appleLogsArgs builds the `container logs -n <n> <id>` argument vector. The
+// real CLI uses -n for line count, not --tail.
+func appleLogsArgs(id string, n int) []string {
+	return []string{"logs", "-n", strconv.Itoa(n), id}
+}
+
+// appleRunArgs builds the `container run` argument vector for the resolved
+// container name. Metal GPU passthrough is not offered by the Apple container
+// runtime (RFC.apple.md §15), so a GPU request is rejected rather than emitting
+// flags the CLI does not understand.
+//
+// Usage:
+//
+//	r := appleRunArgs(name, image, ro); if !r.OK { return r }
+func appleRunArgs(name string, image *Image, ro RunOptions) core.Result { // Value: []string
+	if ro.GPU {
+		return core.Fail(core.E("appleRunArgs", "Metal GPU passthrough is not supported by the Apple container runtime", nil))
+	}
+	args := []string{"run", "--name", name}
+	if ro.Detach {
+		args = append(args, "--detach")
+	}
+	if ro.Memory > 0 {
+		args = append(args, "--memory", core.Sprintf("%dM", ro.Memory))
+	}
+	if ro.CPUs > 0 {
+		args = append(args, "--cpus", core.Sprintf("%d", ro.CPUs))
+	}
+	for host, guest := range ro.Ports {
+		args = append(args, "--publish", core.Sprintf("%d:%d", host, guest))
+	}
+	for host, guest := range ro.Volumes {
+		args = append(args, "--volume", core.Sprintf("%s:%s", host, guest))
+	}
+	args = append(args, image.Path)
+	return core.Ok(args)
+}
+
 // Run boots an Image using the `container run` subcommand. RunOptions are
 // translated into CLI flags. Ports and volume mounts are forwarded.
 //
@@ -220,29 +283,11 @@ func (a *AppleProvider) Run(image *Image, opts ...RunOption) core.Result { // Va
 		}
 	}
 
-	args := []string{"run", "--name", name}
-	if ro.Detach {
-		args = append(args, "--detach")
+	argsRes := appleRunArgs(name, image, ro)
+	if !argsRes.OK {
+		return argsRes
 	}
-	if ro.Memory > 0 {
-		args = append(args, "--memory", core.Sprintf("%dM", ro.Memory))
-	}
-	if ro.CPUs > 0 {
-		args = append(args, "--cpus", core.Sprintf("%d", ro.CPUs))
-	}
-	for host, guest := range ro.Ports {
-		args = append(args, "--publish", core.Sprintf("%d:%d", host, guest))
-	}
-	for host, guest := range ro.Volumes {
-		args = append(args, "--volume", core.Sprintf("%s:%s", host, guest))
-	}
-	if ro.GPU {
-		if !isAppleSilicon() {
-			return core.Fail(core.E("AppleProvider.Run", "Metal GPU passthrough requires Apple Silicon", nil))
-		}
-		args = append(args, "--gpu", "--device", "metal")
-	}
-	args = append(args, image.Path)
+	args := core.MustCast[[]string](argsRes)
 
 	cmd := proc.NewCommandContext(context.Background(), a.Binary, args...)
 	if err := cmd.Start(); err != nil {
@@ -539,7 +584,7 @@ func (a *AppleProvider) Logs(id string, tail int) core.Result { // Value: string
 	if n <= 0 {
 		n = 200
 	}
-	cmd := proc.NewCommandContext(context.Background(), a.Binary, "logs", "--tail", strconv.Itoa(n), id)
+	cmd := proc.NewCommandContext(context.Background(), a.Binary, appleLogsArgs(id, n)...)
 	out, err := cmd.Output()
 	if err != nil {
 		return core.Fail(core.E("AppleProvider.Logs", "get logs", err))
@@ -612,7 +657,7 @@ func (a *AppleProvider) Pull(ref string) core.Result { // Value: *Image
 	if ref == "" {
 		return core.Fail(core.E("AppleProvider.Pull", "image reference is required", nil))
 	}
-	cmd := proc.NewCommandContext(context.Background(), a.Binary, "pull", ref)
+	cmd := proc.NewCommandContext(context.Background(), a.Binary, applePullArgs(ref)...)
 	out, err := cmd.Output()
 	if err != nil {
 		return core.Fail(core.E("AppleProvider.Pull", "pull image", err))
@@ -646,7 +691,7 @@ func (a *AppleProvider) Push(image *Image, ref string) core.Result { // Value: n
 	if ref == "" {
 		return core.Fail(core.E("AppleProvider.Push", "image reference is required", nil))
 	}
-	cmd := proc.NewCommandContext(context.Background(), a.Binary, "push", image.Path, ref)
+	cmd := proc.NewCommandContext(context.Background(), a.Binary, applePushArgs(ref)...)
 	if err := cmd.Run(); err != nil {
 		return core.Fail(core.E("AppleProvider.Push", "push image", err))
 	}
@@ -662,7 +707,7 @@ func (a *AppleProvider) RemoveImage(id string) core.Result { // Value: nil
 	if id == "" {
 		return core.Fail(core.E("AppleProvider.RemoveImage", "image id is required", nil))
 	}
-	cmd := proc.NewCommandContext(context.Background(), a.Binary, "rmi", id)
+	cmd := proc.NewCommandContext(context.Background(), a.Binary, appleRemoveImageArgs(id)...)
 	if err := cmd.Run(); err != nil {
 		return core.Fail(core.E("AppleProvider.RemoveImage", "remove image", err))
 	}
@@ -678,7 +723,7 @@ func (a *AppleProvider) RemoveImage(id string) core.Result { // Value: nil
 //	    core.Println(img.ID, img.Name)
 //	}
 func (a *AppleProvider) ListImages() core.Result { // Value: []*Image
-	cmd := proc.NewCommandContext(context.Background(), a.Binary, "images", "--format", "json")
+	cmd := proc.NewCommandContext(context.Background(), a.Binary, appleImageLsArgs()...)
 	out, err := cmd.Output()
 	if err != nil {
 		return core.Fail(core.E("AppleProvider.ListImages", "list images", err))
@@ -702,22 +747,43 @@ func deriveKey256(key []byte) []byte {
 	return hash[:]
 }
 
-// appleContainerJSON is the JSON schema returned by `container ls --format json`.
+// appleContainerJSON is the JSON schema returned by `container ls --format
+// json` and `container inspect` (container 0.12.x). The runtime nests almost
+// everything under "configuration"; "status" is top-level and "startedDate"
+// is a CFAbsoluteTime float (seconds since 2001-01-01, not RFC3339).
 type appleContainerJSON struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Image     string            `json:"image"`
-	Status    string            `json:"status"`
-	CreatedAt string            `json:"created_at"`
-	Ports     map[string]string `json:"ports"`
+	Status        string  `json:"status"`
+	StartedDate   float64 `json:"startedDate"`
+	Configuration struct {
+		ID    string `json:"id"`
+		Image struct {
+			Reference string `json:"reference"`
+		} `json:"image"`
+		Resources struct {
+			CPUs          int   `json:"cpus"`
+			MemoryInBytes int64 `json:"memoryInBytes"`
+		} `json:"resources"`
+		PublishedPorts []struct {
+			HostPort      int `json:"hostPort"`
+			ContainerPort int `json:"containerPort"`
+		} `json:"publishedPorts"`
+	} `json:"configuration"`
 }
 
-// appleImageJSON is the JSON schema returned by `container images --format json`.
+// appleImageJSON is the JSON schema returned by `container image ls --format
+// json` (container 0.12.x): a registry "reference" plus a content
+// "descriptor" carrying the digest.
 type appleImageJSON struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Digest string `json:"digest"`
+	Reference  string `json:"reference"`
+	FullSize   string `json:"fullSize"`
+	Descriptor struct {
+		Digest string `json:"digest"`
+	} `json:"descriptor"`
 }
+
+// cfAbsoluteTimeUnixOffset is the seconds between the CFAbsoluteTime epoch
+// (2001-01-01 00:00:00 UTC) and the Unix epoch (1970-01-01 00:00:00 UTC).
+const cfAbsoluteTimeUnixOffset = 978307200
 
 // parseContainerList parses the JSON array output of `container ls --format json`.
 func parseContainerList(data []byte) core.Result { // Value: []*Container
@@ -736,42 +802,47 @@ func parseContainerList(data []byte) core.Result { // Value: []*Container
 	return core.Ok(out)
 }
 
-// parseSingleContainer parses the JSON output of `container inspect id`.
+// parseSingleContainer parses the JSON output of `container inspect <id>`,
+// which is a JSON ARRAY even for a single id.
 func parseSingleContainer(data []byte) core.Result { // Value: *Container
-	var raw appleContainerJSON
+	var raw []appleContainerJSON
 	if res := core.JSONUnmarshal(data, &raw); !res.OK {
 		if e, ok := res.Value.(error); ok {
 			return core.Fail(core.E("parseSingleContainer", "parse container json", e))
 		}
 		return core.Fail(core.E("parseSingleContainer", "parse container json", nil))
 	}
-	return core.Ok(containerFromJSON(raw))
+	if len(raw) == 0 {
+		return core.Fail(core.E("parseSingleContainer", "no container in inspect output", nil))
+	}
+	return core.Ok(containerFromJSON(raw[0]))
 }
 
-// containerFromJSON maps the Apple CLI JSON schema to a Container struct.
+// containerFromJSON maps the container 0.12.x JSON schema to a Container.
+// Memory is converted from bytes to MB; StartedDate is converted from the
+// CFAbsoluteTime epoch to a Unix time.
 func containerFromJSON(raw appleContainerJSON) *Container {
+	cfg := raw.Configuration
 	c := &Container{
-		ID:     raw.ID,
-		Name:   raw.Name,
-		Image:  raw.Image,
+		ID:     cfg.ID,
+		Name:   cfg.ID, // the --name becomes the container id; there is no separate name field
+		Image:  cfg.Image.Reference,
 		Status: Status(raw.Status),
+		CPUs:   cfg.Resources.CPUs,
 		Ports:  make(map[int]int),
 	}
-	if raw.CreatedAt != "" {
-		if t, err := time.Parse(time.RFC3339, raw.CreatedAt); err == nil {
-			c.StartedAt = t
-		}
+	if cfg.Resources.MemoryInBytes > 0 {
+		c.Memory = int(cfg.Resources.MemoryInBytes / (1024 * 1024))
 	}
-	for host, guest := range raw.Ports {
-		h, err := strconv.Atoi(host)
-		if err != nil {
-			continue
+	if raw.StartedDate > 0 {
+		sec := int64(raw.StartedDate)
+		nsec := int64((raw.StartedDate - float64(sec)) * 1e9)
+		c.StartedAt = time.Unix(sec+cfAbsoluteTimeUnixOffset, nsec)
+	}
+	for _, p := range cfg.PublishedPorts {
+		if p.HostPort != 0 {
+			c.Ports[p.HostPort] = p.ContainerPort
 		}
-		g, err := strconv.Atoi(guest)
-		if err != nil {
-			continue
-		}
-		c.Ports[h] = g
 	}
 	return c
 }
@@ -788,12 +859,11 @@ func parseImageList(data []byte) core.Result { // Value: []*Image
 	out := make([]*Image, 0, len(raw))
 	for _, r := range raw {
 		out = append(out, &Image{
-			ID:       r.ID,
-			Name:     r.Name,
-			Path:     r.Name,
+			Name:     r.Reference,
+			Path:     r.Reference,
 			Format:   FormatOCI,
 			Provider: string(RuntimeApple),
-			Digest:   r.Digest,
+			Digest:   r.Descriptor.Digest,
 		})
 	}
 	return core.Ok(out)
