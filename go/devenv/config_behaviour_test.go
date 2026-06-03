@@ -33,7 +33,7 @@ func TestConfigBehaviour_ConfigMedium_RoundTrip(t *testing.T) {
 
 // TestConfigBehaviour_ConfigMedium_ReadMissing_Bad reports a failing Result when
 // the underlying path does not exist.
-func TestConfigBehaviour_ConfigMedium_ReadMissing_Bad(t *testing.T) {
+func TestConfigBehaviour_configmedium_ReadMissing_Bad(t *testing.T) {
 	m := configmedium{Medium: io.NewMemoryMedium()}
 	if r := m.Read("does/not/exist.yaml"); r.OK {
 		t.Fatal("Read of a missing path returned an OK Result")

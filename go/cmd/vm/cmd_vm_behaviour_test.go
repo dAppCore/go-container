@@ -67,21 +67,21 @@ func TestCmdVmBehaviour_StripWrappingQuotes(t *testing.T) {
 }
 
 // TestCmdVmBehaviour_ResultFromError_Good maps a nil error to an OK result.
-func TestCmdVmBehaviour_ResultFromError_Good(t *testing.T) {
+func TestCmdVmBehaviour_resultFromError_Good(t *testing.T) {
 	if r := resultFromError(nil); !r.OK {
 		t.Fatal("resultFromError(nil) returned a failing result")
 	}
 }
 
 // TestCmdVmBehaviour_ResultFromError_Bad maps a non-nil error to a failing result.
-func TestCmdVmBehaviour_ResultFromError_Bad(t *testing.T) {
+func TestCmdVmBehaviour_resultFromError_Bad(t *testing.T) {
 	if r := resultFromError(core.E("scope", "boom", nil)); r.OK {
 		t.Fatal("resultFromError(err) returned an OK result")
 	}
 }
 
 // TestCmdVmBehaviour_OptionArgs_Good reads the _args slice in its various shapes.
-func TestCmdVmBehaviour_OptionArgs_Good(t *testing.T) {
+func TestCmdVmBehaviour_optionArgs_Good(t *testing.T) {
 	var stringSlice core.Options
 	stringSlice.Set("_args", []string{"alpha", "beta"})
 	if got := optionArgs(stringSlice); len(got) != 2 || got[0] != "alpha" {
@@ -102,7 +102,7 @@ func TestCmdVmBehaviour_OptionArgs_Good(t *testing.T) {
 }
 
 // TestCmdVmBehaviour_OptionArgs_Bad falls back to a single _arg, then to nil.
-func TestCmdVmBehaviour_OptionArgs_Bad(t *testing.T) {
+func TestCmdVmBehaviour_optionArgs_Bad(t *testing.T) {
 	var single core.Options
 	single.Set("_arg", "solo")
 	if got := optionArgs(single); len(got) != 1 || got[0] != "solo" {
@@ -116,7 +116,7 @@ func TestCmdVmBehaviour_OptionArgs_Bad(t *testing.T) {
 }
 
 // TestCmdVmBehaviour_OptionStrings_Good reads a named key as []string, []any or string.
-func TestCmdVmBehaviour_OptionStrings_Good(t *testing.T) {
+func TestCmdVmBehaviour_optionStrings_Good(t *testing.T) {
 	var opts core.Options
 	opts.Set("port", []string{"80", "443"})
 	if got := optionStrings(opts, "port"); len(got) != 2 {
@@ -137,7 +137,7 @@ func TestCmdVmBehaviour_OptionStrings_Good(t *testing.T) {
 }
 
 // TestCmdVmBehaviour_OptionStrings_Bad returns nil for a missing key.
-func TestCmdVmBehaviour_OptionStrings_Bad(t *testing.T) {
+func TestCmdVmBehaviour_optionStrings_Bad(t *testing.T) {
 	var opts core.Options
 	if got := optionStrings(opts, "absent"); got != nil {
 		t.Fatalf("optionStrings(absent) = %v, want nil", got)
@@ -146,7 +146,7 @@ func TestCmdVmBehaviour_OptionStrings_Bad(t *testing.T) {
 
 // TestCmdVmBehaviour_VmT_Good returns the key itself when no translation exists,
 // confirming the helper degrades gracefully rather than panicking.
-func TestCmdVmBehaviour_VmT_Good(t *testing.T) {
+func TestCmdVmBehaviour_vmT_Good(t *testing.T) {
 	vmCore = nil
 	if got := vmT("cmd.vm.short"); got == "" {
 		t.Fatal("vmT returned empty string")
@@ -167,7 +167,7 @@ func TestCmdVmBehaviour_AddVMCommands_Good(t *testing.T) {
 
 // TestCmdVmBehaviour_ListTemplates_Good runs the templates listing path against
 // the embedded builtin templates without error.
-func TestCmdVmBehaviour_ListTemplates_Good(t *testing.T) {
+func TestCmdVmBehaviour_listTemplates_Good(t *testing.T) {
 	vmCore = core.New()
 	if err := listTemplates(); err != nil {
 		t.Fatalf("listTemplates returned error: %v", err)
@@ -175,7 +175,7 @@ func TestCmdVmBehaviour_ListTemplates_Good(t *testing.T) {
 }
 
 // TestCmdVmBehaviour_ShowTemplate_Good shows a known builtin template.
-func TestCmdVmBehaviour_ShowTemplate_Good(t *testing.T) {
+func TestCmdVmBehaviour_showTemplate_Good(t *testing.T) {
 	vmCore = core.New()
 	if err := showTemplate("core-dev"); err != nil {
 		t.Fatalf("showTemplate(core-dev) returned error: %v", err)
@@ -183,7 +183,7 @@ func TestCmdVmBehaviour_ShowTemplate_Good(t *testing.T) {
 }
 
 // TestCmdVmBehaviour_ShowTemplate_Bad errors on an unknown template name.
-func TestCmdVmBehaviour_ShowTemplate_Bad(t *testing.T) {
+func TestCmdVmBehaviour_showTemplate_Bad(t *testing.T) {
 	vmCore = core.New()
 	if err := showTemplate("does-not-exist"); err == nil {
 		t.Fatal("showTemplate of a missing template returned nil error")
@@ -192,7 +192,7 @@ func TestCmdVmBehaviour_ShowTemplate_Bad(t *testing.T) {
 
 // TestCmdVmBehaviour_ShowTemplateVars_Good renders required/optional variables for
 // a builtin template.
-func TestCmdVmBehaviour_ShowTemplateVars_Good(t *testing.T) {
+func TestCmdVmBehaviour_showTemplateVars_Good(t *testing.T) {
 	vmCore = core.New()
 	if err := showTemplateVars("core-dev"); err != nil {
 		t.Fatalf("showTemplateVars(core-dev) returned error: %v", err)
@@ -200,7 +200,7 @@ func TestCmdVmBehaviour_ShowTemplateVars_Good(t *testing.T) {
 }
 
 // TestCmdVmBehaviour_ShowTemplateVars_Bad errors on an unknown template name.
-func TestCmdVmBehaviour_ShowTemplateVars_Bad(t *testing.T) {
+func TestCmdVmBehaviour_showTemplateVars_Bad(t *testing.T) {
 	vmCore = core.New()
 	if err := showTemplateVars("does-not-exist"); err == nil {
 		t.Fatal("showTemplateVars of a missing template returned nil error")
@@ -209,7 +209,7 @@ func TestCmdVmBehaviour_ShowTemplateVars_Bad(t *testing.T) {
 
 // TestCmdVmBehaviour_FindBuiltImage_Good finds an image file written next to the
 // expected output base path.
-func TestCmdVmBehaviour_FindBuiltImage_Good(t *testing.T) {
+func TestCmdVmBehaviour_findBuiltImage_Good(t *testing.T) {
 	t.Setenv("DS", "/")
 	dir := t.TempDir()
 	base := dir + "/myimage"
@@ -223,7 +223,7 @@ func TestCmdVmBehaviour_FindBuiltImage_Good(t *testing.T) {
 }
 
 // TestCmdVmBehaviour_FindBuiltImage_Bad returns empty when no image exists.
-func TestCmdVmBehaviour_FindBuiltImage_Bad(t *testing.T) {
+func TestCmdVmBehaviour_findBuiltImage_Bad(t *testing.T) {
 	t.Setenv("DS", "/")
 	dir := t.TempDir()
 	if got := findBuiltImage(dir + "/missing"); got != "" {
@@ -233,7 +233,7 @@ func TestCmdVmBehaviour_FindBuiltImage_Bad(t *testing.T) {
 
 // TestCmdVmBehaviour_LookupLinuxKit_Bad errors when linuxkit is absent from PATH
 // and the common install locations.
-func TestCmdVmBehaviour_LookupLinuxKit_Bad(t *testing.T) {
+func TestCmdVmBehaviour_lookupLinuxKit_Bad(t *testing.T) {
 	vmCore = core.New()
 	t.Setenv("PATH", t.TempDir())
 	if _, err := lookupLinuxKit(); err == nil {
@@ -253,7 +253,7 @@ func lookupLinuxKitProbe() (string, error) {
 
 // TestCmdVmBehaviour_ResolveRuntime_Good maps each explicit runtime flag to its
 // RuntimeType, including the tim alias that routes to LinuxKit.
-func TestCmdVmBehaviour_ResolveRuntime_Good(t *testing.T) {
+func TestCmdVmBehaviour_resolveRuntime_Good(t *testing.T) {
 	vmCore = core.New()
 	cases := map[string]container.RuntimeType{
 		"apple":    container.RuntimeApple,
@@ -275,7 +275,7 @@ func TestCmdVmBehaviour_ResolveRuntime_Good(t *testing.T) {
 }
 
 // TestCmdVmBehaviour_ResolveRuntime_Bad errors on an unknown runtime flag.
-func TestCmdVmBehaviour_ResolveRuntime_Bad(t *testing.T) {
+func TestCmdVmBehaviour_resolveRuntime_Bad(t *testing.T) {
 	vmCore = core.New()
 	if _, err := resolveRuntime("not-a-runtime"); err == nil {
 		t.Fatal("resolveRuntime of an unknown flag returned nil error")
@@ -284,7 +284,7 @@ func TestCmdVmBehaviour_ResolveRuntime_Bad(t *testing.T) {
 
 // TestCmdVmBehaviour_ResolveRuntime_Ugly handles the auto/"" detection path,
 // accepting either a detected runtime or the no-runtime error.
-func TestCmdVmBehaviour_ResolveRuntime_Ugly(t *testing.T) {
+func TestCmdVmBehaviour_resolveRuntime_Ugly(t *testing.T) {
 	vmCore = core.New()
 	rt, err := resolveRuntime("auto")
 	if err == nil && rt == container.RuntimeNone {

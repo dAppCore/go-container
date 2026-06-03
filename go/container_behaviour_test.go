@@ -12,7 +12,7 @@ import (
 // from a build output line.
 //
 //	digest := parseDigestFromOutput([]byte("built sha256:abc123"))
-func TestContainerBehaviour_ParseDigestFromOutput_Good(t *testing.T) {
+func TestContainerBehaviour_parseDigestFromOutput_Good(t *testing.T) {
 	out := []byte("Successfully built image sha256:deadbeefcafef00d\nextra trailing line")
 	if got := parseDigestFromOutput(out); got != "sha256:deadbeefcafef00d" {
 		t.Fatalf("parseDigestFromOutput = %q, want the sha256 token", got)
@@ -21,7 +21,7 @@ func TestContainerBehaviour_ParseDigestFromOutput_Good(t *testing.T) {
 
 // TestContainerBehaviour_ParseDigestFromOutput_Bad falls back to the raw output
 // when no digest token is present.
-func TestContainerBehaviour_ParseDigestFromOutput_Bad(t *testing.T) {
+func TestContainerBehaviour_parseDigestFromOutput_Bad(t *testing.T) {
 	out := []byte("no digest here")
 	if got := parseDigestFromOutput(out); got != "no digest here" {
 		t.Fatalf("parseDigestFromOutput = %q, want the raw output fallback", got)
@@ -29,7 +29,7 @@ func TestContainerBehaviour_ParseDigestFromOutput_Bad(t *testing.T) {
 }
 
 // TestContainerBehaviour_FirstLine_Good returns the first line of multi-line output.
-func TestContainerBehaviour_FirstLine_Good(t *testing.T) {
+func TestContainerBehaviour_firstLine_Good(t *testing.T) {
 	if got := firstLine([]byte("first\nsecond\nthird")); got != "first" {
 		t.Fatalf("firstLine = %q, want %q", got, "first")
 	}
@@ -37,7 +37,7 @@ func TestContainerBehaviour_FirstLine_Good(t *testing.T) {
 
 // TestContainerBehaviour_FirstLine_Ugly returns the whole string when there is no
 // newline.
-func TestContainerBehaviour_FirstLine_Ugly(t *testing.T) {
+func TestContainerBehaviour_firstLine_Ugly(t *testing.T) {
 	if got := firstLine([]byte("single")); got != "single" {
 		t.Fatalf("firstLine = %q, want %q", got, "single")
 	}
@@ -45,7 +45,7 @@ func TestContainerBehaviour_FirstLine_Ugly(t *testing.T) {
 
 // TestContainerBehaviour_ParseContainerList_Good decodes the Apple CLI container
 // list JSON into Container structs, including port-map parsing.
-func TestContainerBehaviour_ParseContainerList_Good(t *testing.T) {
+func TestContainerBehaviour_parseContainerList_Good(t *testing.T) {
 	data := []byte(`[
 		{"status":"running","startedDate":802181959.4,"configuration":{"id":"abc","image":{"reference":"docker.io/library/nginx:latest"},"resources":{"cpus":2,"memoryInBytes":536870912},"publishedPorts":[{"hostPort":8080,"containerPort":80}]}},
 		{"status":"stopped","configuration":{"id":"def","image":{"reference":"docker.io/library/postgres:16"},"resources":{"cpus":1,"memoryInBytes":268435456},"publishedPorts":[]}}
@@ -76,7 +76,7 @@ func TestContainerBehaviour_ParseContainerList_Good(t *testing.T) {
 }
 
 // TestContainerBehaviour_ParseContainerList_Bad errors on malformed JSON.
-func TestContainerBehaviour_ParseContainerList_Bad(t *testing.T) {
+func TestContainerBehaviour_parseContainerList_Bad(t *testing.T) {
 	if r := parseContainerList([]byte("{not json")); r.OK {
 		t.Fatal("parseContainerList of malformed JSON returned an OK result")
 	}
