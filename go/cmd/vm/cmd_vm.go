@@ -49,6 +49,7 @@ func AddVMCommands(c *core.Core) {
 	addVMRmCommand(c)
 	addVMInspectCommand(c)
 	addVMSystemCommand(c)
+	addVMTimCommand(c)
 }
 
 func registerVMCommand(c *core.Core, path string, cmd core.Command) {

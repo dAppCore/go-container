@@ -26,6 +26,12 @@
 //   - system status: Show system status
 //   - system stop: Stop the system services
 //
+// TIM/STIM bundles (Borg format, via forge.lthn.ai/Snider/Borg/pkg/tim):
+//   - tim pack: pack a directory into a .tim bundle
+//   - tim encrypt: encrypt a .tim into a .stim (--key-file)
+//   - tim decrypt: decrypt a .stim back into a .tim (--key-file)
+//   - tim inspect: show a .tim config / .stim header
+//
 // kill/rm/inspect dispatch to whichever runtime owns the container id; the
 // image and system commands are Apple-only (LinuxKit has no OCI image management).
 package vm

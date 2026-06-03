@@ -27,10 +27,15 @@ core vm
 ├── templates   # List templates
 │   ├── show    # Display a template's YAML content
 │   └── vars    # Show required/optional variables for a template
-└── system      # Manage the Apple container system (apple runtime)
-    ├── start    # Start apiserver + kernel (--no-kernel-install to skip)
-    ├── status   # Show system status
-    └── stop     # Stop system services
+├── system      # Manage the Apple container system (apple runtime)
+│   ├── start    # Start apiserver + kernel (--no-kernel-install to skip)
+│   ├── status   # Show system status
+│   └── stop     # Stop system services
+└── tim         # Borg TIM/STIM container bundles
+    ├── pack    # Pack a directory into a .tim bundle
+    ├── encrypt # Encrypt a .tim into a .stim (--key-file)
+    ├── decrypt # Decrypt a .stim back into a .tim (--key-file)
+    └── inspect # Show a .tim config / .stim header
 ```
 
 ## File map
@@ -42,6 +47,7 @@ core vm
 | `cmd/vm/cmd_container.go` | `run`, `ps`, `stop`, `kill`, `rm`, `logs`, `exec`, `shell`, `inspect` — container lifecycle. `resolveRuntime`, `runContainer`/`runContainerApple` (RunOptions + `--publish`/`--volume`/`--env`), `resolveContainerOwner` (Apple-first dispatch), `shortID`, port/volume/env parse helpers; kill/rm/inspect dispatch by owner; `execInteractive`/`shellContainer`/`wantInteractive` drive the TTY path (`exec -i/-t`, `shell`) |
 | `cmd/vm/cmd_images.go` | `build`, `pull`, `push`, `images`, `rmi` — Apple-only OCI image management (`requireApple` guard, 1:1 over AppleProvider methods, `formatImages` table) |
 | `cmd/vm/cmd_system.go` | `system start/status/stop` — Apple-only system service management over `AppleProvider.SystemStart/SystemStop/SystemStatus` |
+| `cmd/vm/cmd_tim.go` | `tim pack/encrypt/decrypt/inspect` — Borg-backed TIM/STIM bundle ops (`forge.lthn.ai/Snider/Borg/pkg/tim` + Enchantrix), `--key-file` passphrase, magic-sniffing inspect |
 | `cmd/vm/cmd_templates.go` | `templates`, `templates show`, `templates vars` — LinuxKit template management. Includes `RunFromTemplate` (apply → build → run), `buildLinuxKitImage`, `findBuiltImage`, `lookupLinuxKit`, `ParseVarFlags` |
 
 ## Command registration
