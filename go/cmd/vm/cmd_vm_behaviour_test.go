@@ -310,10 +310,11 @@ func TestCmdVmBehaviour_FormatDuration(t *testing.T) {
 // TestCmdVmBehaviour_ExtractVariables confirms the template parser reports the
 // variables the show-vars command relies on.
 func TestCmdVmBehaviour_ExtractVariables(t *testing.T) {
-	content, err := container.GetTemplate("core-dev")
-	if err != nil {
-		t.Fatalf("GetTemplate(core-dev): %v", err)
+	r := container.GetTemplate("core-dev")
+	if !r.OK {
+		t.Fatalf("GetTemplate(core-dev): %v", r.Error())
 	}
+	content := core.MustCast[string](r)
 	required, optional := container.ExtractVariables(content)
 	if len(required) == 0 && len(optional) == 0 {
 		t.Skip("core-dev template declares no variables")
