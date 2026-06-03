@@ -52,7 +52,7 @@ func TestProcBehaviour_LookPath_Ugly(t *testing.T) {
 
 // TestProcBehaviour_LookPathAbsolute_Good accepts an absolute path directly when
 // it points at an executable, skipping the PATH search.
-func TestProcBehaviour_LookPathAbsolute_Good(t *testing.T) {
+func TestProcBehaviour_LookPath_Absolute_Good(t *testing.T) {
 	abs := shellPath(t)
 	got, err := LookPath(abs)
 	if err != nil {
@@ -65,7 +65,7 @@ func TestProcBehaviour_LookPathAbsolute_Good(t *testing.T) {
 
 // TestProcBehaviour_LookPathAbsolute_Bad rejects an absolute path that is not an
 // executable file.
-func TestProcBehaviour_LookPathAbsolute_Bad(t *testing.T) {
+func TestProcBehaviour_LookPath_Absolute_Bad(t *testing.T) {
 	if _, err := LookPath("/nonexistent/path/binary"); err == nil {
 		t.Fatal("LookPath of a missing absolute path returned nil error")
 	}
@@ -239,7 +239,7 @@ func TestProcBehaviour_Wait_Ugly(t *testing.T) {
 
 // TestProcBehaviour_StartCancelledContext_Ugly refuses to start once the context
 // is already cancelled.
-func TestProcBehaviour_StartCancelledContext_Ugly(t *testing.T) {
+func TestProcBehaviour_Start_CancelledContext_Ugly(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	cmd := NewCommandContext(ctx, "sh", "-c", "true")
@@ -249,7 +249,7 @@ func TestProcBehaviour_StartCancelledContext_Ugly(t *testing.T) {
 }
 
 // TestProcBehaviour_ProcessKill_Good signals SIGKILL to a live child.
-func TestProcBehaviour_ProcessKill_Good(t *testing.T) {
+func TestProcBehaviour_Process_Kill_Good(t *testing.T) {
 	sh := shellPath(t)
 	cmd := NewCommand(sh, "-c", "sleep 5")
 	if err := cmd.Start(); err != nil {
@@ -264,7 +264,7 @@ func TestProcBehaviour_ProcessKill_Good(t *testing.T) {
 }
 
 // TestProcBehaviour_ProcessKill_Bad is a no-op on a nil/zero process.
-func TestProcBehaviour_ProcessKill_Bad(t *testing.T) {
+func TestProcBehaviour_Process_Kill_Bad(t *testing.T) {
 	var p *Process
 	if err := p.Kill(); err != nil {
 		t.Fatalf("Kill on nil Process = %v, want nil", err)
@@ -276,7 +276,7 @@ func TestProcBehaviour_ProcessKill_Bad(t *testing.T) {
 }
 
 // TestProcBehaviour_ProcessSignal_Bad is a no-op on a nil/zero process.
-func TestProcBehaviour_ProcessSignal_Bad(t *testing.T) {
+func TestProcBehaviour_Process_Signal_Bad(t *testing.T) {
 	var p *Process
 	if err := p.Signal(syscall.SIGTERM); err != nil {
 		t.Fatalf("Signal on nil Process = %v, want nil", err)
@@ -289,7 +289,7 @@ func TestProcBehaviour_ProcessSignal_Bad(t *testing.T) {
 
 // TestProcBehaviour_ContextCancel_Ugly kills a running child when its context is
 // cancelled mid-flight.
-func TestProcBehaviour_ContextCancel_Ugly(t *testing.T) {
+func TestProcBehaviour_Wait_ContextCancel_Ugly(t *testing.T) {
 	sh := shellPath(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := NewCommandContext(ctx, sh, "-c", "sleep 30")
@@ -310,7 +310,7 @@ func TestProcBehaviour_Environ_Good(t *testing.T) {
 }
 
 // TestProcBehaviour_CustomEnv_Good passes an explicit environment to the child.
-func TestProcBehaviour_CustomEnv_Good(t *testing.T) {
+func TestProcBehaviour_Env_Custom_Good(t *testing.T) {
 	sh := shellPath(t)
 	cmd := NewCommand(sh, "-c", "printf %s \"$PROC_FIXTURE\"")
 	cmd.Env = []string{"PROC_FIXTURE=fixture-value"}
@@ -341,7 +341,7 @@ func TestProcBehaviour_isExecutable_Ugly(t *testing.T) {
 
 // TestProcBehaviour_StdioWriter_Good writes through a stdiowriter bound to a
 // real file descriptor and reads the bytes back via a stdioreader.
-func TestProcBehaviour_StdioWriter_Good(t *testing.T) {
+func TestProcBehaviour_stdiowriter_Good(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/stdio.txt"
 	wfd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, 0o600)
@@ -387,7 +387,7 @@ func TestProcBehaviour_StdioWriter_Good(t *testing.T) {
 }
 
 // TestProcBehaviour_StdioReader_Ugly returns io.EOF once the descriptor is drained.
-func TestProcBehaviour_StdioReader_Ugly(t *testing.T) {
+func TestProcBehaviour_stdioreader_Ugly(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/empty.txt"
 	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_RDONLY, 0o600)
@@ -403,7 +403,7 @@ func TestProcBehaviour_StdioReader_Ugly(t *testing.T) {
 
 // TestProcBehaviour_ProcessSignal_Good delivers a signal to a live child, which
 // terminates it and surfaces a signalled status from Wait.
-func TestProcBehaviour_ProcessSignal_Good(t *testing.T) {
+func TestProcBehaviour_Process_Signal_Good(t *testing.T) {
 	sh := shellPath(t)
 	cmd := NewCommand(sh, "-c", "sleep 5")
 	if err := cmd.Start(); err != nil {
@@ -419,7 +419,7 @@ func TestProcBehaviour_ProcessSignal_Good(t *testing.T) {
 
 // TestProcBehaviour_StdinFD_Good feeds the child stdin through an fdProvider so
 // inputFD takes its descriptor rather than /dev/null.
-func TestProcBehaviour_StdinFD_Good(t *testing.T) {
+func TestProcBehaviour_Stdin_FD_Good(t *testing.T) {
 	sh := shellPath(t)
 	dir := t.TempDir()
 	path := dir + "/in.txt"
