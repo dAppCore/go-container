@@ -5,7 +5,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/proc"
 )
@@ -55,7 +54,7 @@ func (s *GitHubSource) LatestVersion(ctx context.Context) (
 	)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", coreerr.E("github.LatestVersion", "failed", err)
+		return "", core.E("github.LatestVersion", "failed", err)
 	}
 	return core.Trim(string(out)), nil
 }
@@ -75,7 +74,7 @@ func (s *GitHubSource) Download(ctx context.Context, m io.Medium, dest string, p
 	cmd.Stderr = proc.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return coreerr.E("github.Download", "failed", err)
+		return core.E("github.Download", "failed", err)
 	}
 	return nil
 }

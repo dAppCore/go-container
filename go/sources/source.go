@@ -8,6 +8,11 @@ import (
 )
 
 // ImageSource defines the interface for downloading dev images.
+//
+// TODO(corego): LatestVersion/Download still return (string, error)/error rather
+// than core.Result. Migrating them to core.Result requires updating the consumers
+// in devenv/images.go (an out-of-scope workstream); coordinate that change so the
+// devenv build stays green before converting this contract.
 type ImageSource interface {
 	// Name returns the source identifier.
 	Name() string
