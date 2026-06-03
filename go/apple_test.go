@@ -8,6 +8,8 @@ import (
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
+
+	"dappco.re/go/container/internal/proc"
 )
 
 func TestApple_IsAppleAvailable_Good(t *testing.T) {
@@ -1083,5 +1085,66 @@ func TestApple_E2E_ImageLifecycle_Smoke(t *testing.T) {
 
 	if r := p.RemoveImage(ref); !r.OK {
 		t.Fatalf("RemoveImage: %v", r.Error())
+	}
+}
+
+// TestApple_E2E_ContainerLifecycle_Smoke certifies the container lifecycle
+// methods that `vm ps/logs/exec/stop` dispatch to, against the LIVE binary:
+// a running container is created, List finds + parses it, Exec runs a command
+// in it, Logs reads it, and Stop halts it. Opt-in (CORE_APPLE_E2E=1).
+func TestApple_E2E_ContainerLifecycle_Smoke(t *testing.T) {
+	if core.Env("CORE_APPLE_E2E") == "" {
+		t.Skip("set CORE_APPLE_E2E=1 to run the live container CLI smoke")
+	}
+	p := NewAppleProvider()
+	if !p.Available() {
+		t.Skip("apple container runtime not available")
+	}
+	const name = "core-lifecycle-e2e"
+	ctx := context.Background()
+	// Create a long-running container directly: Run does not yet forward an
+	// entrypoint/args (separate follow-up), so the CLI is used to stage one.
+	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run()
+	if err := proc.NewCommandContext(ctx, "container", "run", "-d", "--name", name,
+		"docker.io/library/alpine:latest", "sleep", "60").Run(); err != nil {
+		t.Fatalf("stage running container: %v", err)
+	}
+	defer func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }()
+
+	// List finds and parses it (the path `vm ps` aggregates).
+	listRes := p.List()
+	if !listRes.OK {
+		t.Fatalf("List: %v", listRes.Error())
+	}
+	var got *Container
+	for _, c := range core.MustCast[[]*Container](listRes) {
+		if c.ID == name {
+			got = c
+		}
+	}
+	if got == nil {
+		t.Fatalf("List did not return the running container %q", name)
+	}
+	if got.Image == "" || got.Status == "" {
+		t.Fatalf("List parsed container with empty fields: %+v", got)
+	}
+
+	// Exec runs a command inside it (the path `vm exec` dispatches).
+	execRes := p.Exec(name, "echo", "hello-from-exec")
+	if !execRes.OK {
+		t.Fatalf("Exec: %v", execRes.Error())
+	}
+	if !core.Contains(core.MustCast[string](execRes), "hello-from-exec") {
+		t.Fatalf("Exec output = %q, want it to contain hello-from-exec", core.MustCast[string](execRes))
+	}
+
+	// Logs is reachable (the path `vm logs` dispatches); sleep emits none.
+	if r := p.Logs(name, 10); !r.OK {
+		t.Fatalf("Logs: %v", r.Error())
+	}
+
+	// Stop halts it (the path `vm stop` dispatches).
+	if r := p.Stop(name); !r.OK {
+		t.Fatalf("Stop: %v", r.Error())
 	}
 }
