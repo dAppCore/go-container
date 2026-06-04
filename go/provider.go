@@ -244,6 +244,18 @@ func WithEnv(env ...string) RunOption {
 	}
 }
 
+// WithDNS sets the container's DNS nameservers (Apple runtime). Overrides the
+// reachable-public-resolver default appleRunArgs applies when none are set.
+//
+// Usage:
+//
+//	p.Run(img, container.WithDNS("1.1.1.1", "8.8.8.8"))
+func WithDNS(servers ...string) RunOption {
+	return func(o *RunOptions) {
+		o.DNS = append(o.DNS, servers...)
+	}
+}
+
 // ApplyRunOptions folds a slice of RunOption functions into a RunOptions.
 //
 // Usage:

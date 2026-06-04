@@ -1325,6 +1325,42 @@ func TestApple_appleRunArgs_Env_Good(t *testing.T) {
 	}
 }
 
+func TestApple_appleRunArgs_DNS_Good(t *testing.T) {
+	// Explicit DNS emits a --dns per nameserver, before the image, and
+	// replaces the default (does not append to it).
+	r := appleRunArgs("web", &Image{Path: "alpine:latest"},
+		RunOptions{DNS: []string{"9.9.9.9", "1.0.0.1"}, Args: []string{"sleep", "1"}})
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	args := core.MustCast[[]string](r)
+	joined := core.Join(" ", args...)
+	for _, want := range []string{"--dns 9.9.9.9", "--dns 1.0.0.1"} {
+		if !core.Contains(joined, want) {
+			t.Fatalf("args %q missing %q", joined, want)
+		}
+	}
+	if dPos, imgPos := indexOf(args, "9.9.9.9"), indexOf(args, "alpine:latest"); dPos < 0 || imgPos < 0 || dPos > imgPos {
+		t.Fatalf("--dns must precede image: %v", args)
+	}
+	if core.Contains(joined, "1.1.1.1") {
+		t.Fatalf("explicit DNS must replace the default, not append it: %v", args)
+	}
+}
+
+func TestApple_appleRunArgs_DNSDefault_Good(t *testing.T) {
+	// Empty DNS defaults to a reachable public resolver — the Apple runtime's
+	// gateway resolver does not answer DNS, so without this hostnames never
+	// resolve even though NAT egress works.
+	r := appleRunArgs("web", &Image{Path: "alpine:latest"}, RunOptions{})
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	if joined := core.Join(" ", core.MustCast[[]string](r)...); !core.Contains(joined, "--dns 1.1.1.1") {
+		t.Fatalf("empty DNS must default to a public resolver, got %q", joined)
+	}
+}
+
 // indexOf returns the first index of v in s, or -1.
 func indexOf(s []string, v string) int {
 	for i, x := range s {

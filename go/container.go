@@ -80,6 +80,14 @@ type RunOptions struct {
 	// Env is the container environment in KEY=VALUE form (Apple runtime only;
 	// LinuxKit bakes env into the image at build time).
 	Env []string
+	// DNS sets the container's DNS nameservers (Apple runtime). Empty defaults
+	// to a reachable public resolver: the Apple runtime points new containers
+	// at the gateway (192.168.64.1) as their resolver, but that gateway does
+	// NOT answer DNS, so hostnames fail to resolve even though NAT egress works.
+	// The host's own LAN resolver is often unreachable from the container's
+	// subnet, so a public resolver is the reliable default; override here for
+	// split-DNS / private resolvers.
+	DNS []string
 }
 
 // ReadCloser is the stream contract returned by Manager.Logs.

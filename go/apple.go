@@ -233,6 +233,13 @@ func appleLogsArgs(id string, n int) []string {
 	return []string{"logs", "-n", strconv.Itoa(n), id}
 }
 
+// defaultAppleDNS is the resolver appleRunArgs sets when RunOptions.DNS is
+// empty. The Apple runtime points new containers at the gateway as their
+// resolver but it doesn't answer DNS, and the host's LAN resolver is often
+// unreachable from the container subnet — so a reachable public resolver is
+// the default. Override per-run via WithDNS.
+var defaultAppleDNS = []string{"1.1.1.1", "8.8.8.8"}
+
 // appleRunArgs builds the `container run` argument vector for the resolved
 // container name. Metal GPU passthrough is not offered by the Apple container
 // runtime (RFC.apple.md §15), so a GPU request is rejected rather than emitting
@@ -263,6 +270,17 @@ func appleRunArgs(name string, image *Image, ro RunOptions) core.Result { // Val
 	}
 	for _, e := range ro.Env {
 		args = append(args, "-e", e)
+	}
+	// DNS — the Apple runtime points new containers at the gateway as their
+	// resolver, but that gateway does not answer DNS: NAT egress works, name
+	// resolution doesn't. Default to a reachable public resolver unless the
+	// caller set one explicitly (WithDNS).
+	dns := ro.DNS
+	if len(dns) == 0 {
+		dns = defaultAppleDNS
+	}
+	for _, ns := range dns {
+		args = append(args, "--dns", ns)
 	}
 	args = append(args, image.Path)
 	args = append(args, ro.Args...)
