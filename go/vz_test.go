@@ -3,6 +3,7 @@
 package container
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -766,6 +767,14 @@ func TestVz_Stop_Good(t *testing.T) {
 	if r := p.Stop("never-ran"); r.OK {
 		t.Fatal("expected error")
 	}
+	// Double-stop: a VM the watcher already saw exit stops idempotently —
+	// Ok without touching the dispatch queue (provider conformance).
+	if IsVZAvailable() {
+		vzFabricateTracked(t, p, &Container{ID: "vz-stop-exited", Status: StatusStopped})
+		if r := p.Stop("vz-stop-exited"); !r.OK {
+			t.Fatalf("expected idempotent stop, got %v", r.Value)
+		}
+	}
 }
 
 func TestVz_Stop_Bad(t *testing.T) {
@@ -816,6 +825,13 @@ func TestVz_Kill_Good(t *testing.T) {
 	if r := p.Kill("never-ran"); r.OK {
 		t.Fatal("expected error")
 	}
+	// Kill after exit is idempotent, like Stop (provider conformance).
+	if IsVZAvailable() {
+		vzFabricateTracked(t, p, &Container{ID: "vz-kill-exited", Status: StatusKilled})
+		if r := p.Kill("vz-kill-exited"); !r.OK {
+			t.Fatalf("expected idempotent kill, got %v", r.Value)
+		}
+	}
 }
 
 func TestVz_Kill_Bad(t *testing.T) {
@@ -847,6 +863,346 @@ func TestVz_Kill_Ugly(t *testing.T) {
 	}
 	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "virtualization framework unavailable") {
 		t.Fatalf("expected §7 sentinel, got %v", r.Value)
+	}
+}
+
+func TestVz_Wait_Good(t *testing.T) {
+	auditTarget := "VZProvider Wait"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// Wait unblocks the moment the watcher observes guest exit (Done).
+	p := NewVZProvider()
+	entry := vzFabricateTracked(t, p, &Container{ID: "vz-wait-good", Status: StatusRunning})
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		close(entry.Done)
+	}()
+	if r := p.Wait(context.Background(), "vz-wait-good"); !r.OK {
+		t.Fatalf("expected ok, got %v", r.Value)
+	}
+}
+
+func TestVz_Wait_Bad(t *testing.T) {
+	auditTarget := "VZProvider Wait"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	p := NewVZProvider()
+	if r := p.Wait(context.Background(), ""); r.OK {
+		t.Fatal("expected error for empty id")
+	}
+	r := p.Wait(context.Background(), "never-ran")
+	if r.OK {
+		t.Fatal("expected error for untracked id")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "not tracked") {
+		t.Fatalf("expected not-tracked error, got %v", r.Value)
+	}
+}
+
+func TestVz_Wait_Ugly(t *testing.T) {
+	auditTarget := "VZProvider Wait"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// A cancelled context aborts the wait with the cancellation named — the
+	// VM (Done never closed) is untouched.
+	p := NewVZProvider()
+	vzFabricateTracked(t, p, &Container{ID: "vz-wait-ugly", Status: StatusRunning})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r := p.Wait(ctx, "vz-wait-ugly")
+	if r.OK {
+		t.Fatal("expected error for cancelled context")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "context cancelled") {
+		t.Fatalf("expected cancellation error, got %v", r.Value)
+	}
+}
+
+func TestVz_Logs_Good(t *testing.T) {
+	auditTarget := "VZProvider Logs"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// Logs tails the §3 serial capture for the id — no tracked entry needed,
+	// an exited VM's log stays readable.
+	id := "vz-test-logs-" + core.MustCast[string](GenerateID())
+	if r := EnsureLogsDir(); !r.OK {
+		t.Fatalf("ensure logs dir: %v", r.Value)
+	}
+	logPath := core.MustCast[string](LogPath(id))
+	if err := coreio.Local.Write(logPath, "boot one\nboot two\nboot three\n"); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+	t.Cleanup(func() { _ = coreio.Local.Delete(logPath) })
+
+	p := NewVZProvider()
+	r := p.Logs(id, 2)
+	if !r.OK {
+		t.Fatalf("expected ok, got %v", r.Value)
+	}
+	if got, want := core.MustCast[string](r), "boot two\nboot three"; got != want {
+		t.Fatalf("want %q, got %q", want, got)
+	}
+}
+
+func TestVz_Logs_Bad(t *testing.T) {
+	auditTarget := "VZProvider Logs"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	p := NewVZProvider()
+	if r := p.Logs("", 10); r.OK {
+		t.Fatal("expected error for empty id")
+	}
+	// An id with no serial capture fails with the id named.
+	r := p.Logs("vz-never-logged-"+core.MustCast[string](GenerateID()), 10)
+	if r.OK {
+		t.Fatal("expected error for unknown id")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "no serial log") {
+		t.Fatalf("expected no-serial-log error, got %v", r.Value)
+	}
+}
+
+func TestVz_Logs_Ugly(t *testing.T) {
+	auditTarget := "VZProvider Logs"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// tail <= 0 falls back to the 200-line AppleProvider-parity default —
+	// shorter logs come back whole.
+	id := "vz-test-logs-ugly-" + core.MustCast[string](GenerateID())
+	if r := EnsureLogsDir(); !r.OK {
+		t.Fatalf("ensure logs dir: %v", r.Value)
+	}
+	logPath := core.MustCast[string](LogPath(id))
+	if err := coreio.Local.Write(logPath, "alpha\nbeta\n"); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+	t.Cleanup(func() { _ = coreio.Local.Delete(logPath) })
+
+	p := NewVZProvider()
+	r := p.Logs(id, 0)
+	if !r.OK {
+		t.Fatalf("expected ok, got %v", r.Value)
+	}
+	if got, want := core.MustCast[string](r), "alpha\nbeta"; got != want {
+		t.Fatalf("want %q, got %q", want, got)
+	}
+	if r := p.Logs(id, -7); !r.OK {
+		t.Fatalf("expected ok for negative tail, got %v", r.Value)
+	}
+}
+
+func TestVz_Remove_Good(t *testing.T) {
+	auditTarget := "VZProvider Remove"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// Remove drops an exited VM from both inventories: tracked map AND the
+	// §3 registry file.
+	p := NewVZProvider()
+	p.StatePath = core.JoinPath(t.TempDir(), "containers.json")
+	ctr := &Container{ID: "vz-remove-good", Status: StatusStopped}
+	vzFabricateTracked(t, p, ctr)
+	if r := p.persistAdd(ctr); !r.OK {
+		t.Fatalf("persist add: %v", r.Value)
+	}
+
+	if r := p.Remove(ctr.ID); !r.OK {
+		t.Fatalf("expected ok, got %v", r.Value)
+	}
+	if len(p.Tracked()) != 0 {
+		t.Fatal("expected tracked entry gone")
+	}
+	fresh := core.MustCast[*State](LoadState(p.StatePath))
+	if _, still := fresh.Get(ctr.ID); still {
+		t.Fatal("expected registry entry gone")
+	}
+}
+
+func TestVz_Remove_Bad(t *testing.T) {
+	auditTarget := "VZProvider Remove"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	p := NewVZProvider()
+	p.StatePath = core.JoinPath(t.TempDir(), "containers.json")
+	if r := p.Remove(""); r.OK {
+		t.Fatal("expected error for empty id")
+	}
+	r := p.Remove("never-existed")
+	if r.OK {
+		t.Fatal("expected error for unknown id")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "not tracked") {
+		t.Fatalf("expected not-tracked error, got %v", r.Value)
+	}
+}
+
+func TestVz_Remove_Ugly(t *testing.T) {
+	auditTarget := "VZProvider Remove"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// A running VM is refused; the same id removes cleanly once stopped.
+	p := NewVZProvider()
+	p.StatePath = core.JoinPath(t.TempDir(), "containers.json")
+	ctr := &Container{ID: "vz-remove-ugly", Status: StatusRunning}
+	entry := vzFabricateTracked(t, p, ctr)
+
+	r := p.Remove(ctr.ID)
+	if r.OK {
+		t.Fatal("expected refusal for a running container")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "running") {
+		t.Fatalf("expected running refusal, got %v", r.Value)
+	}
+
+	vzProviderLock.Lock()
+	entry.Container.Status = StatusStopped
+	vzProviderLock.Unlock()
+	if r := p.Remove(ctr.ID); !r.OK {
+		t.Fatalf("expected ok after stop, got %v", r.Value)
+	}
+}
+
+func TestVz_Registry_Good(t *testing.T) {
+	auditTarget := "VZProvider registry"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// persistAdd lands the container in the registry file; persistUpdate
+	// syncs a status transition — the §3 Add/Update lifecycle.
+	p := NewVZProvider()
+	p.StatePath = core.JoinPath(t.TempDir(), "containers.json")
+	ctr := &Container{ID: "vz-reg-good", Status: StatusRunning, Image: "/img"}
+	if r := p.persistAdd(ctr); !r.OK {
+		t.Fatalf("persist add: %v", r.Value)
+	}
+	loaded := core.MustCast[*State](LoadState(p.StatePath))
+	got, ok := loaded.Get(ctr.ID)
+	if !ok || got.Status != StatusRunning {
+		t.Fatalf("expected running record, got %+v ok=%v", got, ok)
+	}
+
+	entry := vzFabricateTracked(t, p, ctr)
+	vzProviderLock.Lock()
+	entry.Container.Status = StatusStopped
+	vzProviderLock.Unlock()
+	p.persistUpdate(entry)
+	reloaded := core.MustCast[*State](LoadState(p.StatePath))
+	got2, ok2 := reloaded.Get(ctr.ID)
+	if !ok2 || got2.Status != StatusStopped {
+		t.Fatalf("expected stopped record, got %+v ok=%v", got2, ok2)
+	}
+}
+
+func TestVz_Registry_Bad(t *testing.T) {
+	auditTarget := "VZProvider registry"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// A registry whose parent path is a FILE cannot persist — persistAdd
+	// fails loudly (this is the path that fails a live Run, LinuxKit
+	// precedent).
+	blocker := core.JoinPath(t.TempDir(), "blocker")
+	if err := coreio.Local.Write(blocker, "in the way"); err != nil {
+		t.Fatalf("write blocker: %v", err)
+	}
+	p := NewVZProvider()
+	p.StatePath = core.JoinPath(blocker, "containers.json")
+	if r := p.persistAdd(&Container{ID: "vz-reg-bad"}); r.OK {
+		t.Fatal("expected persist failure")
+	}
+
+	// A corrupt registry file refuses to load.
+	corrupt := core.JoinPath(t.TempDir(), "containers.json")
+	if err := coreio.Local.Write(corrupt, "{not json"); err != nil {
+		t.Fatalf("write corrupt: %v", err)
+	}
+	p2 := NewVZProvider()
+	p2.StatePath = corrupt
+	if r := p2.registry(); r.OK {
+		t.Fatal("expected corrupt registry to refuse loading")
+	}
+}
+
+func TestVz_Registry_Ugly(t *testing.T) {
+	auditTarget := "VZProvider registry"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// Two providers sharing one StatePath see one inventory (§3): a record
+	// added through the first is visible to — and removable through — the
+	// second.
+	path := core.JoinPath(t.TempDir(), "containers.json")
+	p1 := NewVZProvider()
+	p1.StatePath = path
+	ctr := &Container{ID: "vz-reg-ugly", Status: StatusStopped}
+	if r := p1.persistAdd(ctr); !r.OK {
+		t.Fatalf("persist add: %v", r.Value)
+	}
+
+	p2 := NewVZProvider()
+	p2.StatePath = path
+	if r := p2.Remove(ctr.ID); !r.OK {
+		t.Fatalf("expected cross-provider remove, got %v", r.Value)
+	}
+	final := core.MustCast[*State](LoadState(path))
+	if _, still := final.Get(ctr.ID); still {
+		t.Fatal("expected one shared inventory, record still present")
 	}
 }
 

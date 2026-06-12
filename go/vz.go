@@ -12,6 +12,7 @@ package container
 // VZProvider symbol.
 
 import (
+	"context"
 	"slices" // Note: AX-6 — deterministic volume ordering; no core sort primitive exists.
 	"time"
 
@@ -62,6 +63,9 @@ const (
 	// Stop chain — a guest without a listening agent must not eat the whole
 	// StopDeadline before the fallback runs.
 	vzAgentStopTimeout = 5 * time.Second
+	// vzLogsDefaultTail is the Logs line count when tail <= 0 — AppleProvider
+	// parity.
+	vzLogsDefaultTail = 200
 )
 
 // IsVZAvailable reports whether Virtualization.framework is usable in this
@@ -107,8 +111,13 @@ type VZProvider struct {
 	// StopDeadline is how long Stop waits for a graceful guest stop before
 	// escalating to a VZ force stop.
 	StopDeadline time.Duration
+	// StatePath overrides the persistent container registry file. Empty uses
+	// DefaultStatePath() (~/.core/containers.json) — one inventory across
+	// providers (§3).
+	StatePath string
 
 	tracked map[string]*vzTracked
+	state   *State
 }
 
 // vzTracked records an in-process VM for lifecycle observation. The objc
@@ -530,6 +539,12 @@ func (p *VZProvider) Run(image *Image, opts ...RunOption) core.Result { // Value
 		// PID stays zero: the VM lives inside this process, not behind one.
 	}
 	p.track(ctr, machine, queue, config)
+	if r := p.persistAdd(ctr); !r.OK {
+		// LinuxKit-manager precedent: an unpersistable container fails the
+		// Run and the just-booted VM is force-stopped, not leaked.
+		_ = p.Kill(id)
+		return core.Fail(core.E("VZProvider.Run", "persist container registry", r.Value.(error)))
+	}
 	return core.Ok(ctr)
 }
 
@@ -567,6 +582,7 @@ func (p *VZProvider) watch(entry *vzTracked) {
 	}
 	close(entry.Done)
 	vzProviderLock.Unlock()
+	p.persistUpdate(entry)
 
 	window := p.RetentionWindow
 	if window <= 0 {
@@ -598,6 +614,68 @@ func (p *VZProvider) status(entry *vzTracked) Status {
 	vzProviderLock.Lock()
 	defer vzProviderLock.Unlock()
 	return entry.Container.Status
+}
+
+// registry returns the provider's persistent container registry (§3: one
+// inventory across providers), loading it on first use from StatePath or
+// the module default ~/.core/containers.json.
+func (p *VZProvider) registry() core.Result { // Value: *State
+	vzProviderLock.Lock()
+	cached := p.state
+	vzProviderLock.Unlock()
+	if cached != nil {
+		return core.Ok(cached)
+	}
+
+	path := p.StatePath
+	if path == "" {
+		pathRes := DefaultStatePath()
+		if !pathRes.OK {
+			return pathRes
+		}
+		path = core.MustCast[string](pathRes)
+	}
+	stateRes := LoadState(path)
+	if !stateRes.OK {
+		return stateRes
+	}
+	loaded := core.MustCast[*State](stateRes)
+
+	vzProviderLock.Lock()
+	if p.state == nil {
+		p.state = loaded
+	} else {
+		loaded = p.state // lost a benign race — reuse the winner
+	}
+	vzProviderLock.Unlock()
+	return core.Ok(loaded)
+}
+
+// persistAdd records a new container in the registry. Load-bearing on Run:
+// a registry that cannot persist fails the boot (LinuxKit-manager
+// precedent) rather than leaking an uninventoried VM.
+func (p *VZProvider) persistAdd(ctr *Container) core.Result { // Value: nil
+	stateRes := p.registry()
+	if !stateRes.OK {
+		return stateRes
+	}
+	record := *ctr // the registry owns a copy, never the live tracked struct
+	return core.MustCast[*State](stateRes).Add(&record)
+}
+
+// persistUpdate best-effort-syncs a status transition into the registry.
+// Verb results reflect the VM operation itself — a stopped VM with an
+// unwritable registry file is still stopped, so persistence failures here
+// never fail the verb.
+func (p *VZProvider) persistUpdate(entry *vzTracked) {
+	stateRes := p.registry()
+	if !stateRes.OK {
+		return
+	}
+	vzProviderLock.Lock()
+	record := *entry.Container
+	vzProviderLock.Unlock()
+	_ = core.MustCast[*State](stateRes).Update(&record)
 }
 
 // vsockManager returns the entry's control-channel manager, creating it on
@@ -812,6 +890,11 @@ func (p *VZProvider) Stop(id string) core.Result { // Value: nil
 	if entry == nil {
 		return core.Fail(core.E("VZProvider.Stop", "container not tracked: "+id, nil))
 	}
+	if status := p.status(entry); status == StatusStopped || status == StatusKilled {
+		// Idempotent: the guest already exited (the watcher or an earlier
+		// verb saw it) — a second stop succeeds without touching the queue.
+		return core.Ok(nil)
+	}
 
 	deadline := p.StopDeadline
 	if deadline <= 0 {
@@ -826,6 +909,7 @@ func (p *VZProvider) Stop(id string) core.Result { // Value: nil
 		select {
 		case <-entry.Done:
 			p.setStatus(entry, StatusStopped)
+			p.persistUpdate(entry)
 			return core.Ok(nil)
 		case <-time.After(deadline):
 			// Guest ignored the request — escalate below.
@@ -836,6 +920,7 @@ func (p *VZProvider) Stop(id string) core.Result { // Value: nil
 		return core.Fail(core.E("VZProvider.Stop", "force stop after graceful deadline", r.Value.(error)))
 	}
 	p.setStatus(entry, StatusStopped)
+	p.persistUpdate(entry)
 	return core.Ok(nil)
 }
 
@@ -855,10 +940,111 @@ func (p *VZProvider) Kill(id string) core.Result { // Value: nil
 	if entry == nil {
 		return core.Fail(core.E("VZProvider.Kill", "container not tracked: "+id, nil))
 	}
+	if status := p.status(entry); status == StatusStopped || status == StatusKilled {
+		// Idempotent: the guest already exited — same contract as Stop.
+		return core.Ok(nil)
+	}
 	if r := vzForceStop(entry); !r.OK {
 		return core.Fail(core.E("VZProvider.Kill", "force stop", r.Value.(error)))
 	}
 	p.setStatus(entry, StatusKilled)
+	p.persistUpdate(entry)
+	return core.Ok(nil)
+}
+
+// Wait blocks until the tracked VM with id has exited, or until ctx is
+// cancelled — AppleProvider parity. Returns nil once the VM is no longer
+// running.
+//
+// Usage:
+//
+//	if r := p.Wait(ctx, ctr.ID); !r.OK { return r }
+func (p *VZProvider) Wait(ctx context.Context, id string) core.Result { // Value: nil
+	if !p.Available() {
+		return vzUnavailable()
+	}
+	if id == "" {
+		return core.Fail(core.E("VZProvider.Wait", "container id is required", nil))
+	}
+	entry := p.entry(id)
+	if entry == nil {
+		return core.Fail(core.E("VZProvider.Wait", "container not tracked: "+id, nil))
+	}
+	select {
+	case <-ctx.Done():
+		return core.Fail(core.E("VZProvider.Wait", "context cancelled", ctx.Err()))
+	case <-entry.Done:
+		return core.Ok(nil)
+	}
+}
+
+// Logs returns the last tail lines of a VM's serial console capture
+// (~/.core/logs/{id}.log — §3 log convention). tail <= 0 defaults to 200
+// lines, AppleProvider parity. The log survives the tracked entry, so an
+// exited and even removed VM stays diagnosable.
+//
+// Usage:
+//
+//	out := core.MustCast[string](p.Logs(ctr.ID, 100))
+func (p *VZProvider) Logs(id string, tail int) core.Result { // Value: string
+	if !p.Available() {
+		return vzUnavailable()
+	}
+	if id == "" {
+		return core.Fail(core.E("VZProvider.Logs", "container id is required", nil))
+	}
+	lines := tail
+	if lines <= 0 {
+		lines = vzLogsDefaultTail
+	}
+	logRes := LogPath(id)
+	if !logRes.OK {
+		return logRes
+	}
+	logPath := core.MustCast[string](logRes)
+	if !coreio.Local.IsFile(logPath) {
+		return core.Fail(core.E("VZProvider.Logs", "no serial log for container: "+id, nil))
+	}
+	return core.Ok(vzSerialLogTail(logPath, lines))
+}
+
+// Remove drops an exited VM from the tracked set and the persistent
+// registry. A running VM is refused — stop it first. The serial log file is
+// kept for post-mortems (Logs still answers after Remove).
+//
+// Usage:
+//
+//	if r := p.Remove(ctr.ID); !r.OK { return r }
+func (p *VZProvider) Remove(id string) core.Result { // Value: nil
+	if !p.Available() {
+		return vzUnavailable()
+	}
+	if id == "" {
+		return core.Fail(core.E("VZProvider.Remove", "container id is required", nil))
+	}
+	entry := p.entry(id)
+	if entry != nil && p.status(entry) == StatusRunning {
+		return core.Fail(core.E("VZProvider.Remove", "container is running, stop it first: "+id, nil))
+	}
+
+	inRegistry := false
+	stateRes := p.registry()
+	if stateRes.OK {
+		_, inRegistry = core.MustCast[*State](stateRes).Get(id)
+	}
+	if entry == nil && !inRegistry {
+		return core.Fail(core.E("VZProvider.Remove", "container not tracked: "+id, nil))
+	}
+
+	vzProviderLock.Lock()
+	delete(p.tracked, id)
+	vzProviderLock.Unlock()
+
+	if inRegistry {
+		if r := core.MustCast[*State](stateRes).Remove(id); !r.OK {
+			return core.Fail(core.E("VZProvider.Remove", "remove from container registry", r.Value.(error)))
+		}
+	}
 	return core.Ok(nil)
 }
 
