@@ -96,6 +96,99 @@ func TestVz_IsVZAvailable_Ugly(t *testing.T) {
 	}
 }
 
+func TestVz_DetectVZ_Good(t *testing.T) {
+	auditTarget := "detectVZ"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// Detection mirrors availability; a found runtime reports the §6 Phase E
+	// capability honesty: hardware isolation yes, GPU and sub-second no.
+	rt, found := detectVZ()
+	if found != IsVZAvailable() {
+		t.Fatalf("detection %v disagrees with availability %v", found, IsVZAvailable())
+	}
+	if !found {
+		t.Skip("virtualization framework not available")
+	}
+	if rt.Type != RuntimeVZ {
+		t.Fatalf("expected vz runtime, got %q", rt.Type)
+	}
+	if rt.Path == "" {
+		t.Fatal("expected a detection marker path")
+	}
+	if !rt.IsHardwareIsolated() {
+		t.Fatal("expected hardware isolation capability")
+	}
+	if !rt.HasVolumeMounts() || !rt.HasNetworkIsolation() {
+		t.Fatalf("expected volume + network capabilities, caps %b", rt.Caps())
+	}
+	if rt.HasGPU() {
+		t.Fatal("GPU passthrough is rejected by the provider; capGPU must stay unset")
+	}
+	if rt.HasSubSecondStart() {
+		t.Fatal("a VZ kernel boot is seconds-scale; capSubSecondStart must stay unset")
+	}
+}
+
+func TestVz_DetectVZ_Bad(t *testing.T) {
+	auditTarget := "detectVZ"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// A simulated non-darwin host never detects vz, and the whole detection
+	// chain stays vz-free.
+	t.Setenv("GOOS", "linux")
+	if _, found := detectVZ(); found {
+		t.Fatal("expected no vz on a simulated non-darwin host")
+	}
+	for _, rt := range DetectAll() {
+		if rt.Type == RuntimeVZ {
+			t.Fatal("DetectAll leaked a vz runtime on a simulated non-darwin host")
+		}
+	}
+}
+
+func TestVz_DetectVZ_Ugly(t *testing.T) {
+	auditTarget := "detectVZ"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// Priority ordering (§6 Phase E: apple → vz → docker → podman): vz
+	// appears exactly once, after any apple entry, before any of the rest —
+	// on a CLI-less host (no apple) this makes vz the Detect() winner.
+	all := DetectAll()
+	vzIndex := -1
+	for i, rt := range all {
+		switch rt.Type {
+		case RuntimeVZ:
+			if vzIndex != -1 {
+				t.Fatal("vz detected twice")
+			}
+			vzIndex = i
+		case RuntimeApple:
+			if vzIndex != -1 {
+				t.Fatalf("apple at %d after vz at %d", i, vzIndex)
+			}
+		case RuntimeDocker, RuntimePodman, RuntimeLinuxKit:
+			if vzIndex == -1 {
+				t.Fatalf("%s at %d before vz", rt.Type, i)
+			}
+		}
+	}
+	if vzIndex == -1 {
+		t.Fatal("expected vz in DetectAll on a VZ-capable host")
+	}
+	if !HasRuntime(RuntimeVZ) {
+		t.Fatal("HasRuntime(vz) disagrees with DetectAll")
+	}
+}
+
 func TestVz_NewVZProvider_Good(t *testing.T) {
 	auditTarget := "NewVZProvider"
 	auditVariant := "Good"

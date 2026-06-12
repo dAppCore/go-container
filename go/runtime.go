@@ -14,6 +14,9 @@ type RuntimeType string
 const (
 	// RuntimeApple is Apple's Containerisation framework (macOS 26+).
 	RuntimeApple RuntimeType = "apple"
+	// RuntimeVZ is the in-process Virtualization.framework provider
+	// (RFC.vz.md) — hardware-isolated VMs, no external binary.
+	RuntimeVZ RuntimeType = "vz"
 	// RuntimeDocker is Docker / dockerd on any platform.
 	RuntimeDocker RuntimeType = "docker"
 	// RuntimePodman is Podman on Linux or macOS.
@@ -107,14 +110,14 @@ func (r ContainerRuntime) HasSubSecondStart() bool { return r.caps&capSubSecondS
 func (r ContainerRuntime) Caps() uint32 { return r.caps }
 
 // Detect probes the system for available container runtimes and returns the
-// highest-priority runtime found. Priority order:
+// highest-priority runtime found. Priority order (RFC.vz.md §6 Phase E):
 //
-//	Apple Containers → Docker → Podman → LinuxKit → None.
+//	Apple Containers → VZ (in-process) → Docker → Podman → LinuxKit → None.
 //
 // Usage:
 //
 //	rt := container.Detect()
-//	fmt.Println(rt.Type)  // "apple", "docker", "podman", "linuxkit" or "none"
+//	fmt.Println(rt.Type)  // "apple", "vz", "docker", "podman", "linuxkit" or "none"
 func Detect() ContainerRuntime {
 	for _, rt := range DetectAll() {
 		return rt
@@ -134,6 +137,9 @@ func DetectAll() []ContainerRuntime {
 	var out []ContainerRuntime
 
 	if rt, ok := detectApple(); ok {
+		out = append(out, rt)
+	}
+	if rt, ok := detectVZ(); ok {
 		out = append(out, rt)
 	}
 	if rt, ok := detectDocker(); ok {

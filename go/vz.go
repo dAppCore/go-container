@@ -92,6 +92,29 @@ func IsVZAvailable() bool {
 	return cls.IsSupported()
 }
 
+// detectVZ probes for the in-process Virtualization.framework provider —
+// the darwin half of the detection pair (vz_other.go answers for every
+// other platform). Priority sits between Apple Containers (richer:
+// sub-second OCI containers, needs the CLI + services) and Docker
+// (RFC.vz.md §6 Phase E: apple → vz → docker → podman).
+func detectVZ() (ContainerRuntime, bool) {
+	if !IsVZAvailable() {
+		return ContainerRuntime{}, false
+	}
+	rt := ContainerRuntime{
+		Type: RuntimeVZ,
+		// The framework is the detection marker — there is no runtime binary
+		// and no cheap version probe for an in-process provider.
+		Path: "Virtualization.framework",
+	}
+	// Hardware isolation per RFC.apple.md §2; NAT networking and Phase C
+	// block-device volumes. GPU passthrough is rejected by
+	// vzBuildConfiguration and a VZ kernel boot is seconds-scale, so capGPU
+	// and capSubSecondStart stay unset — HasGPU()->WithGPU->Run honesty.
+	rt.caps = capNetworkIsolation | capVolumeMounts | capHardwareIsolation
+	return rt, true
+}
+
 // VZProvider runs hardware-isolated Linux VMs in-process via
 // Virtualization.framework (tmc/apple purego bindings). macOS 13+ Apple
 // silicon hosts; no external binary, App-Sandbox-compatible with the
