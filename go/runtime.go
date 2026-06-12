@@ -164,6 +164,11 @@ func detectApple() (ContainerRuntime, bool) {
 	if err != nil {
 		return ContainerRuntime{}, false
 	}
+	if !IsAppleAvailable() {
+		// Binary installed but the system services are down — fall through
+		// so Detect can hand back a runtime that actually serves (vz next).
+		return ContainerRuntime{}, false
+	}
 	rt := ContainerRuntime{
 		Type:    RuntimeApple,
 		Path:    path,
