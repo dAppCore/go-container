@@ -27,11 +27,7 @@ var appleProviderLock = core.New().Lock("container.apple.provider").Mutex
 //	    provider = container.NewAppleProvider()
 //	}
 func IsAppleAvailable() bool {
-	if discoverHostOS() != "darwin" {
-		return false
-	}
-	_, err := proc.LookPath("container")
-	return err == nil
+	return NewAppleProvider().Available()
 }
 
 // AppleProvider implements the Provider interface using Apple's
@@ -95,7 +91,10 @@ func (a *AppleProvider) Available() bool {
 			a.Version = string(out)
 		}
 	}
-	return true
+	// Binary-present is not runtime-serving: Build/Run/List need the system
+	// services up (`container system start`) — without this probe Detect
+	// selects a runtime whose every call exits 1.
+	return a.systemRunning()
 }
 
 // systemRunning reports whether the Apple container system services (apiserver
