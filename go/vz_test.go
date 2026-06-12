@@ -36,6 +36,27 @@ func vzWriteGuestDir(t *testing.T, withCmdline bool, cmdline string) string {
 // artefacts (kernel + initrd.img [+ cmdline]). Relative to the package dir.
 const vzLiveFixtureDir = "testdata/vz"
 
+// vzFabricateTracked registers a synthetic tracked entry (no VM, no queue
+// behind it) so verb contract paths — status guards, Wait, Logs, Remove —
+// are testable without booting. Only safe for paths that never touch
+// entry.Machine/entry.Queue.
+func vzFabricateTracked(t *testing.T, p *VZProvider, ctr *Container) *vzTracked {
+	t.Helper()
+	entry := &vzTracked{Container: ctr, Done: make(chan struct{})}
+	vzProviderLock.Lock()
+	if p.tracked == nil {
+		p.tracked = make(map[string]*vzTracked)
+	}
+	p.tracked[ctr.ID] = entry
+	vzProviderLock.Unlock()
+	t.Cleanup(func() {
+		vzProviderLock.Lock()
+		delete(p.tracked, ctr.ID)
+		vzProviderLock.Unlock()
+	})
+	return entry
+}
+
 func TestVz_IsVZAvailable_Good(t *testing.T) {
 	auditTarget := "IsVZAvailable"
 	auditVariant := "Good"
@@ -279,6 +300,10 @@ func TestVz_BuildConfiguration_Good(t *testing.T) {
 	config := core.MustCast[vz.VZVirtualMachineConfiguration](r)
 	if config.ID == 0 {
 		t.Fatal("expected a live configuration object")
+	}
+	// §5 control channel: exactly one socket device rides every VM config.
+	if got := len(config.SocketDevices()); got != 1 {
+		t.Fatalf("expected 1 socket device, got %d", got)
 	}
 }
 
@@ -707,6 +732,124 @@ func TestVz_SerialLogTail_Ugly(t *testing.T) {
 	}
 	if got := vzSerialLogTail(logPath, 10); got != "only" {
 		t.Fatalf("unexpected tail %q", got)
+	}
+}
+
+func TestVz_Exec_Good(t *testing.T) {
+	auditTarget := "VZProvider Exec"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// The Good exec is a live guest round-trip — TestVz_Exec_LiveAgent_Good
+	// under its triple gate. Without a VM the contract is: a tracked but
+	// not-running container is refused BEFORE any vsock dial.
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	p := NewVZProvider()
+	ctr := &Container{ID: "vz-exec-good", Status: StatusStopped}
+	vzFabricateTracked(t, p, ctr)
+	r := p.Exec(ctr.ID, "uname", "-a")
+	if r.OK {
+		t.Fatal("expected refusal for a stopped container")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "not running") {
+		t.Fatalf("expected not-running refusal, got %v", r.Value)
+	}
+}
+
+func TestVz_Exec_Bad(t *testing.T) {
+	auditTarget := "VZProvider Exec"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	p := NewVZProvider()
+	if r := p.Exec("", "uname"); r.OK {
+		t.Fatal("expected error for empty id")
+	}
+	if r := p.Exec("some-id", ""); r.OK {
+		t.Fatal("expected error for empty command")
+	}
+	r := p.Exec("never-ran", "uname")
+	if r.OK {
+		t.Fatal("expected error for untracked id")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "not tracked") {
+		t.Fatalf("expected not-tracked error, got %v", r.Value)
+	}
+}
+
+func TestVz_Exec_Ugly(t *testing.T) {
+	auditTarget := "VZProvider Exec"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// On a simulated non-darwin host Exec fails with the §7 sentinel.
+	t.Setenv("GOOS", "linux")
+	p := NewVZProvider()
+	r := p.Exec("anything", "uname")
+	if r.OK {
+		t.Fatal("expected error")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "virtualization framework unavailable") {
+		t.Fatalf("expected §7 sentinel, got %v", r.Value)
+	}
+}
+
+// TestVz_Exec_LiveAgent_Good is the §6 Phase B proof: Exec(id, "uname",
+// "-a") returns guest output over the vsock control channel. Triple-gated:
+// CONTAINER_VZ_LIVE=1, CONTAINER_VZ_LIVE_AGENT=1 (the fixture image must
+// carry vzagent — see testdata/vz/linuxkit-vzagent.yml), and real artefacts
+// at testdata/vz/.
+func TestVz_Exec_LiveAgent_Good(t *testing.T) {
+	auditTarget := "VZProvider Exec LiveAgent"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if core.Env("CONTAINER_VZ_LIVE") != "1" {
+		t.Skip("live boot gated: set CONTAINER_VZ_LIVE=1")
+	}
+	if core.Env("CONTAINER_VZ_LIVE_AGENT") != "1" {
+		t.Skip("live agent gated: set CONTAINER_VZ_LIVE_AGENT=1 (image must carry vzagent)")
+	}
+	if !coreio.Local.IsFile(core.JoinPath(vzLiveFixtureDir, "kernel")) ||
+		!coreio.Local.IsFile(core.JoinPath(vzLiveFixtureDir, "initrd.img")) {
+		t.Skip("live boot gated: no LinuxKit artefacts at " + vzLiveFixtureDir)
+	}
+	p := NewVZProvider()
+	if !p.Available() {
+		t.Skip("virtualization framework not available")
+	}
+
+	r := p.Run(&Image{Path: vzLiveFixtureDir}, WithMemory(1024), WithCPUs(1), WithName("vz-live-agent-test"))
+	if !r.OK {
+		t.Fatalf("boot failed: %v", r.Value)
+	}
+	ctr := core.MustCast[*Container](r)
+	defer func() { _ = p.Kill(ctr.ID) }()
+
+	// Give the guest a moment to bring up the vsock driver and the agent.
+	time.Sleep(10 * time.Second)
+
+	execRes := p.Exec(ctr.ID, "uname", "-a")
+	if !execRes.OK {
+		t.Fatalf("exec failed: %v", execRes.Value)
+	}
+	out := core.MustCast[string](execRes)
+	if !core.Contains(out, "Linux") {
+		t.Fatalf("expected guest uname output, got %q", out)
+	}
+
+	// §5 graceful stop: the agent acks, the guest powers off, no force stop.
+	if r := p.Stop(ctr.ID); !r.OK {
+		t.Fatalf("graceful stop failed: %v", r.Value)
 	}
 }
 

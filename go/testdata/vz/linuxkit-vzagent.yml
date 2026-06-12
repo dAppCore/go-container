@@ -1,0 +1,55 @@
+# linuxkit-vzagent.yml — documentation artefact (RFC.vz.md §5, Phase B).
+#
+# Example LinuxKit configuration showing how the vzagent guest control agent
+# rides a kernel+initrd image as a service. This file is NOT built by tests;
+# it documents the baking recipe an image pipeline follows. Build the agent
+# first, from the module root:
+#
+#   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o vzagent ./cmd/vzagent
+#
+# then point `files[0].source` at the produced binary and build the image:
+#
+#   linuxkit build -format kernel+initrd linuxkit-vzagent.yml
+#
+# The output (kernel, initrd.img, cmdline) is exactly the §4 guest contract
+# the VZProvider boots. Drop the three artefacts (and optionally a disk.img)
+# into an image directory and pass that directory as Image.Path.
+#
+# Requirements encoded below:
+#   - virtio-vsock guest support: CONFIG_VIRTIO_VSOCKETS=y — standard in
+#     linuxkit kernel images; AF_VSOCK bind fails without it.
+#   - CAP_SYS_BOOT: the agent's stop verb powers the guest off via the
+#     reboot(2) syscall.
+#   - The agent listens on vsock port 1024 (vzproto.ControlPort); the host
+#     side of the channel is VZProvider.Exec / VZProvider.Stop.
+
+kernel:
+  image: linuxkit/kernel:6.6.71
+  cmdline: "console=hvc0"
+
+init:
+  - linuxkit/init:8eea386739975a43af558eec757a7dcb3a3d2e7b
+  - linuxkit/runc:667e7ea2c426a2460ca21e3da065a57dbb3369c9
+
+onboot:
+  - name: sysctl
+    image: linuxkit/sysctl:5f56434b81004b50121f18b8d4d8327ae0b966a8
+
+services:
+  # vzagent — the §5 control channel. The binary is injected into the root
+  # filesystem via the files: section and bind-mounted into a minimal
+  # service container that has the boot capability.
+  - name: vzagent
+    image: alpine:3.21
+    binds:
+      - /usr/bin/vzagent:/usr/bin/vzagent
+    command: ["/usr/bin/vzagent"]
+    capabilities:
+      - CAP_SYS_BOOT
+    net: host
+
+files:
+  - path: usr/bin/vzagent
+    # Cross-compiled host-side: CGO_ENABLED=0 GOOS=linux GOARCH=arm64.
+    source: ./vzagent
+    mode: "0755"

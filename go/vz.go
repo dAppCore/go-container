@@ -20,6 +20,9 @@ import (
 	"github.com/tmc/apple/foundation"
 	vz "github.com/tmc/apple/virtualization"
 	vzvm "github.com/tmc/apple/x/vzkit/vm"
+	vzvsock "github.com/tmc/apple/x/vzkit/vsock"
+
+	"dappco.re/go/container/internal/vzproto"
 )
 
 var vzProviderLock = core.New().Lock("container.vz.provider").Mutex
@@ -46,6 +49,12 @@ const (
 	vzWatchInterval = 500 * time.Millisecond
 	// vzLogTailLines is how many serial-console lines boot failures surface (§7).
 	vzLogTailLines = 5
+	// vzExecTimeout bounds one Exec round-trip on the vsock control channel.
+	vzExecTimeout = 60 * time.Second
+	// vzAgentStopTimeout bounds the agent-stop request inside the graceful
+	// Stop chain — a guest without a listening agent must not eat the whole
+	// StopDeadline before the fallback runs.
+	vzAgentStopTimeout = 5 * time.Second
 )
 
 // IsVZAvailable reports whether Virtualization.framework is usable in this
@@ -104,6 +113,9 @@ type vzTracked struct {
 	Queue     *vzvm.Queue
 	Config    vz.VZVirtualMachineConfiguration
 	Done      chan struct{}
+	// Vsock is the lazily-created control-channel manager (§5) wrapping the
+	// VM's VZVirtioSocketDevice. Nil until the first Exec/Stop needs it.
+	Vsock *vzvsock.Manager
 }
 
 // NewVZProvider returns a VZProvider with default retention and stop
@@ -269,6 +281,12 @@ func vzBuildConfiguration(art vzGuestArtefacts, logPath string, ro RunOptions) c
 	// Entropy (VZVirtioEntropyDeviceConfiguration).
 	entropyDevice := vz.NewVZVirtioEntropyDeviceConfiguration()
 	config.SetEntropyDevices([]vz.VZEntropyDeviceConfiguration{entropyDevice.VZEntropyDeviceConfiguration})
+
+	// Control channel — vsock (VZVirtioSocketDeviceConfiguration, §5). The
+	// running VM materialises the matching VZVirtioSocketDevice for the
+	// agent round-trips; exactly one socket device per configuration.
+	socketDevice := vz.NewVZVirtioSocketDeviceConfiguration()
+	config.SetSocketDevices([]vz.VZSocketDeviceConfiguration{socketDevice.VZSocketDeviceConfiguration})
 
 	return core.Ok(config)
 }
@@ -461,6 +479,154 @@ func (p *VZProvider) setStatus(entry *vzTracked, status Status) {
 	vzProviderLock.Unlock()
 }
 
+// status reads a tracked container's status under the provider lock.
+func (p *VZProvider) status(entry *vzTracked) Status {
+	vzProviderLock.Lock()
+	defer vzProviderLock.Unlock()
+	return entry.Container.Status
+}
+
+// vsockManager returns the entry's control-channel manager, creating it on
+// first use. The VZVirtioSocketDevice is read off the running VM on its own
+// dispatch queue (same queue discipline as lifecycle), and every framework
+// call the manager later makes is routed back through that queue.
+func (p *VZProvider) vsockManager(entry *vzTracked) core.Result { // Value: *vzvsock.Manager
+	vzProviderLock.Lock()
+	existing := entry.Vsock
+	vzProviderLock.Unlock()
+	if existing != nil {
+		return core.Ok(existing)
+	}
+
+	var mgr *vzvsock.Manager
+	var err error
+	entry.Queue.Sync(func() { mgr, err = vzvsock.NewManager(entry.Machine) })
+	if err != nil {
+		return core.Fail(core.E("VZProvider.vsockManager", "wrap VZVirtioSocketDevice", err))
+	}
+	mgr.DispatchFunc = entry.Queue.Sync
+
+	vzProviderLock.Lock()
+	if entry.Vsock == nil {
+		entry.Vsock = mgr
+	} else {
+		mgr = entry.Vsock // lost a benign race — reuse the winner
+	}
+	vzProviderLock.Unlock()
+	return core.Ok(mgr)
+}
+
+// vzVsockConn is the subset of net.Conn the control round-trip needs —
+// keeps vzAgentCall mockable and the import surface minimal.
+type vzVsockConn interface {
+	Read(p []byte) (int, error)
+	Write(p []byte) (int, error)
+	SetDeadline(t time.Time) error
+	Close() error
+}
+
+// vzConnectControl dials the guest control port under its own timeout.
+// VZVirtioSocketDevice's connect completion handler is documented to never
+// fire when the guest has no listener on the port (e.g. the vsock driver is
+// not up yet), so the dial itself must be bounded — an abandoned dial's
+// late connection is reaped and closed.
+func vzConnectControl(mgr *vzvsock.Manager, timeout time.Duration) core.Result { // Value: vzVsockConn
+	type dialResult struct {
+		conn vzVsockConn
+		err  error
+	}
+	dialled := make(chan dialResult, 1)
+	go func() {
+		conn, err := mgr.Connect(vzproto.ControlPort)
+		dialled <- dialResult{conn: conn, err: err}
+	}()
+	select {
+	case r := <-dialled:
+		if r.err != nil {
+			return core.Fail(core.E("vzConnectControl", "connect vsock control port", r.err))
+		}
+		return core.Ok(r.conn)
+	case <-time.After(timeout):
+		go func() { // reap a late connect so its fd never leaks
+			if r := <-dialled; r.conn != nil {
+				_ = r.conn.Close()
+			}
+		}()
+		return core.Fail(core.E("vzConnectControl", "vsock control port connect timed out (no guest agent listening?)", nil))
+	}
+}
+
+// vzAgentCall performs one control round-trip (§5): connect to the guest
+// agent's vsock port, exchange a single length-prefixed JSON frame pair
+// under deadline, close.
+func vzAgentCall(mgr *vzvsock.Manager, req vzproto.Request, timeout time.Duration) core.Result { // Value: vzproto.Response
+	if timeout <= 0 {
+		timeout = vzExecTimeout
+	}
+	connRes := vzConnectControl(mgr, timeout)
+	if !connRes.OK {
+		return connRes
+	}
+	conn := core.MustCast[vzVsockConn](connRes)
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		return core.Fail(core.E("vzAgentCall", "set control deadline", err))
+	}
+	resp, err := vzproto.RoundTrip(conn, req)
+	if err != nil {
+		return core.Fail(core.E("vzAgentCall", "control round-trip", err))
+	}
+	return core.Ok(resp)
+}
+
+// Exec runs a command inside the guest via the vsock control channel and
+// returns its stdout. A command that runs and exits non-zero fails with the
+// exit code and stderr named; a guest without a reachable agent fails with
+// the connect error (§5, §7).
+//
+// Usage:
+//
+//	out := core.MustCast[string](p.Exec(ctr.ID, "uname", "-a"))
+func (p *VZProvider) Exec(id, command string, args ...string) core.Result { // Value: string
+	if !p.Available() {
+		return vzUnavailable()
+	}
+	if id == "" {
+		return core.Fail(core.E("VZProvider.Exec", "container id is required", nil))
+	}
+	if command == "" {
+		return core.Fail(core.E("VZProvider.Exec", "command is required", nil))
+	}
+	entry := p.entry(id)
+	if entry == nil {
+		return core.Fail(core.E("VZProvider.Exec", "container not tracked: "+id, nil))
+	}
+	if status := p.status(entry); status != StatusRunning {
+		return core.Fail(core.E("VZProvider.Exec", "container not running: "+id+" ("+string(status)+")", nil))
+	}
+
+	mgrRes := p.vsockManager(entry)
+	if !mgrRes.OK {
+		return mgrRes
+	}
+	callRes := vzAgentCall(core.MustCast[*vzvsock.Manager](mgrRes), vzproto.Request{
+		Verb:    vzproto.VerbExec,
+		Command: command,
+		Args:    args,
+	}, vzExecTimeout)
+	if !callRes.OK {
+		return callRes
+	}
+	resp := core.MustCast[vzproto.Response](callRes)
+	if !resp.OK {
+		return core.Fail(core.E("VZProvider.Exec", "agent refused exec: "+resp.Error, nil))
+	}
+	if resp.Exit != 0 {
+		return core.Fail(core.E("VZProvider.Exec", core.Sprintf("command exited %d; stderr: %s", resp.Exit, resp.Stderr), nil))
+	}
+	return core.Ok(resp.Stdout)
+}
+
 // vzForceStop force-stops a VM and waits for the completion handler. A VM
 // that already reached Stopped between request and force counts as success.
 func vzForceStop(entry *vzTracked) core.Result { // Value: nil
@@ -483,8 +649,40 @@ func vzForceStop(entry *vzTracked) core.Result { // Value: nil
 	}
 }
 
-// Stop stops a VM gracefully: request a guest stop (when the guest supports
-// it), wait up to StopDeadline, then escalate to a VZ force stop (§3).
+// vzRequestAgentStop sends the guest agent the stop verb (§5: guest
+// poweroff). True means the agent acknowledged and a guest-side shutdown is
+// in flight; false means no agent answered — callers fall back.
+func (p *VZProvider) vzRequestAgentStop(entry *vzTracked) bool {
+	mgrRes := p.vsockManager(entry)
+	if !mgrRes.OK {
+		return false
+	}
+	callRes := vzAgentCall(core.MustCast[*vzvsock.Manager](mgrRes), vzproto.Request{Verb: vzproto.VerbStop}, vzAgentStopTimeout)
+	if !callRes.OK {
+		return false
+	}
+	return core.MustCast[vzproto.Response](callRes).OK
+}
+
+// vzRequestGuestStop asks the framework to deliver a guest stop request
+// (virtio power signal) — the agent-less graceful fallback. True means the
+// request was delivered.
+func vzRequestGuestStop(entry *vzTracked) bool {
+	var canRequest bool
+	entry.Queue.Sync(func() { canRequest = entry.Machine.CanRequestStop() })
+	if !canRequest {
+		return false
+	}
+	var requested bool
+	var requestErr error
+	entry.Queue.Sync(func() { requested, requestErr = entry.Machine.RequestStopWithError() })
+	return requested && requestErr == nil
+}
+
+// Stop stops a VM gracefully per the §5 chain: ask the guest agent to power
+// off over vsock; when no agent answers, deliver the framework's guest stop
+// request; wait up to StopDeadline for the guest to exit; escalate to a VZ
+// force stop when the deadline lapses.
 //
 // Usage:
 //
@@ -506,20 +704,17 @@ func (p *VZProvider) Stop(id string) core.Result { // Value: nil
 		deadline = 10 * time.Second
 	}
 
-	var canRequest bool
-	entry.Queue.Sync(func() { canRequest = entry.Machine.CanRequestStop() })
-	if canRequest {
-		var requested bool
-		var requestErr error
-		entry.Queue.Sync(func() { requested, requestErr = entry.Machine.RequestStopWithError() })
-		if requested && requestErr == nil {
-			select {
-			case <-entry.Done:
-				p.setStatus(entry, StatusStopped)
-				return core.Ok(nil)
-			case <-time.After(deadline):
-				// Guest ignored the request — escalate below.
-			}
+	graceful := p.vzRequestAgentStop(entry)
+	if !graceful {
+		graceful = vzRequestGuestStop(entry)
+	}
+	if graceful {
+		select {
+		case <-entry.Done:
+			p.setStatus(entry, StatusStopped)
+			return core.Ok(nil)
+		case <-time.After(deadline):
+			// Guest ignored the request — escalate below.
 		}
 	}
 
