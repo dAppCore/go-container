@@ -12,6 +12,7 @@ package container
 // VZProvider symbol.
 
 import (
+	"slices" // Note: AX-6 — deterministic volume ordering; no core sort primitive exists.
 	"time"
 
 	core "dappco.re/go"
@@ -41,6 +42,12 @@ const (
 	vzInitrdArtefact = "initrd.img"
 	// vzCmdlineArtefact is the §4 kernel command-line filename inside an image directory.
 	vzCmdlineArtefact = "cmdline"
+	// vzDiskArtefact is the §4 optional root-volume filename inside an image directory.
+	vzDiskArtefact = "disk.img"
+	// vzReadOnlySuffix marks a volume target read-only: WithVolumes(map[string]string{
+	// "/host/data.img": "/data:ro"}). Mirrors the docker -v host:guest:ro convention
+	// so the same option surface drives every provider.
+	vzReadOnlySuffix = ":ro"
 	// vzStartTimeout bounds how long Run waits for the VZ start completion handler.
 	vzStartTimeout = 60 * time.Second
 	// vzStopTimeout bounds how long Stop/Kill wait for the VZ stop completion handler.
@@ -152,6 +159,9 @@ type vzGuestArtefacts struct {
 	Initrd string
 	// Cmdline is the kernel command line (file contents, or the default).
 	Cmdline string
+	// Disk is the optional root-volume path (disk.img); "" when the image
+	// directory carries none.
+	Disk string
 }
 
 // vzResolveGuestArtefacts resolves kernel/initrd.img/cmdline inside an image
@@ -190,7 +200,99 @@ func vzResolveGuestArtefacts(dir string) core.Result { // Value: vzGuestArtefact
 			art.Cmdline = trimmed
 		}
 	}
+	if diskPath := core.JoinPath(dir, vzDiskArtefact); coreio.Local.IsFile(diskPath) {
+		art.Disk = diskPath
+	}
 	return core.Ok(art)
+}
+
+// vzVolumeSpec is one planned virtio block attachment: a host-side raw image
+// file exposed to the guest as a block device. Target is the guest-side
+// mount point declared by the caller — advisory at this layer (the guest's
+// init/agent decides mounts); ordering is what the host controls, so specs
+// are deterministic: root disk first, then volumes sorted by Target — the
+// guest sees /dev/vda, /dev/vdb… in that order.
+type vzVolumeSpec struct {
+	// Source is the host-side raw disk image path.
+	Source string
+	// Target is the guest-side mount point (advisory, ordering key).
+	Target string
+	// ReadOnly attaches the device read-only (":ro" target suffix).
+	ReadOnly bool
+}
+
+// vzVolumeSpecs plans the §4 block-device set for one run: the image
+// directory's optional disk.img root volume first (read-write), then every
+// RunOptions.Volumes entry (host image path → guest target) sorted by
+// target. A ":ro" suffix on the target marks the attachment read-only.
+// Pure planning — no framework calls, fully unit-testable.
+//
+// Usage:
+//
+//	r := vzVolumeSpecs(art, ApplyRunOptions(WithVolumes(map[string]string{"/host/data.img": "/data:ro"})))
+//	specs := core.MustCast[[]vzVolumeSpec](r)
+func vzVolumeSpecs(art vzGuestArtefacts, ro RunOptions) core.Result { // Value: []vzVolumeSpec
+	specs := make([]vzVolumeSpec, 0, len(ro.Volumes)+1)
+	if art.Disk != "" {
+		if !coreio.Local.IsFile(art.Disk) {
+			return core.Fail(core.E("vzVolumeSpecs", "root disk artefact missing: "+art.Disk, nil))
+		}
+		specs = append(specs, vzVolumeSpec{Source: art.Disk, Target: "/"})
+	}
+
+	volumes := make([]vzVolumeSpec, 0, len(ro.Volumes))
+	seen := make(map[string]string, len(ro.Volumes))
+	for source, target := range ro.Volumes {
+		readOnly := false
+		if core.HasSuffix(target, vzReadOnlySuffix) {
+			readOnly = true
+			target = core.TrimSuffix(target, vzReadOnlySuffix)
+		}
+		if source == "" || target == "" {
+			return core.Fail(core.E("vzVolumeSpecs", "volume source and target are required", nil))
+		}
+		if target == "/" {
+			return core.Fail(core.E("vzVolumeSpecs", "volume target / collides with the root disk", nil))
+		}
+		if previous, dup := seen[target]; dup {
+			return core.Fail(core.E("vzVolumeSpecs", "duplicate volume target "+target+" ("+previous+" and "+source+")", nil))
+		}
+		seen[target] = source
+		if !coreio.Local.IsFile(source) {
+			return core.Fail(core.E("vzVolumeSpecs", "volume source is not a file: "+source, nil))
+		}
+		volumes = append(volumes, vzVolumeSpec{Source: source, Target: target, ReadOnly: readOnly})
+	}
+	slices.SortFunc(volumes, func(a, b vzVolumeSpec) int {
+		return core.Compare(a.Target, b.Target)
+	})
+	return core.Ok(append(specs, volumes...))
+}
+
+// vzAttachStorage constructs a virtio block device per planned spec and sets
+// them on the configuration in plan order (VZDiskImageStorageDeviceAttachment
+// → VZVirtioBlockDeviceConfiguration). Construction needs no entitlement;
+// the framework opens each image file here, so a bad path fails loudly with
+// the file named (§7).
+func vzAttachStorage(config vz.VZVirtualMachineConfiguration, specs []vzVolumeSpec) core.Result { // Value: nil
+	if len(specs) == 0 {
+		return core.Ok(nil)
+	}
+	devices := make([]vz.VZStorageDeviceConfiguration, 0, len(specs))
+	for _, spec := range specs {
+		url := foundation.NewURLFileURLWithPath(spec.Source)
+		attachment, err := vz.NewDiskImageStorageDeviceAttachmentWithURLReadOnlyError(url, spec.ReadOnly)
+		if err != nil {
+			return core.Fail(core.E("vzAttachStorage", "create VZDiskImageStorageDeviceAttachment for "+spec.Source, err))
+		}
+		blockDevice := vz.NewVirtioBlockDeviceConfigurationWithAttachment(attachment)
+		if blockDevice.ID == 0 {
+			return core.Fail(core.E("vzAttachStorage", "create VZVirtioBlockDeviceConfiguration for "+spec.Source, nil))
+		}
+		devices = append(devices, blockDevice.VZStorageDeviceConfiguration)
+	}
+	config.SetStorageDevices(devices)
+	return core.Ok(nil)
 }
 
 // vzClampMemoryBytes converts a MB request to bytes inside the framework's
@@ -229,9 +331,11 @@ func vzClampCPUCount(cpus int) uint {
 
 // vzBuildConfiguration constructs the §4 device wiring for one VM:
 // VZLinuxBootLoader (kernel+initrd+cmdline), memory/cpu from RunOptions,
-// serial console to logPath, NAT network, entropy. Construction needs no
-// entitlement (verified empirically); validation does — see
-// vzValidateConfiguration, which Run performs before creating the VM.
+// serial console to logPath, NAT network, entropy, vsock control channel,
+// and virtio block storage (root disk.img + RunOptions.Volumes, in
+// vzVolumeSpecs plan order). Construction needs no entitlement (verified
+// empirically); validation does — see vzValidateConfiguration, which Run
+// performs before creating the VM.
 //
 // Usage:
 //
@@ -287,6 +391,16 @@ func vzBuildConfiguration(art vzGuestArtefacts, logPath string, ro RunOptions) c
 	// agent round-trips; exactly one socket device per configuration.
 	socketDevice := vz.NewVZVirtioSocketDeviceConfiguration()
 	config.SetSocketDevices([]vz.VZSocketDeviceConfiguration{socketDevice.VZSocketDeviceConfiguration})
+
+	// Storage — root disk.img + declared volumes as virtio block devices in
+	// deterministic plan order (§4; Phase C).
+	specsRes := vzVolumeSpecs(art, ro)
+	if !specsRes.OK {
+		return specsRes
+	}
+	if r := vzAttachStorage(config, core.MustCast[[]vzVolumeSpec](specsRes)); !r.OK {
+		return r
+	}
 
 	return core.Ok(config)
 }

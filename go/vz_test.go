@@ -208,6 +208,22 @@ func TestVz_ResolveGuestArtefacts_Good(t *testing.T) {
 	if got, want := art.Cmdline, "console=hvc0 loglevel=7"; got != want {
 		t.Fatalf("want %q, got %q", want, got)
 	}
+	// No disk.img in the directory → no root disk resolved (§4 optional).
+	if art.Disk != "" {
+		t.Fatalf("expected no root disk, got %q", art.Disk)
+	}
+
+	// A disk.img present in the directory resolves as the root volume.
+	if err := coreio.Local.Write(core.JoinPath(dir, "disk.img"), "not-a-real-disk"); err != nil {
+		t.Fatalf("write disk: %v", err)
+	}
+	r2 := vzResolveGuestArtefacts(dir)
+	if !r2.OK {
+		t.Fatalf("expected ok, got %v", r2.Value)
+	}
+	if got, want := core.MustCast[vzGuestArtefacts](r2).Disk, core.JoinPath(dir, "disk.img"); got != want {
+		t.Fatalf("want %q, got %q", want, got)
+	}
 }
 
 func TestVz_ResolveGuestArtefacts_Bad(t *testing.T) {
@@ -277,6 +293,181 @@ func TestVz_ResolveGuestArtefacts_Ugly(t *testing.T) {
 	}
 }
 
+// vzWriteVolumeFile lays out a minimal RAW disk image for volume tests:
+// 1MiB of zeros. Empirical framework contract: the
+// VZDiskImageStorageDeviceAttachment constructor validates the image format
+// ("Invalid disk image. The disk image format is not recognized.") — raw
+// images must be sector-aligned, so an arbitrary text blob is rejected at
+// construction, not at boot.
+func vzWriteVolumeFile(t *testing.T, name string) string {
+	t.Helper()
+	path := core.JoinPath(t.TempDir(), name)
+	if err := coreio.Local.Write(path, string(make([]byte, 1<<20))); err != nil {
+		t.Fatalf("write volume file: %v", err)
+	}
+	return path
+}
+
+func TestVz_VolumeSpecs_Good(t *testing.T) {
+	auditTarget := "vzVolumeSpecs"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// Root disk first, then volumes sorted by target — deterministic
+	// /dev/vdX ordering regardless of map iteration; :ro parses off.
+	disk := vzWriteVolumeFile(t, "disk.img")
+	volB := vzWriteVolumeFile(t, "b.img")
+	volA := vzWriteVolumeFile(t, "a.img")
+	r := vzVolumeSpecs(vzGuestArtefacts{Disk: disk}, ApplyRunOptions(WithVolumes(map[string]string{
+		volB: "/srv/b",
+		volA: "/data/a:ro",
+	})))
+	if !r.OK {
+		t.Fatalf("expected ok, got %v", r.Value)
+	}
+	specs := core.MustCast[[]vzVolumeSpec](r)
+	if len(specs) != 3 {
+		t.Fatalf("expected 3 specs, got %d", len(specs))
+	}
+	if specs[0].Source != disk || specs[0].Target != "/" || specs[0].ReadOnly {
+		t.Fatalf("expected read-write root disk first, got %+v", specs[0])
+	}
+	if specs[1].Target != "/data/a" || !specs[1].ReadOnly || specs[1].Source != volA {
+		t.Fatalf("expected sorted read-only /data/a second, got %+v", specs[1])
+	}
+	if specs[2].Target != "/srv/b" || specs[2].ReadOnly || specs[2].Source != volB {
+		t.Fatalf("expected read-write /srv/b third, got %+v", specs[2])
+	}
+}
+
+func TestVz_VolumeSpecs_Bad(t *testing.T) {
+	auditTarget := "vzVolumeSpecs"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// A missing volume source fails with the file named.
+	missing := core.JoinPath(t.TempDir(), "missing.img")
+	r := vzVolumeSpecs(vzGuestArtefacts{}, ApplyRunOptions(WithVolumes(map[string]string{missing: "/data"})))
+	if r.OK {
+		t.Fatal("expected error for missing source")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), missing) {
+		t.Fatalf("expected source-naming error, got %v", r.Value)
+	}
+	// A directory source is not a raw image.
+	r2 := vzVolumeSpecs(vzGuestArtefacts{}, ApplyRunOptions(WithVolumes(map[string]string{t.TempDir(): "/data"})))
+	if r2.OK {
+		t.Fatal("expected error for directory source")
+	}
+	// An empty target (also the bare ":ro" form) is refused.
+	vol := vzWriteVolumeFile(t, "v.img")
+	if r := vzVolumeSpecs(vzGuestArtefacts{}, ApplyRunOptions(WithVolumes(map[string]string{vol: ":ro"}))); r.OK {
+		t.Fatal("expected error for empty target")
+	}
+	// A volume targeting / collides with the root disk's seat.
+	if r := vzVolumeSpecs(vzGuestArtefacts{}, ApplyRunOptions(WithVolumes(map[string]string{vol: "/"}))); r.OK {
+		t.Fatal("expected error for / target")
+	}
+}
+
+func TestVz_VolumeSpecs_Ugly(t *testing.T) {
+	auditTarget := "vzVolumeSpecs"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// No disk, no volumes → empty plan, storage stays unset.
+	r := vzVolumeSpecs(vzGuestArtefacts{}, ApplyRunOptions())
+	if !r.OK {
+		t.Fatalf("expected ok, got %v", r.Value)
+	}
+	if got := len(core.MustCast[[]vzVolumeSpec](r)); got != 0 {
+		t.Fatalf("expected empty plan, got %d", got)
+	}
+	// Two sources claiming one target is ambiguous — refused, not last-wins.
+	volA := vzWriteVolumeFile(t, "a.img")
+	volB := vzWriteVolumeFile(t, "b.img")
+	r2 := vzVolumeSpecs(vzGuestArtefacts{}, ApplyRunOptions(WithVolumes(map[string]string{
+		volA: "/data",
+		volB: "/data:ro",
+	})))
+	if r2.OK {
+		t.Fatal("expected error for duplicate target")
+	}
+	if err, ok := r2.Value.(error); !ok || !core.Contains(err.Error(), "duplicate") {
+		t.Fatalf("expected duplicate-target error, got %v", r2.Value)
+	}
+}
+
+func TestVz_AttachStorage_Good(t *testing.T) {
+	auditTarget := "vzAttachStorage"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// Attachment construction opens the image files but needs no entitlement
+	// and no boot — the §2.2 construction/validation split.
+	config := vz.NewVZVirtualMachineConfiguration()
+	disk := vzWriteVolumeFile(t, "disk.img")
+	vol := vzWriteVolumeFile(t, "data.img")
+	r := vzAttachStorage(config, []vzVolumeSpec{
+		{Source: disk, Target: "/"},
+		{Source: vol, Target: "/data", ReadOnly: true},
+	})
+	if !r.OK {
+		t.Fatalf("expected ok, got %v", r.Value)
+	}
+	if got := len(config.StorageDevices()); got != 2 {
+		t.Fatalf("expected 2 storage devices, got %d", got)
+	}
+}
+
+func TestVz_AttachStorage_Bad(t *testing.T) {
+	auditTarget := "vzAttachStorage"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// A vanished source fails at attachment construction with the file named
+	// — the framework opens the image here, not at boot.
+	config := vz.NewVZVirtualMachineConfiguration()
+	missing := core.JoinPath(t.TempDir(), "gone.img")
+	r := vzAttachStorage(config, []vzVolumeSpec{{Source: missing, Target: "/data"}})
+	if r.OK {
+		t.Fatal("expected error for missing image file")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), missing) {
+		t.Fatalf("expected file-naming error, got %v", r.Value)
+	}
+}
+
+func TestVz_AttachStorage_Ugly(t *testing.T) {
+	auditTarget := "vzAttachStorage"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// An empty plan is a no-op: no devices set, no framework calls, OK.
+	config := vz.NewVZVirtualMachineConfiguration()
+	if r := vzAttachStorage(config, nil); !r.OK {
+		t.Fatalf("expected ok for empty plan, got %v", r.Value)
+	}
+	if got := len(config.StorageDevices()); got != 0 {
+		t.Fatalf("expected no storage devices, got %d", got)
+	}
+}
+
 func TestVz_BuildConfiguration_Good(t *testing.T) {
 	auditTarget := "vzBuildConfiguration"
 	auditVariant := "Good"
@@ -304,6 +495,28 @@ func TestVz_BuildConfiguration_Good(t *testing.T) {
 	// §5 control channel: exactly one socket device rides every VM config.
 	if got := len(config.SocketDevices()); got != 1 {
 		t.Fatalf("expected 1 socket device, got %d", got)
+	}
+	// No disk.img, no volumes → no storage devices on the config.
+	if got := len(config.StorageDevices()); got != 0 {
+		t.Fatalf("expected no storage devices, got %d", got)
+	}
+
+	// With a root disk and a declared volume the config carries both, in
+	// plan order (§4 root first). The root image must be sector-aligned RAW
+	// — the attachment constructor validates the format (see
+	// vzWriteVolumeFile).
+	if err := coreio.Local.Write(core.JoinPath(dir, "disk.img"), string(make([]byte, 1<<20))); err != nil {
+		t.Fatalf("write disk: %v", err)
+	}
+	vol := vzWriteVolumeFile(t, "data.img")
+	art2 := core.MustCast[vzGuestArtefacts](vzResolveGuestArtefacts(dir))
+	r2 := vzBuildConfiguration(art2, core.JoinPath(t.TempDir(), "vm2.log"),
+		ApplyRunOptions(WithMemory(1024), WithCPUs(1), WithVolumes(map[string]string{vol: "/data:ro"})))
+	if !r2.OK {
+		t.Fatalf("expected ok with storage, got %v", r2.Value)
+	}
+	if got := len(core.MustCast[vz.VZVirtualMachineConfiguration](r2).StorageDevices()); got != 2 {
+		t.Fatalf("expected 2 storage devices, got %d", got)
 	}
 }
 
