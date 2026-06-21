@@ -88,6 +88,28 @@ type RunOptions struct {
 	// subnet, so a public resolver is the reliable default; override here for
 	// split-DNS / private resolvers.
 	DNS []string
+	// FSShares lists host directories shared into the guest as virtio-fs
+	// devices (VZProvider). Unlike Volumes — which expose raw image files as
+	// block devices the guest must format — a share is a live, host-visible
+	// directory the guest mounts by tag, the workspace contract agent dispatch
+	// needs. Order is the mount order; providers without virtio-fs ignore it.
+	FSShares []FSShare
+}
+
+// FSShare is one host directory shared into a guest as a virtio-fs device
+// (VZProvider). Tag names the device inside the guest, which mounts it with
+// `mount -t virtiofs <Tag> <dir>`; HostDir is the host-side directory exposed.
+//
+// Usage:
+//
+//	p.Run(img, container.WithSharedDir("/Users/me/workspace", "workspace"))
+type FSShare struct {
+	// HostDir is the host-side directory exposed to the guest.
+	HostDir string
+	// Tag identifies the device inside the guest (the virtio-fs mount tag).
+	Tag string
+	// ReadOnly shares the directory read-only when set.
+	ReadOnly bool
 }
 
 // ReadCloser is the stream contract returned by Manager.Logs.

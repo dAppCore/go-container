@@ -220,6 +220,33 @@ func WithVolumes(vols map[string]string) RunOption {
 	}
 }
 
+// WithSharedDir shares a host directory into the guest as a read-write
+// virtio-fs device (VZProvider). The guest mounts it by tag with
+// `mount -t virtiofs <tag> <dir>`. Unlike WithVolumes — raw image files the
+// guest must format — a share is a live, host-visible directory: the workspace
+// contract agent dispatch needs. Providers without virtio-fs ignore it.
+//
+// Usage:
+//
+//	p.Run(img, container.WithSharedDir("/Users/me/workspace", "workspace"))
+func WithSharedDir(hostDir, tag string) RunOption {
+	return func(o *RunOptions) {
+		o.FSShares = append(o.FSShares, FSShare{HostDir: hostDir, Tag: tag})
+	}
+}
+
+// WithSharedDirRO shares a host directory into the guest read-only, otherwise
+// identical to WithSharedDir. Use for inputs the guest must not mutate.
+//
+// Usage:
+//
+//	p.Run(img, container.WithSharedDirRO("/Users/me/inputs", "inputs"))
+func WithSharedDirRO(hostDir, tag string) RunOption {
+	return func(o *RunOptions) {
+		o.FSShares = append(o.FSShares, FSShare{HostDir: hostDir, Tag: tag, ReadOnly: true})
+	}
+}
+
 // WithArgs sets the container command/arguments, passed after the image
 // (e.g. WithArgs("sleep", "300")). Empty runs the image's default entrypoint.
 //

@@ -21,6 +21,7 @@ import (
 
 	"github.com/tmc/apple/foundation"
 	vz "github.com/tmc/apple/virtualization"
+	vzvirtiofs "github.com/tmc/apple/x/vzkit/virtiofs"
 	vzvm "github.com/tmc/apple/x/vzkit/vm"
 	vzvsock "github.com/tmc/apple/x/vzkit/vsock"
 
@@ -327,6 +328,57 @@ func vzAttachStorage(config vz.VZVirtualMachineConfiguration, specs []vzVolumeSp
 	return core.Ok(nil)
 }
 
+// vzAttachFileSystems constructs a virtio-fs directory-sharing device per
+// share and sets them on the configuration in slice order
+// (VZSharedDirectory → VZSingleDirectoryShare → VZVirtioFileSystemDeviceConfiguration).
+// Unlike block volumes (raw images the guest formats), a share is a live,
+// host-visible directory — the read-write workspace agent dispatch needs.
+//
+// Each share's Tag names the device inside the guest; the guest mounts it with
+//
+//	mount -t virtiofs <tag> <dir>
+//
+// where <dir> is the guest-side mount point (guest-image responsibility,
+// SP3-U2). HostDir and Tag are validated before any framework call, so a bad
+// share fails loudly here with the offending value named (§7); empty/bad
+// inputs need no entitlement to reject. Device construction mirrors
+// vzAttachStorage — it needs no entitlement and no boot (the construction /
+// validation split); the vzkit/virtiofs helper owns the objc retain chain so
+// the shared-directory object graph survives until the VM holds it.
+func vzAttachFileSystems(config vz.VZVirtualMachineConfiguration, shares []FSShare) core.Result { // Value: nil
+	if len(shares) == 0 {
+		return core.Ok(nil)
+	}
+	mounts := make([]vzvirtiofs.Mount, 0, len(shares))
+	seen := make(map[string]string, len(shares))
+	for _, share := range shares {
+		if share.HostDir == "" || share.Tag == "" {
+			return core.Fail(core.E("vzAttachFileSystems", "share host directory and tag are required", nil))
+		}
+		if previous, dup := seen[share.Tag]; dup {
+			return core.Fail(core.E("vzAttachFileSystems", "duplicate share tag "+share.Tag+" ("+previous+" and "+share.HostDir+")", nil))
+		}
+		seen[share.Tag] = share.HostDir
+		if !coreio.Local.IsDir(share.HostDir) {
+			return core.Fail(core.E("vzAttachFileSystems", "share host directory is not a directory: "+share.HostDir, nil))
+		}
+		mounts = append(mounts, vzvirtiofs.Mount{HostPath: share.HostDir, Tag: share.Tag, ReadOnly: share.ReadOnly})
+	}
+	fsConfigs, err := vzvirtiofs.CreateDevices(mounts)
+	if err != nil {
+		return core.Fail(core.E("vzAttachFileSystems", "create virtio-fs devices", err))
+	}
+	devices := make([]vz.VZDirectorySharingDeviceConfiguration, 0, len(fsConfigs))
+	for _, fsConfig := range fsConfigs {
+		if fsConfig.ID == 0 {
+			return core.Fail(core.E("vzAttachFileSystems", "create VZVirtioFileSystemDeviceConfiguration", nil))
+		}
+		devices = append(devices, fsConfig.VZDirectorySharingDeviceConfiguration)
+	}
+	config.SetDirectorySharingDevices(devices)
+	return core.Ok(nil)
+}
+
 // vzClampMemoryBytes converts a MB request to bytes inside the framework's
 // allowed envelope. Zero requests take the module default before clamping.
 func vzClampMemoryBytes(memoryMB int) uint64 {
@@ -431,6 +483,12 @@ func vzBuildConfiguration(art vzGuestArtefacts, logPath string, ro RunOptions) c
 		return specsRes
 	}
 	if r := vzAttachStorage(config, core.MustCast[[]vzVolumeSpec](specsRes)); !r.OK {
+		return r
+	}
+
+	// Shared host directories as virtio-fs devices — the host-visible
+	// read-write workspace block volumes cannot provide (SP3-U1).
+	if r := vzAttachFileSystems(config, ro.FSShares); !r.OK {
 		return r
 	}
 
@@ -840,6 +898,80 @@ func (p *VZProvider) Exec(id, command string, args ...string) core.Result { // V
 		return core.Fail(core.E("VZProvider.Exec", core.Sprintf("command exited %d; stderr: %s", resp.Exit, resp.Stderr), nil))
 	}
 	return core.Ok(resp.Stdout)
+}
+
+// ExecResult is the full outcome of a guest command: its captured streams and
+// exit code. A non-zero Exit is a successful exec (the command ran and exited),
+// not a verb failure — agent dispatch needs the real code and stderr that the
+// lossy Exec folds away.
+//
+// Usage:
+//
+//	res := core.MustCast[ExecResult](p.ExecResult(ctr.ID, "go", "test", "./..."))
+type ExecResult struct {
+	// Stdout is the captured standard output of the command.
+	Stdout string
+	// Stderr is the captured standard error of the command.
+	Stderr string
+	// Exit is the command's exit code (0 when it succeeded).
+	Exit int
+}
+
+// vzExecResult maps a §5 agent Response onto the ExecResult contract: a
+// refused verb (OK=false) is a failure naming the agent's error; an exec the
+// agent carried out is core.Ok(ExecResult) regardless of Exit — a command that
+// ran and exited non-zero is a successful exec. Pure mapping, so the
+// Response→ExecResult contract that distinguishes ExecResult from Exec
+// unit-tests without a live VM.
+func vzExecResult(resp vzproto.Response) core.Result { // Value: ExecResult
+	if !resp.OK {
+		return core.Fail(core.E("VZProvider.ExecResult", "agent refused exec: "+resp.Error, nil))
+	}
+	return core.Ok(ExecResult{Stdout: resp.Stdout, Stderr: resp.Stderr, Exit: resp.Exit})
+}
+
+// ExecResult runs a command inside the guest via the vsock control channel and
+// returns its full outcome — stdout, stderr and exit code (§5). Unlike Exec, a
+// command that runs and exits non-zero succeeds at the verb level with the
+// exit code and stderr preserved; only a verb-level failure (framework
+// unavailable, container not tracked or not running, transport error, or an
+// agent that refused the exec) returns core.Fail.
+//
+// Usage:
+//
+//	res := core.MustCast[ExecResult](p.ExecResult(ctr.ID, "go", "test", "./..."))
+//	if res.Exit != 0 { /* tests failed — res.Stderr has why */ }
+func (p *VZProvider) ExecResult(id, command string, args ...string) core.Result { // Value: ExecResult
+	if !p.Available() {
+		return vzUnavailable()
+	}
+	if id == "" {
+		return core.Fail(core.E("VZProvider.ExecResult", "container id is required", nil))
+	}
+	if command == "" {
+		return core.Fail(core.E("VZProvider.ExecResult", "command is required", nil))
+	}
+	entry := p.entry(id)
+	if entry == nil {
+		return core.Fail(core.E("VZProvider.ExecResult", "container not tracked: "+id, nil))
+	}
+	if status := p.status(entry); status != StatusRunning {
+		return core.Fail(core.E("VZProvider.ExecResult", "container not running: "+id+" ("+string(status)+")", nil))
+	}
+
+	mgrRes := p.vsockManager(entry)
+	if !mgrRes.OK {
+		return mgrRes
+	}
+	callRes := vzAgentCall(core.MustCast[*vzvsock.Manager](mgrRes), vzproto.Request{
+		Verb:    vzproto.VerbExec,
+		Command: command,
+		Args:    args,
+	}, vzExecTimeout)
+	if !callRes.OK {
+		return callRes
+	}
+	return vzExecResult(core.MustCast[vzproto.Response](callRes))
 }
 
 // vzForceStop force-stops a VM and waits for the completion handler. A VM
