@@ -83,8 +83,9 @@ func TestVzproto_Shell_Good(t *testing.T) {
 	// and returns the shell's exit code from the exit frame.
 	client, srv := net.Pipe()
 	pty := newFakePTY(7)
+	agent := &shellAgent{pty: pty}
 	served := make(chan error, 1)
-	go func() { served <- Serve(srv, &shellAgent{pty: pty}) }()
+	go func() { served <- Serve(srv, agent) }()
 
 	type outcome struct {
 		code int
@@ -93,7 +94,7 @@ func TestVzproto_Shell_Good(t *testing.T) {
 	result := make(chan outcome, 1)
 	var stdout bytes.Buffer
 	go func() {
-		code, err := ShellClient(client, strings.NewReader(""), &stdout, nil, WinSize{Cols: 80, Rows: 24})
+		code, err := ShellClient(client, strings.NewReader(""), &stdout, nil, WinSize{Cols: 80, Rows: 24}, "/bin/sh")
 		result <- outcome{code, err}
 	}()
 
@@ -116,6 +117,9 @@ func TestVzproto_Shell_Good(t *testing.T) {
 	client.Close()
 	if err := <-served; err != nil {
 		t.Fatalf("serve: %v", err)
+	}
+	if agent.opened.Command != "/bin/sh" {
+		t.Fatalf("OpenShell command = %q, want /bin/sh forwarded by ShellClient", agent.opened.Command)
 	}
 }
 
@@ -196,7 +200,7 @@ func TestVzproto_Shell_Bad(t *testing.T) {
 	// the reason, not a hang.
 	client, srv := net.Pipe()
 	go func() { _ = Serve(srv, &shellAgent{openErr: errors.New("no pty available")}) }()
-	if _, err := ShellClient(client, strings.NewReader(""), io.Discard, nil, WinSize{Cols: 80, Rows: 24}); err == nil {
+	if _, err := ShellClient(client, strings.NewReader(""), io.Discard, nil, WinSize{Cols: 80, Rows: 24}, ""); err == nil {
 		t.Fatal("expected refusal error")
 	} else if !strings.Contains(err.Error(), "no pty available") {
 		t.Fatalf("error = %v, want guest refusal reason", err)
@@ -208,7 +212,7 @@ func TestVzproto_Shell_Unsupported_Bad(t *testing.T) {
 	// the batch path is untouched.
 	client, srv := net.Pipe()
 	go func() { _ = Serve(srv, echoHandler{}) }()
-	if _, err := ShellClient(client, strings.NewReader(""), io.Discard, nil, WinSize{Cols: 80, Rows: 24}); err == nil {
+	if _, err := ShellClient(client, strings.NewReader(""), io.Discard, nil, WinSize{Cols: 80, Rows: 24}, ""); err == nil {
 		t.Fatal("expected unsupported-shell error")
 	}
 }
@@ -222,7 +226,7 @@ func TestVzproto_Shell_Ugly(t *testing.T) {
 		_ = WriteResponse(srv, Response{OK: true}) // ack
 		srv.Close()                                // abrupt mid-session death
 	}()
-	code, err := ShellClient(client, strings.NewReader(""), io.Discard, nil, WinSize{Cols: 80, Rows: 24})
+	code, err := ShellClient(client, strings.NewReader(""), io.Discard, nil, WinSize{Cols: 80, Rows: 24}, "")
 	if err != nil {
 		t.Fatalf("expected clean EOF handling, got %v", err)
 	}

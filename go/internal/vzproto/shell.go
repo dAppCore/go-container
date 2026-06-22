@@ -90,15 +90,16 @@ type ShellHandler interface {
 }
 
 // ShellClient runs the host side of an interactive session over rw. It sends the
-// VerbShell handshake carrying the initial window size, reads the ack, then
-// forwards stdin→guest and guest stdout→stdout, relays resize events, and
-// returns the shell's exit code when the exit frame arrives. It does not touch
-// the terminal: the caller sets raw mode and, on return, closes stdin or rw to
-// release the input pump (process teardown does this for a real terminal).
+// VerbShell handshake carrying the shell to launch and the initial window size,
+// reads the ack, then forwards stdin→guest and guest stdout→stdout, relays
+// resize events, and returns the shell's exit code when the exit frame arrives.
+// An empty shell uses the guest default. It does not touch the terminal: the
+// caller sets raw mode and, on return, closes stdin or rw to release the input
+// pump (process teardown does this for a real terminal).
 //
-//	code, err := ShellClient(conn, os.Stdin, os.Stdout, resizes, WinSize{80, 24})
-func ShellClient(rw io.ReadWriter, stdin io.Reader, stdout io.Writer, resize <-chan WinSize, initial WinSize) (int, error) {
-	if err := WriteRequest(rw, Request{Verb: VerbShell, Cols: initial.Cols, Rows: initial.Rows}); err != nil {
+//	code, err := ShellClient(conn, os.Stdin, os.Stdout, resizes, WinSize{80, 24}, "/bin/sh")
+func ShellClient(rw io.ReadWriter, stdin io.Reader, stdout io.Writer, resize <-chan WinSize, initial WinSize, shell string) (int, error) {
+	if err := WriteRequest(rw, Request{Verb: VerbShell, Command: shell, Cols: initial.Cols, Rows: initial.Rows}); err != nil {
 		return 0, err
 	}
 	ack, err := ReadResponse(rw)

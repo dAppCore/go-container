@@ -33,7 +33,10 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 )
 
-require github.com/tmc/apple v0.6.12
+require (
+	github.com/creack/pty v1.1.24
+	github.com/tmc/apple v0.6.12
+)
 
 require (
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
