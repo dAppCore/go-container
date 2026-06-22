@@ -50,10 +50,17 @@ const (
 type Request struct {
 	// Verb selects the agent action: exec, status or stop.
 	Verb string `json:"verb"`
-	// Command is the exec argv[0]; ignored by status and stop.
+	// Command is the exec argv[0]; ignored by status and stop. For VerbShell it
+	// names the shell to launch (empty uses the guest default).
 	Command string `json:"command,omitempty"`
 	// Args is the exec argv[1:]; ignored by status and stop.
 	Args []string `json:"args,omitempty"`
+	// Cols is the initial PTY width for VerbShell; zero (omitted) for every
+	// batch verb, so their wire bytes are unchanged.
+	Cols int `json:"cols,omitempty"`
+	// Rows is the initial PTY height for VerbShell; zero (omitted) for every
+	// batch verb, so their wire bytes are unchanged.
+	Rows int `json:"rows,omitempty"`
 }
 
 // Response is one guest→host control frame answering a Request.
@@ -184,6 +191,18 @@ func Serve(rw io.ReadWriter, h Handler) error {
 				return nil
 			}
 			return err
+		}
+		// VerbShell switches the connection to interactive ShellFrame streaming
+		// and returns; the batch verbs below are reached only for non-shell
+		// frames, so their handling is byte-for-byte unchanged.
+		if req.Verb == VerbShell {
+			if shellHandler, ok := h.(ShellHandler); ok {
+				return serveShellSession(rw, req, shellHandler)
+			}
+			if err := WriteResponse(rw, Response{OK: false, Error: "shell not supported by this agent"}); err != nil {
+				return err
+			}
+			continue
 		}
 		resp := h.Handle(req)
 		if err := WriteResponse(rw, resp); err != nil {
