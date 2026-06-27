@@ -18,6 +18,9 @@ func TestProvider_ApplyRunOptions_Good(t *testing.T) {
 		WithDetach(true),
 		WithPorts(map[int]int{8080: 80}),
 		WithVolumes(map[string]string{"/data": "/app/data"}),
+		WithArgs("serve", "--port", "8080"),
+		WithEnv("PORT=8080", "MODE=test"),
+		WithDNS("1.1.1.1", "8.8.8.8"),
 	)
 	if got, want := opts.Name, "api"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
@@ -35,6 +38,15 @@ func TestProvider_ApplyRunOptions_Good(t *testing.T) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
 	if got, want := opts.Volumes["/data"], "/app/data"; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Args, []string{"serve", "--port", "8080"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Env, []string{"PORT=8080", "MODE=test"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.DNS, []string{"1.1.1.1", "8.8.8.8"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
 }
@@ -64,6 +76,12 @@ func TestProvider_ApplyRunOptions_OverwriteAndMerge_Ugly(t *testing.T) {
 		WithMemory(4096),
 		WithPorts(map[int]int{8080: 80}),
 		WithPorts(map[int]int{9090: 90}),
+		WithArgs("one"),
+		WithArgs("two", "three"),
+		WithEnv("A=1"),
+		WithEnv("B=2"),
+		WithDNS("9.9.9.9"),
+		WithDNS("4.4.4.4"),
 	)
 	if got, want := opts.Memory, 4096; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
@@ -72,6 +90,15 @@ func TestProvider_ApplyRunOptions_OverwriteAndMerge_Ugly(t *testing.T) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
 	if got, want := opts.Ports[9090], 90; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Args, []string{"one", "two", "three"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.Env, []string{"A=1", "B=2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	if got, want := opts.DNS, []string{"9.9.9.9", "4.4.4.4"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
 }
@@ -489,5 +516,59 @@ func TestProvider_ApplyRunOptions_Ugly(t *testing.T) {
 	}
 	if got := linked; !got {
 		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestProvider_WithSharedDir_Good(t *testing.T) {
+	auditTarget := "WithSharedDir"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// Read-write by default; shares fold in declaration order onto FSShares.
+	o := ApplyRunOptions(WithSharedDir("/host/work", "workspace"))
+	if len(o.FSShares) != 1 {
+		t.Fatalf("FSShares len = %d, want 1", len(o.FSShares))
+	}
+	got := o.FSShares[0]
+	if got.HostDir != "/host/work" || got.Tag != "workspace" || got.ReadOnly {
+		t.Fatalf("WithSharedDir => %+v, want read-write /host/work as workspace", got)
+	}
+}
+
+func TestProvider_WithSharedDir_Bad(t *testing.T) {
+	auditTarget := "WithSharedDirRO"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// The RO variant marks the share read-only — the only difference from
+	// WithSharedDir. Option-folding records the request verbatim; the
+	// directory itself is validated later by the provider (vzAttachFileSystems).
+	o := ApplyRunOptions(WithSharedDirRO("/host/inputs", "inputs"))
+	if len(o.FSShares) != 1 || !o.FSShares[0].ReadOnly {
+		t.Fatalf("WithSharedDirRO => %+v, want a read-only share", o.FSShares)
+	}
+}
+
+func TestProvider_WithSharedDir_Ugly(t *testing.T) {
+	auditTarget := "WithSharedDir"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// Multiple shares — including a mix of rw/ro and even empty values —
+	// accumulate in order; the option layer never dedups or validates, that is
+	// the provider's job at Run.
+	o := ApplyRunOptions(
+		WithSharedDir("/a", "a"),
+		WithSharedDirRO("/b", "b"),
+		WithSharedDir("", ""),
+	)
+	if len(o.FSShares) != 3 {
+		t.Fatalf("FSShares len = %d, want 3 (%+v)", len(o.FSShares), o.FSShares)
+	}
+	if o.FSShares[0].Tag != "a" || o.FSShares[1].Tag != "b" || !o.FSShares[1].ReadOnly {
+		t.Fatalf("order or ro flag wrong: %+v", o.FSShares)
 	}
 }

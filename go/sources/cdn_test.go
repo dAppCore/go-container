@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 
 	core "dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
@@ -13,6 +14,10 @@ import (
 	"reflect"
 	"testing"
 )
+
+type failingEnsureDirMedium struct{ io.Medium }
+
+func (failingEnsureDirMedium) EnsureDir(string) error { return errors.New("ensure failed") }
 
 func TestCDNSource_Available_Good(t *testing.T) {
 	auditTarget := "Available"
@@ -163,6 +168,36 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	})
+
+	t.Run("Malformed URL", func(t *testing.T) {
+		dest := t.TempDir()
+		src := NewCDNSource(SourceConfig{
+			CDNURL:    "://bad",
+			ImageName: "test.img",
+		})
+
+		r := src.Download(context.Background(), io.Local, dest, nil)
+		if r.OK {
+			t.Fatal("expected request creation error")
+		}
+	})
+
+	t.Run("EnsureDir error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = goio.WriteString(w, "image")
+		}))
+		defer server.Close()
+
+		src := NewCDNSource(SourceConfig{
+			CDNURL:    server.URL,
+			ImageName: "test.img",
+		})
+		r := src.Download(context.Background(), failingEnsureDirMedium{Medium: io.Local}, t.TempDir(), nil)
+		if r.OK {
+			t.Fatal("expected EnsureDir error")
+		}
+	})
 }
 
 func TestCDNSource_LatestVersion_NoManifest_Bad(t *testing.T) {
@@ -216,6 +251,21 @@ func TestCDNSource_LatestVersion_ServerError_Bad(t *testing.T) {
 	// Falls back to "latest"
 	if got, want := version, "latest"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func TestCDNSource_LatestVersion_MalformedURL_Ugly(t *testing.T) {
+	src := NewCDNSource(SourceConfig{
+		CDNURL:    "://bad",
+		ImageName: "test.img",
+	})
+
+	r := src.LatestVersion(context.Background())
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	if got := core.MustCast[string](r); got != "latest" {
+		t.Fatalf("LatestVersion = %q, want latest", got)
 	}
 }
 

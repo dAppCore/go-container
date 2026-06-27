@@ -132,6 +132,17 @@ func TestRuntime_ProviderFor_UnsupportedType_Bad(t *testing.T) {
 	}
 }
 
+func TestRuntime_ProviderFor_AppleUnavailable_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	r := ProviderFor(RuntimeApple)
+	if r.OK {
+		t.Fatal("expected apple provider to be unavailable on non-darwin")
+	}
+	if r.Error() == "" {
+		t.Fatal("expected unavailable runtime error message")
+	}
+}
+
 func TestRuntime_ProviderFor_Unknown_Bad(t *testing.T) {
 	auditTarget := "ProviderFor Unknown"
 	auditVariant := "Bad"
@@ -154,6 +165,15 @@ func TestRuntime_HasRuntime_None_Good(t *testing.T) {
 	// return None from DetectAll.
 	if HasRuntime(RuntimeNone) {
 		t.Fatal("expected false")
+	}
+}
+
+func TestRuntime_RuntimeErrors_Good(t *testing.T) {
+	if got := newRuntimeUnavailableError(RuntimeApple).Error(); got == "" {
+		t.Fatal("expected unavailable error message")
+	}
+	if got := newRuntimeUnsupportedError(RuntimeDocker).Error(); got == "" {
+		t.Fatal("expected unsupported error message")
 	}
 }
 

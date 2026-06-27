@@ -174,6 +174,24 @@ func (m *mockHypervisor) BuildCommand(ctx context.Context, image string, opts *c
 	return core.Ok(proc.NewCommand("true"))
 }
 
+func newTestDevOps(t *testing.T) (*DevOps, *container.State) {
+	t.Helper()
+	tempDir := t.TempDir()
+	t.Setenv("CORE_IMAGES_DIR", tempDir)
+	cfg := DefaultConfig()
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
+	}
+	state := container.NewState(coreutil.JoinPath(tempDir, "containers.json"))
+	dev := &DevOps{
+		medium:    io.Local,
+		images:    core.MustCast[*ImageManager](mgrRes),
+		container: container.NewLinuxKitManagerWithHypervisor(io.Local, state, &mockHypervisor{}),
+	}
+	return dev, state
+}
+
 func TestDevOps_Status_Good(t *testing.T) {
 	auditTarget := "Status"
 	auditVariant := "Good"
@@ -584,6 +602,27 @@ func TestDevOps_Stop_NotFound_Bad(t *testing.T) {
 	}
 	if s, sub := stopRes.Error(), "not found"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+}
+
+func TestDevOps_Shell_NotRunning_Bad(t *testing.T) {
+	dev, _ := newTestDevOps(t)
+	if r := dev.Shell(context.Background(), ShellOptions{}); r.OK {
+		t.Fatal("expected error when dev environment is not running")
+	}
+}
+
+func TestDevOps_Serve_NotRunning_Bad(t *testing.T) {
+	dev, _ := newTestDevOps(t)
+	if r := dev.Serve(context.Background(), t.TempDir(), ServeOptions{}); r.OK {
+		t.Fatal("expected error when dev environment is not running")
+	}
+}
+
+func TestDevOps_Test_NotRunning_Bad(t *testing.T) {
+	dev, _ := newTestDevOps(t)
+	if r := dev.Test(context.Background(), t.TempDir(), TestOptions{}); r.OK {
+		t.Fatal("expected error when dev environment is not running")
 	}
 }
 

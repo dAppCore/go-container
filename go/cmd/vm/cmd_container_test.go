@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	core "dappco.re/go"
+	"dappco.re/go/container"
 )
 
 func TestCmdContainer_shortID_Good(t *testing.T) {
@@ -77,9 +78,47 @@ func TestCmdContainer_parseEnv_Bad(t *testing.T) {
 	}
 }
 
+func TestCmdContainer_runContainer_Bad(t *testing.T) {
+	if err := runContainer("image.iso", "not-a-runtime", container.RunOptions{}); err == nil {
+		t.Fatal("expected error for unknown runtime")
+	}
+}
+
+func TestCmdContainer_runContainerApple_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	if err := runContainerApple("image.oci", container.RunOptions{Name: "api"}); err == nil {
+		t.Fatal("expected error when apple runtime is unavailable")
+	}
+}
+
+func TestCmdContainer_viewLogs_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	if err := viewLogs("definitely-missing", false); err == nil {
+		t.Fatal("expected error for missing container")
+	}
+}
+
+func TestCmdContainer_execInContainer_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	if err := execInContainer("definitely-missing", []string{"echo", "ok"}); err == nil {
+		t.Fatal("expected error for missing container")
+	}
+}
+
+func TestCmdContainer_execInteractive_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	if r := execInteractive("definitely-missing", []string{"echo", "ok"}); r.OK {
+		t.Fatal("expected error for missing container")
+	}
+}
+
 func TestCmdContainer_killContainer_Bad(t *testing.T) {
 	if killContainer("").OK {
 		t.Fatal("expected error for empty id")
+	}
+	t.Setenv("GOOS", "linux")
+	if killContainer("definitely-missing").OK {
+		t.Fatal("expected error for missing container")
 	}
 }
 
@@ -87,11 +126,19 @@ func TestCmdContainer_removeContainer_Bad(t *testing.T) {
 	if removeContainer("").OK {
 		t.Fatal("expected error for empty id")
 	}
+	t.Setenv("GOOS", "linux")
+	if removeContainer("definitely-missing").OK {
+		t.Fatal("expected error for missing container")
+	}
 }
 
 func TestCmdContainer_inspectContainer_Bad(t *testing.T) {
 	if inspectContainer("").OK {
 		t.Fatal("expected error for empty id")
+	}
+	t.Setenv("GOOS", "linux")
+	if inspectContainer("definitely-missing").OK {
+		t.Fatal("expected error for missing container")
 	}
 }
 

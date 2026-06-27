@@ -29,6 +29,7 @@ func TestCoreutilBehaviour_DirSep_Bad(t *testing.T) {
 // TestCoreutilBehaviour_DirSep_Ugly confirms DirSep never returns an empty
 // string even when the override is blank.
 func TestCoreutilBehaviour_DirSep_Ugly(t *testing.T) {
+	t.Setenv("DS", "")
 	if got := DirSep(); got == "" {
 		t.Fatal("DirSep() returned empty string")
 	}
@@ -85,8 +86,11 @@ func TestCoreutilBehaviour_HomeDir_Bad(t *testing.T) {
 // is present, so a process always resolves a home directory.
 func TestCoreutilBehaviour_HomeDir_Ugly(t *testing.T) {
 	t.Setenv("CORE_HOME", "")
-	if got := HomeDir(); got == "" && core.Env("DIR_HOME") != "" {
-		t.Fatal("HomeDir() empty despite DIR_HOME populated")
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	t.Setenv("DIR_HOME", "/tmp/dir-home-fixture")
+	if got := HomeDir(); got == "" {
+		t.Fatal("HomeDir() returned empty string")
 	}
 }
 

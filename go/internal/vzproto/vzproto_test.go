@@ -3,6 +3,7 @@ package vzproto
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"testing"
@@ -35,6 +36,11 @@ func (echoHandler) Handle(req Request) Response {
 		return Response{OK: false, Error: "unknown verb: " + req.Verb}
 	}
 }
+
+type failingReadWriter struct{}
+
+func (failingReadWriter) Read([]byte) (int, error)  { return 0, io.EOF }
+func (failingReadWriter) Write([]byte) (int, error) { return 0, errors.New("write failed") }
 
 func TestVzproto_WriteFrame_Good(t *testing.T) {
 	auditTarget := "WriteFrame"
@@ -224,6 +230,12 @@ func TestVzproto_RoundTrip_Ugly(t *testing.T) {
 	}
 }
 
+func TestVzproto_RoundTrip_WriteError_Bad(t *testing.T) {
+	if _, err := RoundTrip(failingReadWriter{}, Request{Verb: VerbStatus}); err == nil {
+		t.Fatal("expected write error")
+	}
+}
+
 func TestVzproto_Serve_Good(t *testing.T) {
 	auditTarget := "Serve"
 	auditVariant := "Good"
@@ -270,6 +282,23 @@ func TestVzproto_Serve_Bad(t *testing.T) {
 	}
 	if err := <-served; err == nil {
 		t.Fatal("expected serve to fail on junk frame")
+	}
+}
+
+func TestVzproto_Serve_WriteError_Bad(t *testing.T) {
+	var req bytes.Buffer
+	if err := WriteRequest(&req, Request{Verb: VerbStatus}); err != nil {
+		t.Fatalf("write request: %v", err)
+	}
+	rw := struct {
+		io.Reader
+		io.Writer
+	}{
+		Reader: &req,
+		Writer: failingReadWriter{},
+	}
+	if err := Serve(rw, echoHandler{}); err == nil {
+		t.Fatal("expected serve write error")
 	}
 }
 

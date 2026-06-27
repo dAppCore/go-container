@@ -1,6 +1,7 @@
 package proc
 
 import (
+	"bytes"
 	"context"
 	goio "io"
 	"syscall"
@@ -175,6 +176,27 @@ func TestProcBehaviour_StderrPipe_Good(t *testing.T) {
 	}
 	if string(data) != "oops" {
 		t.Fatalf("stderr = %q, want %q", string(data), "oops")
+	}
+}
+
+// TestProcBehaviour_StderrPipe_Bad refuses duplicate and after-start requests.
+func TestProcBehaviour_StderrPipe_Bad(t *testing.T) {
+	cmd := NewCommand("sh", "-c", "true")
+	if _, err := cmd.StderrPipe(); err != nil {
+		t.Fatalf("first StderrPipe error: %v", err)
+	}
+	if _, err := cmd.StderrPipe(); err == nil {
+		t.Fatal("second StderrPipe returned nil error")
+	}
+
+	sh := shellPath(t)
+	started := NewCommand(sh, "-c", "true")
+	if err := started.Start(); err != nil {
+		t.Fatalf("Start error: %v", err)
+	}
+	defer func() { _ = started.Wait() }()
+	if _, err := started.StderrPipe(); err == nil {
+		t.Fatal("StderrPipe after Start returned nil error")
 	}
 }
 
@@ -386,6 +408,22 @@ func TestProcBehaviour_stdiowriter_Good(t *testing.T) {
 	}
 }
 
+func TestProcBehaviour_stdiowriter_Bad(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/closed.txt"
+	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, 0o600)
+	if err != nil {
+		t.Fatalf("open for write: %v", err)
+	}
+	w := &stdiowriter{fd: fd}
+	if err := syscall.Close(fd); err != nil {
+		t.Fatalf("close fd: %v", err)
+	}
+	if _, err := w.Write([]byte("payload")); err == nil {
+		t.Fatal("Write to a closed fd returned nil error")
+	}
+}
+
 // TestProcBehaviour_StdioReader_Ugly returns io.EOF once the descriptor is drained.
 func TestProcBehaviour_stdioreader_Ugly(t *testing.T) {
 	dir := t.TempDir()
@@ -446,6 +484,50 @@ func TestProcBehaviour_Stdin_FD_Good(t *testing.T) {
 	}
 	if string(out) != "from-stdin" {
 		t.Fatalf("child stdin echo = %q, want %q", string(out), "from-stdin")
+	}
+}
+
+func TestProcBehaviour_Stdout_FD_Good(t *testing.T) {
+	sh := shellPath(t)
+	dir := t.TempDir()
+	path := dir + "/out.txt"
+	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, 0o600)
+	if err != nil {
+		t.Fatalf("open for write: %v", err)
+	}
+
+	cmd := NewCommand(sh, "-c", "printf redirected")
+	cmd.Stdout = &stdiowriter{fd: fd}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	_ = syscall.Close(fd)
+
+	rfd, err := syscall.Open(path, syscall.O_RDONLY, 0)
+	if err != nil {
+		t.Fatalf("open for read: %v", err)
+	}
+	defer func() { _ = syscall.Close(rfd) }()
+	buf := make([]byte, 32)
+	n, err := syscall.Read(rfd, buf)
+	if err != nil {
+		t.Fatalf("read redirected stdout: %v", err)
+	}
+	if string(buf[:n]) != "redirected" {
+		t.Fatalf("stdout file = %q, want redirected", string(buf[:n]))
+	}
+}
+
+func TestProcBehaviour_Stdout_NonFD_Ugly(t *testing.T) {
+	sh := shellPath(t)
+	var buf bytes.Buffer
+	cmd := NewCommand(sh, "-c", "printf discarded")
+	cmd.Stdout = &buf
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("non-fd writer received %q, want output discarded through /dev/null", buf.String())
 	}
 }
 

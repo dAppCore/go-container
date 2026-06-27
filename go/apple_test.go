@@ -77,6 +77,15 @@ func TestApple_Build_MissingSource_Bad(t *testing.T) {
 	}
 }
 
+func TestApple_Build_Unavailable_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	p := NewAppleProvider()
+	r := p.Build(ContainerConfig{Source: "Containerfile", Name: "local/test"})
+	if r.OK {
+		t.Fatal("expected error when apple runtime is unavailable")
+	}
+}
+
 func TestApple_Run_NilImage_Bad(t *testing.T) {
 	auditTarget := "Run NilImage"
 	auditVariant := "Bad"
@@ -91,6 +100,15 @@ func TestApple_Run_NilImage_Bad(t *testing.T) {
 	r := p.Run(nil)
 	if r.OK {
 		t.Fatal("expected error")
+	}
+}
+
+func TestApple_Run_Unavailable_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	p := NewAppleProvider()
+	r := p.Run(&Image{Path: "docker.io/library/alpine:latest"})
+	if r.OK {
+		t.Fatal("expected error when apple runtime is unavailable")
 	}
 }
 
@@ -207,6 +225,103 @@ func TestApple_Wait_UnknownID_Bad(t *testing.T) {
 	r := p.Wait(context.Background(), "no-such-container")
 	if r.OK {
 		t.Fatal("expected error")
+	}
+}
+
+func TestApple_SystemCommands_Bad(t *testing.T) {
+	p := &AppleProvider{Binary: "definitely-not-a-container-binary"}
+	if r := p.SystemStart(true); r.OK {
+		t.Fatal("expected start error for missing binary")
+	}
+	if r := p.SystemStop(); r.OK {
+		t.Fatal("expected stop error for missing binary")
+	}
+	if r := p.SystemStatus(); r.OK {
+		t.Fatal("expected status error for missing binary")
+	}
+}
+
+func TestApple_LifecycleCommands_Bad(t *testing.T) {
+	p := &AppleProvider{Binary: "definitely-not-a-container-binary"}
+	if r := p.Stop(""); r.OK {
+		t.Fatal("expected stop error for empty id")
+	}
+	if r := p.Stop("abc"); r.OK {
+		t.Fatal("expected stop error for missing binary")
+	}
+	if r := p.Kill(""); r.OK {
+		t.Fatal("expected kill error for empty id")
+	}
+	if r := p.Kill("abc"); r.OK {
+		t.Fatal("expected kill error for missing binary")
+	}
+	if r := p.Remove(""); r.OK {
+		t.Fatal("expected remove error for empty id")
+	}
+	if r := p.Remove("abc"); r.OK {
+		t.Fatal("expected remove error for missing binary")
+	}
+}
+
+func TestApple_LogExecInspectCommands_Bad(t *testing.T) {
+	p := &AppleProvider{Binary: "definitely-not-a-container-binary"}
+	if r := p.Logs("", 0); r.OK {
+		t.Fatal("expected logs error for empty id")
+	}
+	if r := p.Logs("abc", 0); r.OK {
+		t.Fatal("expected logs error for missing binary")
+	}
+	if r := p.Exec("", "echo"); r.OK {
+		t.Fatal("expected exec error for empty id")
+	}
+	if r := p.Exec("abc", ""); r.OK {
+		t.Fatal("expected exec error for empty command")
+	}
+	if r := p.Exec("abc", "echo", "ok"); r.OK {
+		t.Fatal("expected exec error for missing binary")
+	}
+	if r := p.ExecInteractive("", "sh"); r.OK {
+		t.Fatal("expected interactive exec error for empty id")
+	}
+	if r := p.ExecInteractive("abc", "sh"); r.OK {
+		t.Fatal("expected interactive exec error for missing binary")
+	}
+	if r := p.List(); r.OK {
+		t.Fatal("expected list error for missing binary")
+	}
+	if r := p.Inspect(""); r.OK {
+		t.Fatal("expected inspect error for empty id")
+	}
+	if r := p.Inspect("abc"); r.OK {
+		t.Fatal("expected inspect error for missing binary")
+	}
+}
+
+func TestApple_ImageCommands_Bad(t *testing.T) {
+	p := &AppleProvider{Binary: "definitely-not-a-container-binary"}
+	if r := p.Pull(""); r.OK {
+		t.Fatal("expected pull error for empty ref")
+	}
+	if r := p.Pull("docker.io/library/alpine:latest"); r.OK {
+		t.Fatal("expected pull error for missing binary")
+	}
+	if r := p.Push(nil, "docker.io/library/alpine:latest"); r.OK {
+		t.Fatal("expected push error for nil image")
+	}
+	if r := p.Push(&Image{Path: "local/test"}, ""); r.OK {
+		t.Fatal("expected push error for empty ref")
+	}
+	if r := p.Push(&Image{Path: "local/test"}, "docker.io/library/alpine:latest"); r.OK {
+		t.Fatal("expected push error for missing binary")
+	}
+	if r := p.RemoveImage(""); r.OK {
+		t.Fatal("expected remove image error for empty id")
+	}
+	if r := p.RemoveImage("local/test"); r.OK {
+		t.Fatal("expected remove image error for missing binary")
+	}
+	if r := p.ListImages(); r.OK {
+		t.Fatal("expected list images error for missing binary")
 	}
 }
 

@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -231,6 +232,40 @@ func TestCmdVmBehaviour_findBuiltImage_Bad(t *testing.T) {
 	}
 }
 
+func TestCmdVmBehaviour_findBuiltImage_Ugly(t *testing.T) {
+	t.Setenv("DS", "/")
+	dir := t.TempDir()
+	base := dir + "/myimage"
+	candidate := dir + "/myimage-extra.raw"
+	if err := writeFixture(candidate); err != nil {
+		t.Fatalf("seed image: %v", err)
+	}
+	if got := findBuiltImage(base); got != candidate {
+		t.Fatalf("findBuiltImage directory scan = %q, want %q", got, candidate)
+	}
+}
+
+func TestCmdVmBehaviour_lookupLinuxKit_Good(t *testing.T) {
+	dir := t.TempDir()
+	bin := dir + "/linuxkit"
+	if err := writeFixture(bin); err != nil {
+		t.Fatalf("seed linuxkit: %v", err)
+	}
+	if err := os.Chmod(bin, 0o755); err != nil {
+		t.Fatalf("chmod linuxkit: %v", err)
+	}
+	t.Setenv("PATH", dir)
+	t.Setenv("PS", ":")
+
+	got, err := lookupLinuxKit()
+	if err != nil {
+		t.Fatalf("lookupLinuxKit returned error: %v", err)
+	}
+	if got != bin {
+		t.Fatalf("lookupLinuxKit = %q, want %q", got, bin)
+	}
+}
+
 // TestCmdVmBehaviour_LookupLinuxKit_Bad errors when linuxkit is absent from PATH
 // and the common install locations.
 func TestCmdVmBehaviour_lookupLinuxKit_Bad(t *testing.T) {
@@ -242,6 +277,13 @@ func TestCmdVmBehaviour_lookupLinuxKit_Bad(t *testing.T) {
 			t.Skip("linuxkit present in a common install location")
 		}
 		t.Fatal("lookupLinuxKit returned nil error with empty PATH")
+	}
+}
+
+func TestCmdVmBehaviour_RunFromTemplate_Bad(t *testing.T) {
+	vmCore = core.New()
+	if err := RunFromTemplate("does-not-exist", nil, container.RunOptions{}); err == nil {
+		t.Fatal("expected missing template error")
 	}
 }
 

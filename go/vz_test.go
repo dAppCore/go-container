@@ -10,6 +10,8 @@ import (
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 
+	"dappco.re/go/container/internal/vzproto"
+
 	vz "github.com/tmc/apple/virtualization"
 )
 
@@ -559,6 +561,125 @@ func TestVz_AttachStorage_Ugly(t *testing.T) {
 	}
 	if got := len(config.StorageDevices()); got != 0 {
 		t.Fatalf("expected no storage devices, got %d", got)
+	}
+}
+
+func TestVz_AttachFileSystems_Good(t *testing.T) {
+	auditTarget := "vzAttachFileSystems"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// virtio-fs device construction opens no image and needs no entitlement
+	// and no boot — the same construction/validation split as storage,
+	// verified empirically by this test running unsigned. Shares attach in
+	// slice order (no sort: insertion order is the contract).
+	config := vz.NewVZVirtualMachineConfiguration()
+	r := vzAttachFileSystems(config, []FSShare{
+		{HostDir: t.TempDir(), Tag: "workspace"},
+		{HostDir: t.TempDir(), Tag: "inputs", ReadOnly: true},
+	})
+	if !r.OK {
+		t.Fatalf("expected ok, got %v", r.Value)
+	}
+	if got := len(config.DirectorySharingDevices()); got != 2 {
+		t.Fatalf("expected 2 directory-sharing devices, got %d", got)
+	}
+}
+
+func TestVz_AttachFileSystems_Bad(t *testing.T) {
+	auditTarget := "vzAttachFileSystems"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// Validation happens before any framework call, so the Bad contract holds
+	// even on an entitlement-less / non-darwin host — no IsVZAvailable gate.
+	config := vz.NewVZVirtualMachineConfiguration()
+	// An empty host directory is refused.
+	if r := vzAttachFileSystems(config, []FSShare{{HostDir: "", Tag: "workspace"}}); r.OK {
+		t.Fatal("expected error for empty host directory")
+	}
+	// An empty tag is refused — never silently auto-derived from the path.
+	if r := vzAttachFileSystems(config, []FSShare{{HostDir: t.TempDir(), Tag: ""}}); r.OK {
+		t.Fatal("expected error for empty tag")
+	}
+	// A host path that is not a directory fails with the path named.
+	missing := core.JoinPath(t.TempDir(), "nope")
+	r := vzAttachFileSystems(config, []FSShare{{HostDir: missing, Tag: "workspace"}})
+	if r.OK {
+		t.Fatal("expected error for non-directory host path")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), missing) {
+		t.Fatalf("expected path-naming error, got %v", r.Value)
+	}
+	// A file (not a directory) is also refused — a share is a directory.
+	file := vzWriteVolumeFile(t, "data.img")
+	if r := vzAttachFileSystems(config, []FSShare{{HostDir: file, Tag: "workspace"}}); r.OK {
+		t.Fatal("expected error for file host path")
+	}
+}
+
+func TestVz_AttachFileSystems_Ugly(t *testing.T) {
+	auditTarget := "vzAttachFileSystems"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// An empty share set is a no-op: no devices set, no framework calls, OK —
+	// so the existing BuildConfiguration tests see no new device list. Holds
+	// without entitlement (the early return precedes any framework call).
+	config := vz.NewVZVirtualMachineConfiguration()
+	if r := vzAttachFileSystems(config, nil); !r.OK {
+		t.Fatalf("expected ok for empty share set, got %v", r.Value)
+	}
+	if got := len(config.DirectorySharingDevices()); got != 0 {
+		t.Fatalf("expected no directory-sharing devices, got %d", got)
+	}
+	// Two shares claiming one tag are ambiguous — refused, not last-wins.
+	r := vzAttachFileSystems(config, []FSShare{
+		{HostDir: t.TempDir(), Tag: "dup"},
+		{HostDir: t.TempDir(), Tag: "dup"},
+	})
+	if r.OK {
+		t.Fatal("expected error for duplicate tag")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "duplicate") {
+		t.Fatalf("expected duplicate-tag error, got %v", r.Value)
+	}
+}
+
+func TestVz_BuildConfiguration_Shares_Good(t *testing.T) {
+	auditTarget := "vzBuildConfiguration"
+	auditVariant := "Shares"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	// WithSharedDir threads through ApplyRunOptions into the built config as a
+	// directory-sharing device — the SP3-U1 workspace path. Construction stays
+	// unentitled (no boot).
+	dir := vzWriteGuestDir(t, true, "console=hvc0")
+	art := core.MustCast[vzGuestArtefacts](vzResolveGuestArtefacts(dir))
+	r := vzBuildConfiguration(art, core.JoinPath(t.TempDir(), "vm.log"),
+		ApplyRunOptions(WithSharedDir(t.TempDir(), "workspace")))
+	if !r.OK {
+		t.Fatalf("expected ok, got %v", r.Value)
+	}
+	config := core.MustCast[vz.VZVirtualMachineConfiguration](r)
+	if got := len(config.DirectorySharingDevices()); got != 1 {
+		t.Fatalf("expected 1 directory-sharing device, got %d", got)
+	}
+	// A bad share fails the whole build (the share error surfaces, §7).
+	r2 := vzBuildConfiguration(art, core.JoinPath(t.TempDir(), "vm2.log"),
+		ApplyRunOptions(WithSharedDir(core.JoinPath(t.TempDir(), "nope"), "workspace")))
+	if r2.OK {
+		t.Fatal("expected build failure for a non-directory share")
 	}
 }
 
@@ -1299,6 +1420,28 @@ func TestVz_Registry_Ugly(t *testing.T) {
 	}
 }
 
+func TestVz_Registry_Cache_Ugly(t *testing.T) {
+	auditTarget := "VZProvider registry cache"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	p := NewVZProvider()
+	p.StatePath = core.JoinPath(t.TempDir(), "containers.json")
+
+	firstRes := p.registry()
+	if !firstRes.OK {
+		t.Fatalf("first registry load: %v", firstRes.Value)
+	}
+	secondRes := p.registry()
+	if !secondRes.OK {
+		t.Fatalf("second registry load: %v", secondRes.Value)
+	}
+	if core.MustCast[*State](firstRes) != core.MustCast[*State](secondRes) {
+		t.Fatal("expected registry cache to return the same State pointer")
+	}
+}
+
 func TestVz_Tracked_Good(t *testing.T) {
 	auditTarget := "VZProvider Tracked"
 	auditVariant := "Good"
@@ -1349,6 +1492,53 @@ func TestVz_Tracked_Ugly(t *testing.T) {
 		p.Tracked()
 	}
 	<-done
+}
+
+func TestVz_Tracked_WithEntry_Ugly(t *testing.T) {
+	auditTarget := "VZProvider Tracked with entry"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	p := NewVZProvider()
+	entry := vzFabricateTracked(t, p, &Container{ID: "vz-tracked-entry", Status: StatusRunning})
+
+	if got := p.entry(entry.Container.ID); got != entry {
+		t.Fatal("entry lookup did not return the tracked record")
+	}
+	p.setStatus(entry, StatusStopped)
+	if got := p.status(entry); got != StatusStopped {
+		t.Fatalf("status = %s, want %s", got, StatusStopped)
+	}
+
+	snapshot := p.Tracked()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected one tracked snapshot, got %d", len(snapshot))
+	}
+	snapshot[0].Status = StatusError
+	if got := p.status(entry); got != StatusStopped {
+		t.Fatalf("snapshot mutation changed live status to %s", got)
+	}
+}
+
+func TestVz_PersistUpdate_RegistryFailure_Ugly(t *testing.T) {
+	auditTarget := "VZProvider persistUpdate registry failure"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	corrupt := core.JoinPath(t.TempDir(), "containers.json")
+	if err := coreio.Local.Write(corrupt, "{not json"); err != nil {
+		t.Fatalf("write corrupt registry: %v", err)
+	}
+	p := NewVZProvider()
+	p.StatePath = corrupt
+	entry := &vzTracked{Container: &Container{ID: "vz-persist-update", Status: StatusStopped}}
+
+	p.persistUpdate(entry)
+	if got := p.status(entry); got != StatusStopped {
+		t.Fatalf("persistUpdate changed live status to %s", got)
+	}
 }
 
 func TestVz_SerialLogTail_Good(t *testing.T) {
@@ -1510,6 +1700,166 @@ func TestVz_Exec_LiveAgent_Good(t *testing.T) {
 	}
 
 	// §5 graceful stop: the agent acks, the guest powers off, no force stop.
+	if r := p.Stop(ctr.ID); !r.OK {
+		t.Fatalf("graceful stop failed: %v", r.Value)
+	}
+}
+
+func TestVz_ExecResult_Good(t *testing.T) {
+	auditTarget := "VZProvider ExecResult"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// The whole verb over a live VM is TestVz_ExecResult_LiveAgent_Good. The
+	// contract that distinguishes ExecResult from Exec is the Response→result
+	// mapping (vzExecResult), which unit-tests without a VM: a command that ran
+	// and exited succeeds at the verb level, exit code and stderr preserved.
+	r := vzExecResult(vzproto.Response{OK: true, Stdout: "Linux\n", Exit: 0})
+	if !r.OK {
+		t.Fatalf("expected ok for exit 0, got %v", r.Value)
+	}
+	if got := core.MustCast[ExecResult](r); got.Stdout != "Linux\n" || got.Exit != 0 {
+		t.Fatalf("unexpected zero-exit result %+v", got)
+	}
+	// The gap vs Exec: a non-zero exit is a SUCCESSFUL exec — OK=true with the
+	// real exit code and stderr surviving, where Exec would have folded both
+	// into a failure.
+	r2 := vzExecResult(vzproto.Response{OK: true, Stdout: "partial", Stderr: "boom: not found", Exit: 127})
+	if !r2.OK {
+		t.Fatalf("expected ok for non-zero exit (ran-and-exited), got %v", r2.Value)
+	}
+	got := core.MustCast[ExecResult](r2)
+	if got.Exit != 127 {
+		t.Fatalf("exit code lost: want 127, got %d", got.Exit)
+	}
+	if got.Stderr != "boom: not found" {
+		t.Fatalf("stderr lost: want %q, got %q", "boom: not found", got.Stderr)
+	}
+	if got.Stdout != "partial" {
+		t.Fatalf("stdout lost: want %q, got %q", "partial", got.Stdout)
+	}
+}
+
+func TestVz_ExecResult_Bad(t *testing.T) {
+	auditTarget := "VZProvider ExecResult"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// A refused verb (OK=false) is a verb-level failure naming the agent's
+	// error — not an ExecResult with a zero exit. Pure mapping, no VM needed.
+	r := vzExecResult(vzproto.Response{OK: false, Error: "unknown verb"})
+	if r.OK {
+		t.Fatal("expected failure for a refused verb")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "unknown verb") {
+		t.Fatalf("expected agent-error naming, got %v", r.Value)
+	}
+
+	// Verb-level argument guards mirror Exec.
+	if !IsVZAvailable() {
+		t.Skip("virtualization framework not available")
+	}
+	p := NewVZProvider()
+	if r := p.ExecResult("", "uname"); r.OK {
+		t.Fatal("expected error for empty id")
+	}
+	if r := p.ExecResult("some-id", ""); r.OK {
+		t.Fatal("expected error for empty command")
+	}
+	r2 := p.ExecResult("never-ran", "uname")
+	if r2.OK {
+		t.Fatal("expected error for untracked id")
+	}
+	if err, ok := r2.Value.(error); !ok || !core.Contains(err.Error(), "not tracked") {
+		t.Fatalf("expected not-tracked error, got %v", r2.Value)
+	}
+}
+
+func TestVz_ExecResult_Ugly(t *testing.T) {
+	auditTarget := "VZProvider ExecResult"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	// A tracked but not-running container is refused BEFORE any vsock dial —
+	// same guard as Exec.
+	if IsVZAvailable() {
+		p := NewVZProvider()
+		ctr := &Container{ID: "vz-execresult-stopped", Status: StatusStopped}
+		vzFabricateTracked(t, p, ctr)
+		r := p.ExecResult(ctr.ID, "uname", "-a")
+		if r.OK {
+			t.Fatal("expected refusal for a stopped container")
+		}
+		if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "not running") {
+			t.Fatalf("expected not-running refusal, got %v", r.Value)
+		}
+	}
+
+	// On a simulated non-darwin host ExecResult fails with the §7 sentinel.
+	t.Setenv("GOOS", "linux")
+	p := NewVZProvider()
+	r := p.ExecResult("anything", "uname")
+	if r.OK {
+		t.Fatal("expected error")
+	}
+	if err, ok := r.Value.(error); !ok || !core.Contains(err.Error(), "virtualization framework unavailable") {
+		t.Fatalf("expected §7 sentinel, got %v", r.Value)
+	}
+}
+
+// TestVz_ExecResult_LiveAgent_Good is the structured-exec proof over a live
+// guest: a command that exits non-zero returns OK=true with the real exit code
+// and stderr (the gap vs Exec). Triple-gated exactly like
+// TestVz_Exec_LiveAgent_Good.
+func TestVz_ExecResult_LiveAgent_Good(t *testing.T) {
+	auditTarget := "VZProvider ExecResult LiveAgent"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	if core.Env("CONTAINER_VZ_LIVE") != "1" {
+		t.Skip("live boot gated: set CONTAINER_VZ_LIVE=1")
+	}
+	if core.Env("CONTAINER_VZ_LIVE_AGENT") != "1" {
+		t.Skip("live agent gated: set CONTAINER_VZ_LIVE_AGENT=1 (image must carry vzagent)")
+	}
+	if !coreio.Local.IsFile(core.JoinPath(vzLiveFixtureDir, "kernel")) ||
+		!coreio.Local.IsFile(core.JoinPath(vzLiveFixtureDir, "initrd.img")) {
+		t.Skip("live boot gated: no LinuxKit artefacts at " + vzLiveFixtureDir)
+	}
+	p := NewVZProvider()
+	if !p.Available() {
+		t.Skip("virtualization framework not available")
+	}
+
+	r := p.Run(&Image{Path: vzLiveFixtureDir}, WithMemory(1024), WithCPUs(1), WithName("vz-execresult-test"))
+	if !r.OK {
+		t.Fatalf("boot failed: %v", r.Value)
+	}
+	ctr := core.MustCast[*Container](r)
+	defer func() { _ = p.Kill(ctr.ID) }()
+
+	time.Sleep(10 * time.Second)
+
+	// A command that exits non-zero: ExecResult succeeds and preserves the code.
+	res := p.ExecResult(ctr.ID, "sh", "-c", "echo out; echo err 1>&2; exit 3")
+	if !res.OK {
+		t.Fatalf("execresult failed at the verb level: %v", res.Value)
+	}
+	got := core.MustCast[ExecResult](res)
+	if got.Exit != 3 {
+		t.Fatalf("expected exit 3, got %d", got.Exit)
+	}
+	if !core.Contains(got.Stderr, "err") {
+		t.Fatalf("expected stderr captured, got %q", got.Stderr)
+	}
+	if !core.Contains(got.Stdout, "out") {
+		t.Fatalf("expected stdout captured, got %q", got.Stdout)
+	}
+
 	if r := p.Stop(ctr.ID); !r.OK {
 		t.Fatalf("graceful stop failed: %v", r.Value)
 	}

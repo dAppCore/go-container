@@ -26,17 +26,43 @@ func TestCmdImages_pullImage_Bad(t *testing.T) {
 	if pullImage("").OK {
 		t.Fatal("expected error for empty ref")
 	}
+	t.Setenv("GOOS", "linux")
+	if pullImage("docker.io/library/alpine:latest").OK {
+		t.Fatal("expected error when apple runtime is unavailable")
+	}
 }
 
 func TestCmdImages_pushImage_Bad(t *testing.T) {
 	if pushImage("").OK {
 		t.Fatal("expected error for empty ref")
 	}
+	t.Setenv("GOOS", "linux")
+	if pushImage("docker.io/library/alpine:latest").OK {
+		t.Fatal("expected error when apple runtime is unavailable")
+	}
 }
 
 func TestCmdImages_removeImage_Bad(t *testing.T) {
 	if removeImage("").OK {
 		t.Fatal("expected error for empty ref")
+	}
+	t.Setenv("GOOS", "linux")
+	if removeImage("docker.io/library/alpine:latest").OK {
+		t.Fatal("expected error when apple runtime is unavailable")
+	}
+}
+
+func TestCmdImages_buildImage_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	if buildImage(".", "", "local/test:latest").OK {
+		t.Fatal("expected error when apple runtime is unavailable")
+	}
+}
+
+func TestCmdImages_listImages_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	if listImages().OK {
+		t.Fatal("expected error when apple runtime is unavailable")
 	}
 }
 

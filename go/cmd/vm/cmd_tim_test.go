@@ -32,6 +32,39 @@ func TestCmdTim_timKeyphrase_Bad(t *testing.T) {
 	if timKeyphrase(core.NewOptions()).OK {
 		t.Fatal("expected error when no key is provided")
 	}
+	emptyKey := core.PathJoin(t.TempDir(), "empty.key")
+	if err := io.Local.Write(emptyKey, " \n\t "); err != nil {
+		t.Fatalf("seed empty key: %v", err)
+	}
+	if timKeyphrase(core.NewOptions(core.Option{Key: "key-file", Value: emptyKey})).OK {
+		t.Fatal("expected error for empty key file")
+	}
+	if timKeyphrase(core.NewOptions(core.Option{Key: "key-file", Value: core.PathJoin(t.TempDir(), "missing.key")})).OK {
+		t.Fatal("expected error for missing key file")
+	}
+}
+
+func TestCmdTim_timKeyphrase_Good(t *testing.T) {
+	keyFile := core.PathJoin(t.TempDir(), "k.key")
+	if err := io.Local.Write(keyFile, "  file-secret\n"); err != nil {
+		t.Fatalf("seed key: %v", err)
+	}
+	fileRes := timKeyphrase(core.NewOptions(core.Option{Key: "key-file", Value: keyFile}))
+	if !fileRes.OK {
+		t.Fatalf("timKeyphrase key-file: %v", fileRes.Error())
+	}
+	if got := core.MustCast[string](fileRes); got != "file-secret" {
+		t.Fatalf("key-file secret = %q, want trimmed secret", got)
+	}
+
+	t.Setenv("CORE_TIM_KEY", "env-secret")
+	envRes := timKeyphrase(core.NewOptions())
+	if !envRes.OK {
+		t.Fatalf("timKeyphrase env: %v", envRes.Error())
+	}
+	if got := core.MustCast[string](envRes); got != "env-secret" {
+		t.Fatalf("env secret = %q, want env-secret", got)
+	}
 }
 
 func TestCmdTim_timPack_Good(t *testing.T) {
@@ -110,6 +143,24 @@ func TestCmdTim_timEncrypt_Good(t *testing.T) {
 	}
 }
 
+func TestCmdTim_timEncrypt_Bad(t *testing.T) {
+	keyPath := core.PathJoin(t.TempDir(), "k.key")
+	if err := io.Local.Write(keyPath, "secret"); err != nil {
+		t.Fatalf("seed key: %v", err)
+	}
+	keyOpts := core.NewOptions(core.Option{Key: "key-file", Value: keyPath})
+	if timEncrypt(core.PathJoin(t.TempDir(), "missing.tim"), core.PathJoin(t.TempDir(), "out.stim"), keyOpts).OK {
+		t.Fatal("expected encrypt of a missing .tim to fail")
+	}
+	bogus := core.PathJoin(t.TempDir(), "bogus.tim")
+	if err := io.Local.Write(bogus, "not a tar"); err != nil {
+		t.Fatalf("seed bogus: %v", err)
+	}
+	if timEncrypt(bogus, core.PathJoin(t.TempDir(), "out.stim"), keyOpts).OK {
+		t.Fatal("expected encrypt of an invalid .tim to fail")
+	}
+}
+
 func TestCmdTim_timDecrypt_Bad(t *testing.T) {
 	// Wrong key -> FromSigil fails.
 	src := t.TempDir()
@@ -132,6 +183,9 @@ func TestCmdTim_timDecrypt_Bad(t *testing.T) {
 	if timDecrypt(stimPath, core.PathJoin(dir, "out.tim"), core.NewOptions(core.Option{Key: "key-file", Value: badKey})).OK {
 		t.Fatal("expected decrypt with the wrong key to fail")
 	}
+	if timDecrypt(core.PathJoin(t.TempDir(), "missing.stim"), core.PathJoin(t.TempDir(), "out.tim"), core.NewOptions(core.Option{Key: "key-file", Value: goodKey})).OK {
+		t.Fatal("expected decrypt of missing .stim to fail")
+	}
 }
 
 func TestCmdTim_timInspect_Good(t *testing.T) {
@@ -146,6 +200,18 @@ func TestCmdTim_timInspect_Good(t *testing.T) {
 	}
 	if r := timInspect(timPath); !r.OK {
 		t.Fatalf("inspect tim: %v", r.Error())
+	}
+
+	stimPath := core.PathJoin(t.TempDir(), "a.stim")
+	keyPath := core.PathJoin(t.TempDir(), "k.key")
+	if err := io.Local.Write(keyPath, "secret"); err != nil {
+		t.Fatalf("seed key: %v", err)
+	}
+	if r := timEncrypt(timPath, stimPath, core.NewOptions(core.Option{Key: "key-file", Value: keyPath})); !r.OK {
+		t.Fatalf("encrypt stim: %v", r.Error())
+	}
+	if r := timInspect(stimPath); !r.OK {
+		t.Fatalf("inspect stim: %v", r.Error())
 	}
 }
 
