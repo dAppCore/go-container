@@ -1,39 +1,42 @@
 package container
 
-// Provider abstracts the container backend (LinuxKit, TIM, Apple Containers).
+import core "dappco.re/go"
+
+// Provider abstracts the container backend (LinuxKit, Apple Containers).
 // Each provider implements a consistent lifecycle: build an image from a
 // declarative config, run it, and optionally encrypt/decrypt the image.
 //
 // Usage:
 //
 //	p := container.NewAppleProvider()
-//	img, err := p.Build(container.ContainerConfig{EntryPoint: []string{"/app"}})
-//	ctr, err := p.Run(img, container.WithMemory(4096))
+//	r := p.Build(container.ContainerConfig{EntryPoint: []string{"/app"}})
+//	img := core.MustCast[*container.Image](r)
+//	ctr := p.Run(img, container.WithMemory(4096))
 type Provider interface {
 	// Build produces an Image from a declarative container configuration.
 	//
-	// Example: img, _ := p.Build(container.ContainerConfig{Name: "api"})
-	Build(config ContainerConfig) (*Image, error)
+	// Example: r := p.Build(container.ContainerConfig{Name: "api"}); img := core.MustCast[*Image](r)
+	Build(config ContainerConfig) core.Result // Value: *Image
 
 	// Run boots an Image and returns the running Container record.
 	//
-	// Example: ctr, _ := p.Run(img, container.WithMemory(2048))
-	Run(image *Image, opts ...RunOption) (*Container, error)
+	// Example: r := p.Run(img, container.WithMemory(2048)); ctr := core.MustCast[*Container](r)
+	Run(image *Image, opts ...RunOption) core.Result // Value: *Container
 
 	// Encrypt wraps an Image with an encryption key producing an EncryptedImage.
 	//
-	// Example: enc, _ := p.Encrypt(img, workspaceKey)
-	Encrypt(image *Image, key []byte) (*EncryptedImage, error)
+	// Example: r := p.Encrypt(img, workspaceKey); enc := core.MustCast[*EncryptedImage](r)
+	Encrypt(image *Image, key []byte) core.Result // Value: *EncryptedImage
 
 	// Decrypt unwraps an EncryptedImage back into a plaintext Image.
 	//
-	// Example: img, _ := p.Decrypt(enc, workspaceKey)
-	Decrypt(encrypted *EncryptedImage, key []byte) (*Image, error)
+	// Example: r := p.Decrypt(enc, workspaceKey); img := core.MustCast[*Image](r)
+	Decrypt(encrypted *EncryptedImage, key []byte) core.Result // Value: *Image
 }
 
 // ContainerConfig is the declarative build input for a Provider.
 // Different providers map this to their native format (LinuxKit YAML,
-// TIM config.json, Apple Containers spec).
+// Apple Containers spec).
 //
 // Usage:
 //
@@ -66,7 +69,7 @@ type ContainerConfig struct {
 	// Format is the requested output format (iso, qcow2, raw, vmdk, ami).
 	// Empty uses the provider default.
 	Format string
-	// Source is the source image reference (LinuxKit YAML path, TIM bundle path, etc).
+	// Source is the source image reference (LinuxKit YAML path, OCI ref, etc).
 	Source string
 }
 
@@ -214,6 +217,69 @@ func WithVolumes(vols map[string]string) RunOption {
 		for h, c := range vols {
 			o.Volumes[h] = c
 		}
+	}
+}
+
+// WithSharedDir shares a host directory into the guest as a read-write
+// virtio-fs device (VZProvider). The guest mounts it by tag with
+// `mount -t virtiofs <tag> <dir>`. Unlike WithVolumes — raw image files the
+// guest must format — a share is a live, host-visible directory: the workspace
+// contract agent dispatch needs. Providers without virtio-fs ignore it.
+//
+// Usage:
+//
+//	p.Run(img, container.WithSharedDir("/Users/me/workspace", "workspace"))
+func WithSharedDir(hostDir, tag string) RunOption {
+	return func(o *RunOptions) {
+		o.FSShares = append(o.FSShares, FSShare{HostDir: hostDir, Tag: tag})
+	}
+}
+
+// WithSharedDirRO shares a host directory into the guest read-only, otherwise
+// identical to WithSharedDir. Use for inputs the guest must not mutate.
+//
+// Usage:
+//
+//	p.Run(img, container.WithSharedDirRO("/Users/me/inputs", "inputs"))
+func WithSharedDirRO(hostDir, tag string) RunOption {
+	return func(o *RunOptions) {
+		o.FSShares = append(o.FSShares, FSShare{HostDir: hostDir, Tag: tag, ReadOnly: true})
+	}
+}
+
+// WithArgs sets the container command/arguments, passed after the image
+// (e.g. WithArgs("sleep", "300")). Empty runs the image's default entrypoint.
+//
+// Usage:
+//
+//	p.Run(img, container.WithArgs("/bin/sh", "-c", "echo hello"))
+func WithArgs(args ...string) RunOption {
+	return func(o *RunOptions) {
+		o.Args = append(o.Args, args...)
+	}
+}
+
+// WithEnv sets container environment variables (KEY=VALUE), e.g.
+// WithEnv("PORT=8080"). Apple runtime only; LinuxKit env is image-baked.
+//
+// Usage:
+//
+//	p.Run(img, container.WithEnv("CORE_ENV=prod"))
+func WithEnv(env ...string) RunOption {
+	return func(o *RunOptions) {
+		o.Env = append(o.Env, env...)
+	}
+}
+
+// WithDNS sets the container's DNS nameservers (Apple runtime). Overrides the
+// reachable-public-resolver default appleRunArgs applies when none are set.
+//
+// Usage:
+//
+//	p.Run(img, container.WithDNS("1.1.1.1", "8.8.8.8"))
+func WithDNS(servers ...string) RunOption {
+	return func(o *RunOptions) {
+		o.DNS = append(o.DNS, servers...)
 	}
 }
 

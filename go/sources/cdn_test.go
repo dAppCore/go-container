@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 
 	core "dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
@@ -13,6 +14,10 @@ import (
 	"reflect"
 	"testing"
 )
+
+type failingEnsureDirMedium struct{ io.Medium }
+
+func (failingEnsureDirMedium) EnsureDir(string) error { return errors.New("ensure failed") }
 
 func TestCDNSource_Available_Good(t *testing.T) {
 	auditTarget := "Available"
@@ -67,10 +72,11 @@ func TestCDNSource_LatestVersion_Good(t *testing.T) {
 		ImageName: "test.img",
 	})
 
-	version, err := src.LatestVersion(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	r := src.LatestVersion(context.Background())
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	version := core.MustCast[string](r)
 	if got, want := version, "latest"; !reflect.DeepEqual( // Current impl always returns "latest"
 		got, want) {
 		t.Fatalf("want %v, got %v", want, got)
@@ -102,11 +108,11 @@ func TestCDNSource_Download_Good(t *testing.T) {
 	})
 
 	var progressCalled bool
-	err := src.Download(context.Background(), io.Local, dest, func(downloaded, total int64) {
+	r := src.Download(context.Background(), io.Local, dest, func(downloaded, total int64) {
 		progressCalled = true
 	})
-	if err != nil {
-		t.Fatal(err)
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
 	if !(progressCalled) {
 		t.Fatal("expected true")
@@ -141,11 +147,11 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 			ImageName: "test.img",
 		})
 
-		err := src.Download(context.Background(), io.Local, dest, nil)
-		if err == nil {
+		r := src.Download(context.Background(), io.Local, dest, nil)
+		if r.OK {
 			t.Fatal("expected error")
 		}
-		if s, sub := err.Error(), "HTTP 500"; !core.Contains(s, sub) {
+		if s, sub := r.Error(), "HTTP 500"; !core.Contains(s, sub) {
 			t.Fatalf("expected %v to contain %v", s, sub)
 		}
 	})
@@ -157,9 +163,39 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 			ImageName: "test.img",
 		})
 
-		err := src.Download(context.Background(), io.Local, dest, nil)
-		if err == nil {
+		r := src.Download(context.Background(), io.Local, dest, nil)
+		if r.OK {
 			t.Fatal("expected error")
+		}
+	})
+
+	t.Run("Malformed URL", func(t *testing.T) {
+		dest := t.TempDir()
+		src := NewCDNSource(SourceConfig{
+			CDNURL:    "://bad",
+			ImageName: "test.img",
+		})
+
+		r := src.Download(context.Background(), io.Local, dest, nil)
+		if r.OK {
+			t.Fatal("expected request creation error")
+		}
+	})
+
+	t.Run("EnsureDir error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = goio.WriteString(w, "image")
+		}))
+		defer server.Close()
+
+		src := NewCDNSource(SourceConfig{
+			CDNURL:    server.URL,
+			ImageName: "test.img",
+		})
+		r := src.Download(context.Background(), failingEnsureDirMedium{Medium: io.Local}, t.TempDir(), nil)
+		if r.OK {
+			t.Fatal("expected EnsureDir error")
 		}
 	})
 }
@@ -180,10 +216,11 @@ func TestCDNSource_LatestVersion_NoManifest_Bad(t *testing.T) {
 		ImageName: "test.img",
 	})
 
-	version, err := src.LatestVersion(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	r := src.LatestVersion(context.Background())
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	version := core.MustCast[string](r)
 	// Should not error, just return "latest"
 	if got, want := version, "latest"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
@@ -206,13 +243,29 @@ func TestCDNSource_LatestVersion_ServerError_Bad(t *testing.T) {
 		ImageName: "test.img",
 	})
 
-	version, err := src.LatestVersion(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	r := src.LatestVersion(context.Background())
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	version := core.MustCast[string](r)
 	// Falls back to "latest"
 	if got, want := version, "latest"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func TestCDNSource_LatestVersion_MalformedURL_Ugly(t *testing.T) {
+	src := NewCDNSource(SourceConfig{
+		CDNURL:    "://bad",
+		ImageName: "test.img",
+	})
+
+	r := src.LatestVersion(context.Background())
+	if !r.OK {
+		t.Fatal(r.Error())
+	}
+	if got := core.MustCast[string](r); got != "latest" {
+		t.Fatalf("LatestVersion = %q, want latest", got)
 	}
 }
 
@@ -237,9 +290,9 @@ func TestCDNSource_Download_NoProgress_Good(t *testing.T) {
 	})
 
 	// nil progress callback should be handled gracefully
-	err := src.Download(context.Background(), io.Local, dest, nil)
-	if err != nil {
-		t.Fatal(err)
+	r := src.Download(context.Background(), io.Local, dest, nil)
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	data, err := io.Local.Read(coreutil.JoinPath(dest, "test.img"))
@@ -278,12 +331,12 @@ func TestCDNSource_Download_LargeFile_Good(t *testing.T) {
 
 	var progressCalls int
 	var lastDownloaded int64
-	err := src.Download(context.Background(), io.Local, dest, func(downloaded, total int64) {
+	r := src.Download(context.Background(), io.Local, dest, func(downloaded, total int64) {
 		progressCalls++
 		lastDownloaded = downloaded
 	})
-	if err != nil {
-		t.Fatal(err)
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
 	if got, want := progressCalls, 1; got <= // Should be called multiple times for large file
 		want {
@@ -324,11 +377,11 @@ func TestCDNSource_Download_HTTPErrorCodes_Bad(t *testing.T) {
 				ImageName: "test.img",
 			})
 
-			err := src.Download(context.Background(), io.Local, dest, nil)
-			if err == nil {
+			r := src.Download(context.Background(), io.Local, dest, nil)
+			if r.OK {
 				t.Fatal("expected error")
 			}
-			if s, sub := err.Error(), core.Sprintf("HTTP %d", tc.statusCode); !core.Contains(s, sub) {
+			if s, sub := r.Error(), core.Sprintf("HTTP %d", tc.statusCode); !core.Contains(s, sub) {
 				t.Fatalf("expected %v to contain %v", s, sub)
 			}
 		})
@@ -415,9 +468,9 @@ func TestCDNSource_Download_CreatesDestDir_Good(t *testing.T) {
 		ImageName: "test.img",
 	})
 
-	err := src.Download(context.Background(), io.Local, dest, nil)
-	if err != nil {
-		t.Fatal(err)
+	r := src.Download(context.Background(), io.Local, dest, nil)
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	// Verify nested dir was created

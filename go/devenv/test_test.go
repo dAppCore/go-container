@@ -3,6 +3,7 @@ package devenv
 import (
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/io"
 )
@@ -154,10 +155,11 @@ env:
 `
 	_ = io.Local.Write(coreutil.JoinPath(coreDir, "test.yaml"), configYAML)
 
-	cfg, err := LoadTestConfig(io.Local, tmpDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	r := LoadTestConfig(io.Local, tmpDir)
+	if !r.OK {
+		t.Fatalf("unexpected error: %v", r.Error())
 	}
+	cfg := core.MustCast[*TestConfig](r)
 
 	if cfg.Version != 1 {
 		t.Errorf("expected version 1, got %d", cfg.Version)
@@ -184,8 +186,7 @@ func TestLoadTestConfig_NotFound_Bad(t *testing.T) {
 	}
 	tmpDir := t.TempDir()
 
-	_, err := LoadTestConfig(io.Local, tmpDir)
-	if err == nil {
+	if r := LoadTestConfig(io.Local, tmpDir); r.OK {
 		t.Error("expected error for missing config, got nil")
 	}
 }
@@ -434,8 +435,7 @@ func TestLoadTestConfig_InvalidYAML_Bad(t *testing.T) {
 	_ = io.Local.EnsureDir(coreDir)
 	_ = io.Local.Write(coreutil.JoinPath(coreDir, "test.yaml"), "invalid: yaml: :")
 
-	_, err := LoadTestConfig(io.Local, tmpDir)
-	if err == nil {
+	if r := LoadTestConfig(io.Local, tmpDir); r.OK {
 		t.Error("expected error for invalid YAML")
 	}
 }
@@ -451,10 +451,11 @@ func TestLoadTestConfig_MinimalConfig_Good(t *testing.T) {
 	_ = io.Local.EnsureDir(coreDir)
 	_ = io.Local.Write(coreutil.JoinPath(coreDir, "test.yaml"), "version: 1")
 
-	cfg, err := LoadTestConfig(io.Local, tmpDir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	r := LoadTestConfig(io.Local, tmpDir)
+	if !r.OK {
+		t.Fatalf("unexpected error: %v", r.Error())
 	}
+	cfg := core.MustCast[*TestConfig](r)
 	if cfg.Version != 1 {
 		t.Errorf("expected version 1, got %d", cfg.Version)
 	}

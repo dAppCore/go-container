@@ -9,6 +9,8 @@ import (
 	// Note: AX-6 — encoding/hex is structural here because container IDs are exposed as stable hex strings and no core primitive exists for this conversion yet.
 	"encoding/hex"
 	"time"
+
+	core "dappco.re/go"
 )
 
 // Container represents a running LinuxKit container/VM instance.
@@ -47,6 +49,8 @@ const (
 	StatusStopped Status = "stopped"
 	// StatusError indicates the container encountered an error.
 	StatusError Status = "error"
+	// StatusKilled indicates the container was killed with SIGKILL.
+	StatusKilled Status = "killed"
 )
 
 // RunOptions configures how a container should be run.
@@ -70,6 +74,42 @@ type RunOptions struct {
 	// GPU requests GPU passthrough into the container. Providers that do not
 	// support GPU passthrough return an error when this is set.
 	GPU bool
+	// Args is the container command/arguments, passed after the image
+	// (e.g. ["sleep", "300"]). Empty runs the image's default entrypoint.
+	Args []string
+	// Env is the container environment in KEY=VALUE form (Apple runtime only;
+	// LinuxKit bakes env into the image at build time).
+	Env []string
+	// DNS sets the container's DNS nameservers (Apple runtime). Empty defaults
+	// to a reachable public resolver: the Apple runtime points new containers
+	// at the gateway (192.168.64.1) as their resolver, but that gateway does
+	// NOT answer DNS, so hostnames fail to resolve even though NAT egress works.
+	// The host's own LAN resolver is often unreachable from the container's
+	// subnet, so a public resolver is the reliable default; override here for
+	// split-DNS / private resolvers.
+	DNS []string
+	// FSShares lists host directories shared into the guest as virtio-fs
+	// devices (VZProvider). Unlike Volumes — which expose raw image files as
+	// block devices the guest must format — a share is a live, host-visible
+	// directory the guest mounts by tag, the workspace contract agent dispatch
+	// needs. Order is the mount order; providers without virtio-fs ignore it.
+	FSShares []FSShare
+}
+
+// FSShare is one host directory shared into a guest as a virtio-fs device
+// (VZProvider). Tag names the device inside the guest, which mounts it with
+// `mount -t virtiofs <Tag> <dir>`; HostDir is the host-side directory exposed.
+//
+// Usage:
+//
+//	p.Run(img, container.WithSharedDir("/Users/me/workspace", "workspace"))
+type FSShare struct {
+	// HostDir is the host-side directory exposed to the guest.
+	HostDir string
+	// Tag identifies the device inside the guest (the virtio-fs mount tag).
+	Tag string
+	// ReadOnly shares the directory read-only when set.
+	ReadOnly bool
 }
 
 // ReadCloser is the stream contract returned by Manager.Logs.
@@ -81,44 +121,39 @@ type ReadCloser interface {
 // Manager defines the interface for container lifecycle management.
 type Manager interface {
 	// Run starts a new container from the given image.
-	Run(ctx context.Context, image string, opts RunOptions) (*Container, error)
+	Run(ctx context.Context, image string, opts RunOptions) core.Result // Value: *Container
 	// Stop stops a running container by ID.
-	Stop(ctx context.Context, id string) error
+	Stop(ctx context.Context, id string) core.Result // Value: nil
 	// List returns all known containers.
-	List(ctx context.Context) ([]*Container, error)
+	List(ctx context.Context) core.Result // Value: []*Container
 	// Logs returns a reader for the container's log output.
 	// If follow is true, the reader will continue to stream new log entries.
-	Logs(ctx context.Context, id string, follow bool) (ReadCloser, error)
+	Logs(ctx context.Context, id string, follow bool) core.Result // Value: ReadCloser
 	// Exec executes a command inside the container via SSH.
-	Exec(ctx context.Context, id string, cmd []string) error
+	Exec(ctx context.Context, id string, cmd []string) core.Result // Value: nil
 }
 
 // GenerateID creates a new unique container ID (8 hex characters).
 //
 // Usage:
 //
-//	id, err := GenerateID()
-func GenerateID() (
-	string,
-	error,
-) {
-	bytes, err := randomBytes(4)
-	if err != nil {
-		return "", err
+//	r := GenerateID()
+//	id := core.MustCast[string](r)
+func GenerateID() core.Result { // Value: string
+	r := randomBytes(4)
+	if !r.OK {
+		return r
 	}
-	return hexID(bytes), nil
+	return core.Ok(hexID(core.MustCast[[]byte](r)))
 }
 
-func randomBytes(length int) (
-	[]byte,
-	error,
-) {
+func randomBytes(length int) core.Result { // Value: []byte
 	bytes := make([]byte, length)
 	// Note: crypto primitive - no core equivalent yet.
 	if _, err := rand.Read(bytes); err != nil {
-		return nil, err
+		return core.Fail(core.E("randomBytes", "read random bytes", err))
 	}
-	return bytes, nil
+	return core.Ok(bytes)
 }
 
 func hexID(bytes []byte) string {
@@ -138,6 +173,8 @@ const (
 	FormatVMDK ImageFormat = "vmdk"
 	// FormatRaw is a raw disk image format.
 	FormatRaw ImageFormat = "raw"
+	// FormatOCI is an OCI container image format (Apple Containers).
+	FormatOCI ImageFormat = "oci"
 	// FormatUnknown indicates an unknown image format.
 	FormatUnknown ImageFormat = "unknown"
 )

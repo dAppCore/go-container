@@ -4,7 +4,7 @@ import (
 	"context"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
+	"dappco.re/go/container"
 
 	"dappco.re/go/container/internal/proc"
 )
@@ -16,15 +16,17 @@ type ShellOptions struct {
 }
 
 // Shell connects to the dev environment.
-func (d *DevOps) Shell(ctx context.Context, opts ShellOptions) (
-	err error, // result
-) {
-	running, err := d.IsRunning(ctx)
-	if err != nil {
-		return err
+//
+// Usage:
+//
+//	if r := dev.Shell(ctx, devenv.ShellOptions{}); !r.OK { return r }
+func (d *DevOps) Shell(ctx context.Context, opts ShellOptions) core.Result { // Value: nil
+	runningRes := d.IsRunning(ctx)
+	if !runningRes.OK {
+		return runningRes
 	}
-	if !running {
-		return coreerr.E("DevOps.Shell", "dev environment not running (run 'core dev boot' first)", nil)
+	if !core.MustCast[bool](runningRes) {
+		return core.Fail(core.E("DevOps.Shell", "dev environment not running (run 'core dev boot' first)", nil))
 	}
 
 	if opts.Console {
@@ -35,9 +37,7 @@ func (d *DevOps) Shell(ctx context.Context, opts ShellOptions) (
 }
 
 // sshShell connects via SSH.
-func (d *DevOps) sshShell(ctx context.Context, command []string) (
-	err error, // result
-) {
+func (d *DevOps) sshShell(ctx context.Context, command []string) core.Result { // Value: nil
 	args := []string{
 		"-o", "StrictHostKeyChecking=yes",
 		"-o", "UserKnownHostsFile=~/.core/known_hosts",
@@ -56,20 +56,22 @@ func (d *DevOps) sshShell(ctx context.Context, command []string) (
 	cmd.Stdout = proc.Stdout
 	cmd.Stderr = proc.Stderr
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return core.Fail(core.E("DevOps.sshShell", "ssh", err))
+	}
+	return core.Ok(nil)
 }
 
 // serialConsole attaches to the QEMU serial console.
-func (d *DevOps) serialConsole(ctx context.Context) (
-	err error, // result
-) {
+func (d *DevOps) serialConsole(ctx context.Context) core.Result { // Value: nil
 	// Find the container to get its console socket
-	c, err := d.findContainer(ctx, "core-dev")
-	if err != nil {
-		return err
+	findRes := d.findContainer(ctx, "core-dev")
+	if !findRes.OK {
+		return findRes
 	}
+	c := core.MustCast[*container.Container](findRes)
 	if c == nil {
-		return coreerr.E("DevOps.serialConsole", "console not available: container not found", nil)
+		return core.Fail(core.E("DevOps.serialConsole", "console not available: container not found", nil))
 	}
 
 	// Use socat to connect to the console socket
@@ -78,5 +80,8 @@ func (d *DevOps) serialConsole(ctx context.Context) (
 	cmd.Stdin = proc.Stdin
 	cmd.Stdout = proc.Stdout
 	cmd.Stderr = proc.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return core.Fail(core.E("DevOps.serialConsole", "socat", err))
+	}
+	return core.Ok(nil)
 }

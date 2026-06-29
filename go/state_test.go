@@ -37,10 +37,11 @@ func TestLoadState_NewFile_Good(t *testing.T) {
 	tmpDir := t.TempDir()
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 
-	state, err := LoadState(statePath)
-	if err != nil {
-		t.Fatal(err)
+	stateRes := LoadState(statePath)
+	if !stateRes.OK {
+		t.Fatal(stateRes.Error())
 	}
+	state := core.MustCast[*State](stateRes)
 	if state == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -76,10 +77,11 @@ func TestLoadState_ExistingFile_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	state, err := LoadState(statePath)
-	if err != nil {
-		t.Fatal(err)
+	stateRes := LoadState(statePath)
+	if !stateRes.OK {
+		t.Fatal(stateRes.Error())
 	}
+	state := core.MustCast[*State](stateRes)
 	if got, want := len(state.Containers), 1; got != want {
 		t.Fatalf("want len %v, got %v", want, got)
 	}
@@ -111,8 +113,8 @@ func TestLoadState_InvalidJSON_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = LoadState(statePath)
-	if err == nil {
+	loadRes := LoadState(statePath)
+	if loadRes.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -136,9 +138,8 @@ func TestState_Add_Good(t *testing.T) {
 		StartedAt: time.Now(),
 	}
 
-	err := state.Add(container)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(container); !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	// Verify it's in memory
@@ -175,9 +176,8 @@ func TestState_Update_Good(t *testing.T) {
 
 	// Update status
 	container.Status = StatusStopped
-	err := state.Update(container)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Update(container); !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	// Verify update
@@ -205,9 +205,8 @@ func TestState_Remove_Good(t *testing.T) {
 	}
 	_ = state.Add(container)
 
-	err := state.Remove("abc12345")
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Remove("abc12345"); !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	_, ok := state.Get("abc12345")
@@ -262,9 +261,8 @@ func TestState_SaveState_CreatesDirectory_Good(t *testing.T) {
 
 	_ = state.Add(&Container{ID: "abc12345"})
 
-	err := state.SaveState()
-	if err != nil {
-		t.Fatal(err)
+	if r := state.SaveState(); !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	// Verify directory was created
@@ -279,10 +277,7 @@ func TestState_DefaultStateDir_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	dir, err := DefaultStateDir()
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := core.MustCast[string](DefaultStateDir())
 	if s, sub := dir, ".core"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
@@ -294,10 +289,7 @@ func TestState_DefaultStatePath_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	path, err := DefaultStatePath()
-	if err != nil {
-		t.Fatal(err)
-	}
+	path := core.MustCast[string](DefaultStatePath())
 	if s, sub := path, "containers.json"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
@@ -309,10 +301,7 @@ func TestState_DefaultLogsDir_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	dir, err := DefaultLogsDir()
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := core.MustCast[string](DefaultLogsDir())
 	if s, sub := dir, "logs"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
@@ -324,10 +313,7 @@ func TestState_LogPath_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	path, err := LogPath("abc12345")
-	if err != nil {
-		t.Fatal(err)
-	}
+	path := core.MustCast[string](LogPath("abc12345"))
 	if s, sub := path, "abc12345.log"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
@@ -340,12 +326,11 @@ func TestState_EnsureLogsDir_Good(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	// This test creates real directories - skip in CI if needed
-	err := EnsureLogsDir()
-	if err != nil {
-		t.Fatal(err)
+	if r := EnsureLogsDir(); !r.OK {
+		t.Fatal(r.Error())
 	}
 
-	logsDir, _ := DefaultLogsDir()
+	logsDir := core.MustCast[string](DefaultLogsDir())
 	if !(io.Local.IsDir(logsDir)) {
 		t.Fatal("expected true")
 	}
@@ -357,22 +342,14 @@ func TestState_GenerateID_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	id1, err := GenerateID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id1 := core.MustCast[string](GenerateID())
 	if got, want := len(id1), 8; got != want {
 		t.Fatalf("want len %v, got %v", want, got)
 	}
 
-	id2, err := GenerateID()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, want := len(id2), 8; got !=
-
-		// IDs should be different
-		want {
+	id2 := core.MustCast[string](GenerateID())
+	// IDs should be different
+	if got, want := len(id2), 8; got != want {
 		t.Fatalf("want len %v, got %v", want, got)
 	}
 	if got, want := id2, id1; reflect.DeepEqual(got, want) {

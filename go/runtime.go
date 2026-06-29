@@ -14,6 +14,9 @@ type RuntimeType string
 const (
 	// RuntimeApple is Apple's Containerisation framework (macOS 26+).
 	RuntimeApple RuntimeType = "apple"
+	// RuntimeVZ is the in-process Virtualization.framework provider
+	// (RFC.vz.md) — hardware-isolated VMs, no external binary.
+	RuntimeVZ RuntimeType = "vz"
 	// RuntimeDocker is Docker / dockerd on any platform.
 	RuntimeDocker RuntimeType = "docker"
 	// RuntimePodman is Podman on Linux or macOS.
@@ -107,14 +110,14 @@ func (r ContainerRuntime) HasSubSecondStart() bool { return r.caps&capSubSecondS
 func (r ContainerRuntime) Caps() uint32 { return r.caps }
 
 // Detect probes the system for available container runtimes and returns the
-// highest-priority runtime found. Priority order:
+// highest-priority runtime found. Priority order (RFC.vz.md §6 Phase E):
 //
-//	Apple Containers → Docker → Podman → LinuxKit → None.
+//	Apple Containers → VZ (in-process) → Docker → Podman → LinuxKit → None.
 //
 // Usage:
 //
 //	rt := container.Detect()
-//	fmt.Println(rt.Type)  // "apple", "docker", "podman", "linuxkit" or "none"
+//	fmt.Println(rt.Type)  // "apple", "vz", "docker", "podman", "linuxkit" or "none"
 func Detect() ContainerRuntime {
 	for _, rt := range DetectAll() {
 		return rt
@@ -134,6 +137,9 @@ func DetectAll() []ContainerRuntime {
 	var out []ContainerRuntime
 
 	if rt, ok := detectApple(); ok {
+		out = append(out, rt)
+	}
+	if rt, ok := detectVZ(); ok {
 		out = append(out, rt)
 	}
 	if rt, ok := detectDocker(); ok {
@@ -158,11 +164,20 @@ func detectApple() (ContainerRuntime, bool) {
 	if err != nil {
 		return ContainerRuntime{}, false
 	}
+	if !IsAppleAvailable() {
+		// Binary installed but the system services are down — fall through
+		// so Detect can hand back a runtime that actually serves (vz next).
+		return ContainerRuntime{}, false
+	}
 	rt := ContainerRuntime{
 		Type:    RuntimeApple,
 		Path:    path,
 		Version: captureVersion(path, "--version"),
 	}
+	// Apple's Containerisation framework has no GPU passthrough yet — a GPU run
+	// request is rejected in appleRunArgs — so capGPU is intentionally NOT set.
+	// HasGPU() stays false for Apple until the framework ships passthrough,
+	// keeping the documented HasGPU()->WithGPU->Run pattern honest. See RFC.md §15.
 	rt.caps = capNetworkIsolation | capVolumeMounts | capHardwareIsolation | capSubSecondStart
 	return rt, true
 }
@@ -205,10 +220,11 @@ func detectPodman() (ContainerRuntime, bool) {
 
 // detectLinuxKit reports LinuxKit support when a compatible hypervisor is present.
 func detectLinuxKit() (ContainerRuntime, bool) {
-	hv, err := DetectHypervisor()
-	if err != nil {
+	r := DetectHypervisor()
+	if !r.OK {
 		return ContainerRuntime{}, false
 	}
+	hv := core.MustCast[Hypervisor](r)
 	rt := ContainerRuntime{
 		Type:    RuntimeLinuxKit,
 		Path:    hv.Name(),
@@ -234,25 +250,22 @@ func captureVersion(path string, flag string) string {
 }
 
 // ProviderFor returns a Provider matching the requested runtime type. If the
-// requested runtime is not available on the host the function returns an
-// error — callers should probe with Detect() first for auto-selection.
+// requested runtime is not available on the host the function returns a failed
+// Result — callers should probe with Detect() first for auto-selection.
 //
 // Usage:
 //
-//	p, err := container.ProviderFor(container.RuntimeApple)
-func ProviderFor(rt RuntimeType) (
-	Provider,
-	error,
-) {
+//	p := core.MustCast[container.Provider](container.ProviderFor(container.RuntimeApple))
+func ProviderFor(rt RuntimeType) core.Result { // Value: Provider
 	switch rt {
 	case RuntimeApple:
 		p := NewAppleProvider()
 		if !p.Available() {
-			return nil, newRuntimeUnavailableError(rt)
+			return core.Fail(newRuntimeUnavailableError(rt))
 		}
-		return p, nil
+		return core.Ok(Provider(p))
 	default:
-		return nil, newRuntimeUnsupportedError(rt)
+		return core.Fail(newRuntimeUnsupportedError(rt))
 	}
 }
 

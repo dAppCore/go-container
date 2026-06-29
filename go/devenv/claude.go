@@ -5,7 +5,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/container/internal/proc"
@@ -19,24 +18,26 @@ type ClaudeOptions struct {
 }
 
 // Claude starts a sandboxed Claude session in the dev environment.
-func (d *DevOps) Claude(ctx context.Context, projectDir string, opts ClaudeOptions) (
-	err error, // result
-) {
+//
+// Usage:
+//
+//	if r := dev.Claude(ctx, ".", devenv.ClaudeOptions{}); !r.OK { return r }
+func (d *DevOps) Claude(ctx context.Context, projectDir string, opts ClaudeOptions) core.Result { // Value: nil
 	// Auto-boot if not running
-	running, err := d.IsRunning(ctx)
-	if err != nil {
-		return err
+	runningRes := d.IsRunning(ctx)
+	if !runningRes.OK {
+		return runningRes
 	}
-	if !running {
+	if !core.MustCast[bool](runningRes) {
 		core.Println("Dev environment not running, booting...")
-		if err := d.Boot(ctx, DefaultBootOptions()); err != nil {
-			return coreerr.E("DevOps.Claude", "failed to boot", err)
+		if r := d.Boot(ctx, DefaultBootOptions()); !r.OK {
+			return core.Fail(core.E("DevOps.Claude", "failed to boot", r.Value.(error)))
 		}
 	}
 
 	// Mount project
-	if err := d.mountProject(ctx, projectDir); err != nil {
-		return coreerr.E("DevOps.Claude", "failed to mount project", err)
+	if r := d.mountProject(ctx, projectDir); !r.OK {
+		return core.Fail(core.E("DevOps.Claude", "failed to mount project", r.Value.(error)))
 	}
 
 	// Prepare environment variables to forward
@@ -106,7 +107,10 @@ func (d *DevOps) Claude(ctx context.Context, projectDir string, opts ClaudeOptio
 	core.Println(core.Concat("Auth forwarded: SSH agent", formatAuthList(opts)))
 	core.Println()
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return core.Fail(core.E("DevOps.Claude", "ssh claude", err))
+	}
+	return core.Ok(nil)
 }
 
 func formatAuthList(opts ClaudeOptions) string {
@@ -120,17 +124,19 @@ func formatAuthList(opts ClaudeOptions) string {
 }
 
 // CopyGHAuth copies GitHub CLI auth to the VM.
-func (d *DevOps) CopyGHAuth(ctx context.Context) (
-	err error, // result
-) {
+//
+// Usage:
+//
+//	if r := dev.CopyGHAuth(ctx); !r.OK { return r }
+func (d *DevOps) CopyGHAuth(ctx context.Context) core.Result { // Value: nil
 	home := coreutil.HomeDir()
 	if home == "" {
-		return coreerr.E("DevOps.CopyGHAuth", "home directory not available", nil)
+		return core.Fail(core.E("DevOps.CopyGHAuth", "home directory not available", nil))
 	}
 
 	ghConfigDir := coreutil.JoinPath(home, ".config", "gh")
 	if !io.Local.IsDir(ghConfigDir) {
-		return nil // No gh config to copy
+		return core.Ok(nil) // No gh config to copy
 	}
 
 	// Use scp to copy gh config
@@ -142,5 +148,8 @@ func (d *DevOps) CopyGHAuth(ctx context.Context) (
 		"-r", ghConfigDir,
 		"root@localhost:/root/.config/",
 	)
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return core.Fail(core.E("DevOps.CopyGHAuth", "scp gh config", err))
+	}
+	return core.Ok(nil)
 }

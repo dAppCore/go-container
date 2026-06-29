@@ -110,13 +110,13 @@ func TestRuntime_RequireGPU_Ugly(t *testing.T) {
 	// RequireGPU must error when the runtime has no GPU capability,
 	// and succeed when it does.
 	noGPU := ContainerRuntime{Type: RuntimeDocker}
-	if err := RequireGPU(noGPU); err == nil {
+	if r := RequireGPU(noGPU); r.OK {
 		t.Fatal("expected error")
 	}
 
 	gpu := ContainerRuntime{Type: RuntimeApple, caps: capGPU}
-	if err := RequireGPU(gpu); err != nil {
-		t.Fatal(err)
+	if r := RequireGPU(gpu); !r.OK {
+		t.Fatal(r.Error())
 	}
 }
 
@@ -126,9 +126,20 @@ func TestRuntime_ProviderFor_UnsupportedType_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	_, err := ProviderFor(RuntimeDocker)
-	if err == nil {
+	r := ProviderFor(RuntimeDocker)
+	if r.OK {
 		t.Fatal("expected error")
+	}
+}
+
+func TestRuntime_ProviderFor_AppleUnavailable_Bad(t *testing.T) {
+	t.Setenv("GOOS", "linux")
+	r := ProviderFor(RuntimeApple)
+	if r.OK {
+		t.Fatal("expected apple provider to be unavailable on non-darwin")
+	}
+	if r.Error() == "" {
+		t.Fatal("expected unavailable runtime error message")
 	}
 }
 
@@ -138,8 +149,8 @@ func TestRuntime_ProviderFor_Unknown_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	_, err := ProviderFor(RuntimeType("not-a-runtime"))
-	if err == nil {
+	r := ProviderFor(RuntimeType("not-a-runtime"))
+	if r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -154,6 +165,15 @@ func TestRuntime_HasRuntime_None_Good(t *testing.T) {
 	// return None from DetectAll.
 	if HasRuntime(RuntimeNone) {
 		t.Fatal("expected false")
+	}
+}
+
+func TestRuntime_RuntimeErrors_Good(t *testing.T) {
+	if got := newRuntimeUnavailableError(RuntimeApple).Error(); got == "" {
+		t.Fatal("expected unavailable error message")
+	}
+	if got := newRuntimeUnsupportedError(RuntimeDocker).Error(); got == "" {
+		t.Fatal("expected unsupported error message")
 	}
 }
 
@@ -700,5 +720,22 @@ func TestRuntime_runtimeerror_Error_Ugly(t *testing.T) {
 	}
 	if got := linked; !got {
 		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestRuntime_detectApple_Good(t *testing.T) {
+	rt, ok := detectApple()
+	if !ok {
+		t.Skip("apple container runtime not detected on this host")
+	}
+	// Apple's framework has no GPU passthrough today (appleRunArgs rejects a GPU
+	// request), so the detected runtime must NOT advertise GPU — otherwise the
+	// documented HasGPU()->WithGPU->Run pattern is a guaranteed failure.
+	if rt.HasGPU() {
+		t.Fatal("detected Apple runtime must not report GPU passthrough")
+	}
+	// The remaining Apple capabilities are unaffected by the GPU correction.
+	if !rt.IsHardwareIsolated() || !rt.HasSubSecondStart() {
+		t.Fatal("Apple runtime should still report hardware isolation + sub-second start")
 	}
 }

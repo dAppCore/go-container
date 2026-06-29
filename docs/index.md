@@ -5,15 +5,15 @@ description: Container runtime, LinuxKit image builder, and portable development
 
 # go-container
 
-`dappco.re/go/core/container` provides a container runtime built on LinuxKit and lightweight hypervisors. It manages the full lifecycle of LinuxKit virtual machines -- from building images with embedded templates, to running them via QEMU or Hyperkit, to offering a portable development environment with shell access, project mounting, test execution, and Claude AI integration.
+`dappco.re/go/container` provides a container runtime built on LinuxKit and lightweight hypervisors, plus Apple Containers (macOS 26+) and TIM (Terminal Isolation Matrix). It manages the full lifecycle of containers — from building images with embedded templates, to running them via QEMU, Hyperkit, or Apple's native CLI, to offering a portable development environment with shell access, project mounting, test execution, and Claude AI integration.
 
-This is **not** a Docker wrapper. It runs real VMs from LinuxKit images (ISO, qcow2, VMDK, raw) using platform-native acceleration (KVM on Linux, HVF on macOS, Hyperkit where available).
+This is **not** a Docker wrapper. It runs real VMs from LinuxKit images (ISO, qcow2, VMDK, raw) and OCI containers via Apple's Containerisation framework, using platform-native acceleration (KVM on Linux, HVF on macOS, Apple Silicon VMs).
 
 
 ## Module path
 
 ```
-dappco.re/go/core/container
+dappco.re/go/container
 ```
 
 Requires **Go 1.26+**.

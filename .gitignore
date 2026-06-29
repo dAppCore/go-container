@@ -1,2 +1,11 @@
-.core/
 .idea/
+.core/workspace/
+.core/vm/
+.core/cache/
+.core/runtime/
+.core/*.duckdb*
+.core/coderabbit-findings.txt
+GOAL.md
+
+# superpowers design/plan scratch — not committed (shipped work lives in code)
+docs/superpowers/

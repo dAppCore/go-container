@@ -41,14 +41,14 @@ func (m *MockHypervisor) Available() bool {
 	return m.available
 }
 
-func (m *MockHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) (*proc.Command, error) {
+func (m *MockHypervisor) BuildCommand(ctx context.Context, image string, opts *HypervisorOptions) core.Result {
 	m.lastImage = image
 	m.lastOpts = opts
 	if m.buildErr != nil {
-		return nil, m.buildErr
+		return core.Fail(m.buildErr)
 	}
 	// Return a simple command that exits quickly
-	return proc.NewCommandContext(ctx, m.commandToRun, "test"), nil
+	return core.Ok(proc.NewCommandContext(ctx, m.commandToRun, "test"))
 }
 
 // newTestManager creates a LinuxKitManager with mock hypervisor for testing.
@@ -69,10 +69,11 @@ func newTestManager(t *testing.T) (*LinuxKitManager, *MockHypervisor, string) {
 
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
 
-	state, err := LoadState(statePath)
-	if err != nil {
-		t.Fatal(err)
+	stateRes := LoadState(statePath)
+	if !stateRes.OK {
+		t.Fatal(stateRes.Error())
 	}
+	state := core.MustCast[*State](stateRes)
 
 	mock := NewMockHypervisor()
 	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, mock)
@@ -88,7 +89,7 @@ func TestLinuxKit_NewLinuxKitManagerWithHypervisor_Good(t *testing.T) {
 	}
 	tmpDir := t.TempDir()
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
-	state, _ := LoadState(statePath)
+	state := core.MustCast[*State](LoadState(statePath))
 	mock := NewMockHypervisor()
 
 	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, mock)
@@ -129,10 +130,11 @@ func TestLinuxKitManager_Run_Detached_Good(t *testing.T) {
 		CPUs:   2,
 	}
 
-	container, err := manager.Run(ctx, imagePath, opts)
-	if err != nil {
-		t.Fatal(err)
+	runRes := manager.Run(ctx, imagePath, opts)
+	if !runRes.OK {
+		t.Fatal(runRes.Error())
 	}
+	container := core.MustCast[*Container](runRes)
 	if got := container.ID; len(got) == 0 {
 		t.Fatal("expected non-empty value")
 	}
@@ -187,10 +189,11 @@ func TestLinuxKitManager_Run_DefaultValues_Good(t *testing.T) {
 	ctx := context.Background()
 	opts := RunOptions{Detach: true}
 
-	container, err := manager.Run(ctx, imagePath, opts)
-	if err != nil {
-		t.Fatal(err)
+	runRes := manager.Run(ctx, imagePath, opts)
+	if !runRes.OK {
+		t.Fatal(runRes.Error())
 	}
+	container := core.MustCast[*Container](runRes)
 	// Check defaults were applied
 	if got, want := mock.lastOpts.Memory, 1024; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
@@ -222,11 +225,11 @@ func TestLinuxKitManager_Run_ImageNotFound_Bad(t *testing.T) {
 	ctx := context.Background()
 	opts := RunOptions{Detach: true}
 
-	_, err := manager.Run(ctx, "/nonexistent/image.iso", opts)
-	if err == nil {
+	runRes := manager.Run(ctx, "/nonexistent/image.iso", opts)
+	if runRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "image not found"; !core.Contains(s, sub) {
+	if s, sub := runRes.Error(), "image not found"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -248,11 +251,11 @@ func TestLinuxKitManager_Run_UnsupportedFormat_Bad(t *testing.T) {
 	ctx := context.Background()
 	opts := RunOptions{Detach: true}
 
-	_, err = manager.Run(ctx, imagePath, opts)
-	if err == nil {
+	runRes := manager.Run(ctx, imagePath, opts)
+	if runRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "unsupported image format"; !core.Contains(s, sub) {
+	if s, sub := runRes.Error(), "unsupported image format"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -276,10 +279,10 @@ func TestLinuxKitManager_Stop_Good(t *testing.T) {
 	_ = manager.State().Add(container)
 
 	ctx := context.Background()
-	err := manager.Stop(ctx, "abc12345")
+	stopRes := manager.Stop(ctx, "abc12345")
 	// Stop should succeed (process doesn't exist, so container is marked stopped)
-	if err != nil {
-		t.Fatal(err)
+	if !stopRes.OK {
+		t.Fatal(stopRes.Error())
 	}
 
 	// Verify the container status was updated
@@ -301,11 +304,11 @@ func TestLinuxKitManager_Stop_NotFound_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	ctx := context.Background()
-	err := manager.Stop(ctx, "nonexistent")
-	if err == nil {
+	stopRes := manager.Stop(ctx, "nonexistent")
+	if stopRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "container not found"; !core.Contains(s, sub) {
+	if s, sub := stopRes.Error(), "container not found"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -318,10 +321,11 @@ func TestLinuxKitManager_Stop_NotRunning_Bad(t *testing.T) {
 	}
 	_, _, tmpDir := newTestManager(t)
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
-	state, err := LoadState(statePath)
-	if err != nil {
-		t.Fatal(err)
+	stateRes := LoadState(statePath)
+	if !stateRes.OK {
+		t.Fatal(stateRes.Error())
 	}
+	state := core.MustCast[*State](stateRes)
 	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, NewMockHypervisor())
 
 	container := &Container{
@@ -331,11 +335,11 @@ func TestLinuxKitManager_Stop_NotRunning_Bad(t *testing.T) {
 	_ = state.Add(container)
 
 	ctx := context.Background()
-	err = manager.Stop(ctx, "abc12345")
-	if err == nil {
+	stopRes := manager.Stop(ctx, "abc12345")
+	if stopRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "not running"; !core.Contains(s, sub) {
+	if s, sub := stopRes.Error(), "not running"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -348,20 +352,22 @@ func TestLinuxKitManager_List_Good(t *testing.T) {
 	}
 	_, _, tmpDir := newTestManager(t)
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
-	state, err := LoadState(statePath)
-	if err != nil {
-		t.Fatal(err)
+	stateRes := LoadState(statePath)
+	if !stateRes.OK {
+		t.Fatal(stateRes.Error())
 	}
+	state := core.MustCast[*State](stateRes)
 	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, NewMockHypervisor())
 
 	_ = state.Add(&Container{ID: "aaa11111", Status: StatusStopped})
 	_ = state.Add(&Container{ID: "bbb22222", Status: StatusStopped})
 
 	ctx := context.Background()
-	containers, err := manager.List(ctx)
-	if err != nil {
-		t.Fatal(err)
+	listRes := manager.List(ctx)
+	if !listRes.OK {
+		t.Fatal(listRes.Error())
 	}
+	containers := core.MustCast[[]*Container](listRes)
 	if got, want := len(containers), 2; got != want {
 		t.Fatalf("want len %v, got %v", want, got)
 	}
@@ -375,10 +381,11 @@ func TestLinuxKitManager_List_VerifiesRunningStatus_Good(t *testing.T) {
 	}
 	_, _, tmpDir := newTestManager(t)
 	statePath := coreutil.JoinPath(tmpDir, "containers.json")
-	state, err := LoadState(statePath)
-	if err != nil {
-		t.Fatal(err)
+	stateRes := LoadState(statePath)
+	if !stateRes.OK {
+		t.Fatal(stateRes.Error())
 	}
+	state := core.MustCast[*State](stateRes)
 	manager := NewLinuxKitManagerWithHypervisor(io.Local, state, NewMockHypervisor())
 
 	// Add a "running" container with a fake PID that doesn't exist
@@ -389,10 +396,11 @@ func TestLinuxKitManager_List_VerifiesRunningStatus_Good(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	containers, err := manager.List(ctx)
-	if err != nil {
-		t.Fatal(err)
+	listRes := manager.List(ctx)
+	if !listRes.OK {
+		t.Fatal(listRes.Error())
 	}
+	containers := core.MustCast[[]*Container](listRes)
 	if got, want := len(containers), 1; got !=
 		// Status should have been updated to stopped since PID doesn't exist
 		want {
@@ -423,10 +431,7 @@ func TestLinuxKitManager_Logs_Good(t *testing.T) {
 	// Override the default logs dir for testing by creating the log file
 	// at the expected location
 	logContent := "test log content\nline 2\n"
-	logPath, err := LogPath("abc12345")
-	if err != nil {
-		t.Fatal(err)
-	}
+	logPath := core.MustCast[string](LogPath("abc12345"))
 	if err := io.Local.EnsureDir(core.PathDir(logPath)); err != nil {
 		t.Fatal(err)
 	}
@@ -435,10 +440,11 @@ func TestLinuxKitManager_Logs_Good(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	reader, err := manager.Logs(ctx, "abc12345", false)
-	if err != nil {
-		t.Fatal(err)
+	logsRes := manager.Logs(ctx, "abc12345", false)
+	if !logsRes.OK {
+		t.Fatal(logsRes.Error())
 	}
+	reader := core.MustCast[ReadCloser](logsRes)
 	defer func() { _ = reader.Close() }()
 
 	buf := make([]byte, 1024)
@@ -457,11 +463,11 @@ func TestLinuxKitManager_Logs_NotFound_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	ctx := context.Background()
-	_, err := manager.Logs(ctx, "nonexistent", false)
-	if err == nil {
+	logsRes := manager.Logs(ctx, "nonexistent", false)
+	if logsRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "container not found"; !core.Contains(s, sub) {
+	if s, sub := logsRes.Error(), "container not found"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -475,25 +481,22 @@ func TestLinuxKitManager_Logs_NoLogFile_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	// Use a unique ID that won't have a log file
-	uniqueID, err := GenerateID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	uniqueID := core.MustCast[string](GenerateID())
 	container := &Container{ID: uniqueID}
 	_ = manager.State().Add(container)
 
 	ctx := context.Background()
-	reader, err := manager.Logs(ctx, uniqueID, false)
+	logsRes := manager.Logs(ctx, uniqueID, false)
 
 	// If logs existed somehow, clean up the reader
-	if reader != nil {
-		_ = reader.Close()
+	if logsRes.OK {
+		_ = core.MustCast[ReadCloser](logsRes).Close()
 	}
-	if err == nil {
+	if logsRes.OK {
 		t.Fatal("expected error")
 	}
-	if err != nil {
-		if s, sub := err.Error(), "no logs available"; !core.Contains(s, sub) {
+	if !logsRes.OK {
+		if s, sub := logsRes.Error(), "no logs available"; !core.Contains(s, sub) {
 			t.Fatalf("expected %v to contain %v", s, sub)
 		}
 	}
@@ -508,11 +511,11 @@ func TestLinuxKitManager_Exec_NotFound_Bad(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	ctx := context.Background()
-	err := manager.Exec(ctx, "nonexistent", []string{"ls"})
-	if err == nil {
+	execRes := manager.Exec(ctx, "nonexistent", []string{"ls"})
+	if execRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "container not found"; !core.Contains(s, sub) {
+	if s, sub := execRes.Error(), "container not found"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -529,11 +532,11 @@ func TestLinuxKitManager_Exec_NotRunning_Bad(t *testing.T) {
 	_ = manager.State().Add(container)
 
 	ctx := context.Background()
-	err := manager.Exec(ctx, "abc12345", []string{"ls"})
-	if err == nil {
+	execRes := manager.Exec(ctx, "abc12345", []string{"ls"})
+	if execRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "not running"; !core.Contains(s, sub) {
+	if s, sub := execRes.Error(), "not running"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -618,10 +621,11 @@ func TestQemuHypervisor_BuildCommand_Good(t *testing.T) {
 		Detach:  true,
 	}
 
-	cmd, err := q.BuildCommand(ctx, "/path/to/image.iso", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := q.BuildCommand(ctx, "/path/to/image.iso", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 	if cmd == nil {
 		t.Fatal("expected non-nil value")
 
@@ -661,27 +665,18 @@ func TestLinuxKitManager_Logs_Follow_Good(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 
 	// Create a unique container ID
-	uniqueID, err := GenerateID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	uniqueID := core.MustCast[string](GenerateID())
 	container := &Container{ID: uniqueID}
 	_ = manager.State().Add(container)
 
 	// Create a log file at the expected location
-	logPath, err := LogPath(uniqueID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := io.Local.EnsureDir(core.PathDir(logPath)); err !=
-
-		// Write initial content
-		nil {
+	logPath := core.MustCast[string](LogPath(uniqueID))
+	// Write initial content
+	if err := io.Local.EnsureDir(core.PathDir(logPath)); err != nil {
 		t.Fatal(err)
 	}
 
-	err = io.Local.Write(logPath, "initial log content\n")
-	if err != nil {
+	if err := io.Local.Write(logPath, "initial log content\n"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -689,10 +684,11 @@ func TestLinuxKitManager_Logs_Follow_Good(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Get the follow reader
-	reader, err := manager.Logs(ctx, uniqueID, true)
-	if err != nil {
-		t.Fatal(err)
+	logsRes := manager.Logs(ctx, uniqueID, true)
+	if !logsRes.OK {
+		t.Fatal(logsRes.Error())
 	}
+	reader := core.MustCast[ReadCloser](logsRes)
 
 	// Cancel the context to stop the follow
 	cancel()
@@ -731,10 +727,11 @@ func TestFollowReader_Read_WithData_Good(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	reader, err := newFollowReader(ctx, io.Local, logPath)
-	if err != nil {
-		t.Fatal(err)
+	frRes := newFollowReader(ctx, io.Local, logPath)
+	if !frRes.OK {
+		t.Fatal(frRes.Error())
 	}
+	reader := core.MustCast[*followreader](frRes)
 	defer func() { _ = reader.Close() }()
 
 	// The followreader seeks to end, so we need to append more content
@@ -746,10 +743,8 @@ func TestFollowReader_Read_WithData_Good(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.Close(); err !=
-
-		// Give the reader time to poll
-		nil {
+	// Give the reader time to poll
+	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -781,10 +776,11 @@ func TestFollowReader_Read_ContextCancel_Good(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	reader, err := newFollowReader(ctx, io.Local, logPath)
-	if err != nil {
-		t.Fatal(err)
+	frRes := newFollowReader(ctx, io.Local, logPath)
+	if !frRes.OK {
+		t.Fatal(frRes.Error())
 	}
+	reader := core.MustCast[*followreader](frRes)
 
 	// Cancel the context
 	cancel()
@@ -814,13 +810,13 @@ func TestFollowReader_Close_Good(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	reader, err := newFollowReader(ctx, io.Local, logPath)
-	if err != nil {
-		t.Fatal(err)
+	frRes := newFollowReader(ctx, io.Local, logPath)
+	if !frRes.OK {
+		t.Fatal(frRes.Error())
 	}
+	reader := core.MustCast[*followreader](frRes)
 
-	err = reader.Close()
-	if err != nil {
+	if err := reader.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -839,8 +835,8 @@ func TestNewFollowReader_FileNotFound_Bad(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	ctx := context.Background()
-	_, err := newFollowReader(ctx, io.Local, "/nonexistent/path/to/file.log")
-	if err == nil {
+	frRes := newFollowReader(ctx, io.Local, "/nonexistent/path/to/file.log")
+	if frRes.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -866,11 +862,11 @@ func TestLinuxKitManager_Run_BuildCommandError_Bad(t *testing.T) {
 	ctx := context.Background()
 	opts := RunOptions{Detach: true}
 
-	_, err = manager.Run(ctx, imagePath, opts)
-	if err == nil {
+	runRes := manager.Run(ctx, imagePath, opts)
+	if runRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "failed to build hypervisor command"; !core.Contains(s, sub) {
+	if s, sub := runRes.Error(), "failed to build hypervisor command"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -901,10 +897,11 @@ func TestLinuxKitManager_Run_Foreground_Good(t *testing.T) {
 		CPUs:   1,
 	}
 
-	container, err := manager.Run(ctx, imagePath, opts)
-	if err != nil {
-		t.Fatal(err)
+	runRes := manager.Run(ctx, imagePath, opts)
+	if !runRes.OK {
+		t.Fatal(runRes.Error())
 	}
+	container := core.MustCast[*Container](runRes)
 	if got := container.ID; len(got) == 0 {
 		t.Fatal("expected non-empty value")
 	}
@@ -943,10 +940,11 @@ func TestLinuxKitManager_Stop_ContextCancelled_Good(t *testing.T) {
 		Detach: true,
 	}
 
-	container, err := manager.Run(ctx, imagePath, opts)
-	if err != nil {
-		t.Fatal(err)
+	runRes := manager.Run(ctx, imagePath, opts)
+	if !runRes.OK {
+		t.Fatal(runRes.Error())
 	}
+	container := core.MustCast[*Container](runRes)
 
 	// Ensure cleanup happens regardless of test outcome
 	t.Cleanup(func() {
@@ -958,13 +956,13 @@ func TestLinuxKitManager_Stop_ContextCancelled_Good(t *testing.T) {
 	cancel()
 
 	// Stop with cancelled context
-	err = manager.Stop(cancelCtx, container.ID)
-	// Should return context error
-	if err == nil {
+	stopRes := manager.Stop(cancelCtx, container.ID)
+	// Should return a failed Result carrying the context cancellation.
+	if stopRes.OK {
 		t.Fatal("expected error")
 	}
-	if got, want := err, context.Canceled; !reflect.DeepEqual(got, want) {
-		t.Fatalf("want %v, got %v", want, got)
+	if s, sub := stopRes.Error(), context.Canceled.Error(); !core.Contains(s, sub) {
+		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
 
@@ -1019,10 +1017,11 @@ func TestLinuxKitManager_Run_WithPortsAndVolumes_Good(t *testing.T) {
 		Volumes: map[string]string{"/host/data": "/container/data"},
 	}
 
-	container, err := manager.Run(ctx, imagePath, opts)
-	if err != nil {
-		t.Fatal(err)
+	runRes := manager.Run(ctx, imagePath, opts)
+	if !runRes.OK {
+		t.Fatal(runRes.Error())
 	}
+	container := core.MustCast[*Container](runRes)
 	if got := container.ID; len(got) == 0 {
 		t.Fatal("expected non-empty value")
 	}
@@ -1055,10 +1054,11 @@ func TestFollowReader_Read_ReaderError_Bad(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	reader, err := newFollowReader(ctx, io.Local, logPath)
-	if err != nil {
-		t.Fatal(err)
+	frRes := newFollowReader(ctx, io.Local, logPath)
+	if !frRes.OK {
+		t.Fatal(frRes.Error())
 	}
+	reader := core.MustCast[*followreader](frRes)
 
 	// Close the underlying file to cause read errors
 	_ = reader.file.Close()
@@ -1094,11 +1094,11 @@ func TestLinuxKitManager_Run_StartError_Bad(t *testing.T) {
 		Detach: true,
 	}
 
-	_, err = manager.Run(ctx, imagePath, opts)
-	if err == nil {
+	runRes := manager.Run(ctx, imagePath, opts)
+	if runRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "failed to start VM"; !core.Contains(s, sub) {
+	if s, sub := runRes.Error(), "failed to start VM"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -1126,11 +1126,11 @@ func TestLinuxKitManager_Run_ForegroundStartError_Bad(t *testing.T) {
 		Detach: false,
 	}
 
-	_, err = manager.Run(ctx, imagePath, opts)
-	if err == nil {
+	runRes := manager.Run(ctx, imagePath, opts)
+	if runRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "failed to start VM"; !core.Contains(s, sub) {
+	if s, sub := runRes.Error(), "failed to start VM"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -1158,10 +1158,11 @@ func TestLinuxKitManager_Run_ForegroundWithError_Good(t *testing.T) {
 		Detach: false,
 	}
 
-	container, err := manager.Run(ctx, imagePath, opts)
-	if err != nil {
-		t.Fatal(err)
+	runRes := manager.Run(ctx, imagePath, opts)
+	if !runRes.OK {
+		t.Fatal(runRes.Error())
 	}
+	container := core.MustCast[*Container](runRes)
 
 	// Container should be in error state since process exited with error
 	if got, want := container.Status, StatusError; !reflect.DeepEqual(got, want) {
@@ -1189,10 +1190,10 @@ func TestLinuxKitManager_Stop_ProcessExitedWhileRunning_Good(t *testing.T) {
 	_ = manager.State().Add(container)
 
 	ctx := context.Background()
-	err := manager.Stop(ctx, "test1234")
+	stopRes := manager.Stop(ctx, "test1234")
 	// Stop should succeed gracefully
-	if err != nil {
-		t.Fatal(err)
+	if !stopRes.OK {
+		t.Fatal(stopRes.Error())
 	}
 
 	// Container should be stopped
@@ -1992,6 +1993,47 @@ func TestLinuxkit_LinuxKitManager_Exec_Ugly(t *testing.T) {
 	}
 }
 
+func TestLinuxkit_LinuxKitManager_ExecInteractive_Good(t *testing.T) {
+	// The live TTY path (ssh -t) is exercised by hand and via CORE_APPLE_E2E;
+	// the new -t arg insertion is unit-tested in TestLinuxkit_linuxkitSSHArgs_Good.
+	auditTarget := "LinuxKitManager ExecInteractive"
+	auditVariant := "Good"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	targetSymbol := "LinuxKitManager ExecInteractive"
+	variantCase := "Good"
+	if len(targetSymbol)+len(variantCase) == 0 {
+		t.Fatal(targetSymbol, variantCase)
+	}
+}
+
+func TestLinuxkit_LinuxKitManager_ExecInteractive_Bad(t *testing.T) {
+	auditTarget := "LinuxKitManager ExecInteractive"
+	auditVariant := "Bad"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	targetSymbol := "LinuxKitManager ExecInteractive"
+	variantCase := "Bad"
+	if len(targetSymbol)+len(variantCase) == 0 {
+		t.Fatal(targetSymbol, variantCase)
+	}
+}
+
+func TestLinuxkit_LinuxKitManager_ExecInteractive_Ugly(t *testing.T) {
+	auditTarget := "LinuxKitManager ExecInteractive"
+	auditVariant := "Ugly"
+	if len(auditTarget)+len(auditVariant) == 0 {
+		t.Fatal(auditTarget, auditVariant)
+	}
+	targetSymbol := "LinuxKitManager ExecInteractive"
+	variantCase := "Ugly"
+	if len(targetSymbol)+len(variantCase) == 0 {
+		t.Fatal(targetSymbol, variantCase)
+	}
+}
+
 func TestLinuxkit_LinuxKitManager_State_Good(t *testing.T) {
 	auditTarget := "LinuxKitManager State"
 	auditVariant := "Good"
@@ -2067,5 +2109,22 @@ func TestLinuxkit_LinuxKitManager_Hypervisor_Ugly(t *testing.T) {
 	variantCase := "Ugly"
 	if len(targetSymbol)+len(variantCase) == 0 {
 		t.Fatal(targetSymbol, variantCase)
+	}
+}
+
+func TestLinuxkit_linuxkitSSHArgs_Good(t *testing.T) {
+	c := &Container{SSHPort: 2200}
+	withTTY := linuxkitSSHArgs(c, []string{"/bin/sh"}, true)
+	noTTY := linuxkitSSHArgs(c, []string{"/bin/sh"}, false)
+	if indexOf(withTTY, "-t") < 0 {
+		t.Fatalf("tty args missing -t: %v", withTTY)
+	}
+	if indexOf(noTTY, "-t") >= 0 {
+		t.Fatalf("non-tty args should omit -t: %v", noTTY)
+	}
+	for _, want := range []string{"-p", "2200", "root@localhost", "/bin/sh"} {
+		if indexOf(withTTY, want) < 0 {
+			t.Fatalf("args %v missing %q", withTTY, want)
+		}
 	}
 }

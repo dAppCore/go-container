@@ -57,10 +57,11 @@ func TestDevOps_ImagesDir_Good(t *testing.T) {
 	t.Run("default directory", func(t *testing.T) {
 		t.Setenv("CORE_IMAGES_DIR", "")
 
-		dir, err := ImagesDir()
-		if err != nil {
-			t.Fatal(err)
+		r := ImagesDir()
+		if !r.OK {
+			t.Fatal(r.Error())
 		}
+		dir := core.MustCast[string](r)
 		if s, sub := dir, ".core/images"; !core.Contains(s, sub) {
 			t.Fatalf("expected %v to contain %v", s, sub)
 		}
@@ -70,10 +71,11 @@ func TestDevOps_ImagesDir_Good(t *testing.T) {
 		customDir := "/tmp/custom-images"
 		t.Setenv("CORE_IMAGES_DIR", customDir)
 
-		dir, err := ImagesDir()
-		if err != nil {
-			t.Fatal(err)
+		r := ImagesDir()
+		if !r.OK {
+			t.Fatal(r.Error())
 		}
+		dir := core.MustCast[string](r)
 		if got, want := dir, customDir; !reflect.DeepEqual(got, want) {
 			t.Fatalf("want %v, got %v", want, got)
 		}
@@ -89,10 +91,11 @@ func TestDevOps_ImagePath_Good(t *testing.T) {
 	customDir := "/tmp/images"
 	t.Setenv("CORE_IMAGES_DIR", customDir)
 
-	path, err := ImagePath()
-	if err != nil {
-		t.Fatal(err)
+	r := ImagePath()
+	if !r.OK {
+		t.Fatal(r.Error())
 	}
+	path := core.MustCast[string](r)
 	expected := coreutil.JoinPath(customDir, ImageName())
 	if got, want := path, expected; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
@@ -167,8 +170,26 @@ type mockHypervisor struct{}
 
 func (m *mockHypervisor) Name() string    { return "mock" }
 func (m *mockHypervisor) Available() bool { return true }
-func (m *mockHypervisor) BuildCommand(ctx context.Context, image string, opts *container.HypervisorOptions) (*proc.Command, error) {
-	return proc.NewCommand("true"), nil
+func (m *mockHypervisor) BuildCommand(ctx context.Context, image string, opts *container.HypervisorOptions) core.Result {
+	return core.Ok(proc.NewCommand("true"))
+}
+
+func newTestDevOps(t *testing.T) (*DevOps, *container.State) {
+	t.Helper()
+	tempDir := t.TempDir()
+	t.Setenv("CORE_IMAGES_DIR", tempDir)
+	cfg := DefaultConfig()
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
+	}
+	state := container.NewState(coreutil.JoinPath(tempDir, "containers.json"))
+	dev := &DevOps{
+		medium:    io.Local,
+		images:    core.MustCast[*ImageManager](mgrRes),
+		container: container.NewLinuxKitManagerWithHypervisor(io.Local, state, &mockHypervisor{}),
+	}
+	return dev, state
 }
 
 func TestDevOps_Status_Good(t *testing.T) {
@@ -181,10 +202,11 @@ func TestDevOps_Status_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	// Setup mock container manager
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
@@ -207,15 +229,15 @@ func TestDevOps_Status_Good(t *testing.T) {
 		Memory:    2048,
 		CPUs:      4,
 	}
-	err = state.Add(c)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c); !r.OK {
+		t.Fatal(r.Error())
 	}
 
-	status, err := d.Status(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	statusRes := d.Status(context.Background())
+	if !statusRes.OK {
+		t.Fatal(statusRes.Error())
 	}
+	status := core.MustCast[*DevStatus](statusRes)
 	if status == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -243,10 +265,11 @@ func TestDevOps_Status_NotInstalled_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -258,10 +281,11 @@ func TestDevOps_Status_NotInstalled_Good(t *testing.T) {
 		container: cm,
 	}
 
-	status, err := d.Status(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	statusRes := d.Status(context.Background())
+	if !statusRes.OK {
+		t.Fatal(statusRes.Error())
 	}
+	status := core.MustCast[*DevStatus](statusRes)
 	if status == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -293,10 +317,11 @@ func TestDevOps_Status_NoContainer_Good(t *testing.T) {
 	}
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -308,10 +333,11 @@ func TestDevOps_Status_NoContainer_Good(t *testing.T) {
 		container: cm,
 	}
 
-	status, err := d.Status(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	statusRes := d.Status(context.Background())
+	if !statusRes.OK {
+		t.Fatal(statusRes.Error())
 	}
+	status := core.MustCast[*DevStatus](statusRes)
 	if status == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -336,10 +362,11 @@ func TestDevOps_IsRunning_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -358,15 +385,15 @@ func TestDevOps_IsRunning_Good(t *testing.T) {
 		PID:       syscall.Getpid(),
 		StartedAt: time.Now(),
 	}
-	err = state.Add(c)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c); !r.OK {
+		t.Fatal(r.Error())
 	}
 
-	running, err := d.IsRunning(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	runningRes := d.IsRunning(context.Background())
+	if !runningRes.OK {
+		t.Fatal(runningRes.Error())
 	}
+	running := core.MustCast[bool](runningRes)
 	if !(running) {
 		t.Fatal("expected true")
 	}
@@ -382,10 +409,11 @@ func TestDevOps_IsRunning_NotRunning_Bad(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -397,10 +425,11 @@ func TestDevOps_IsRunning_NotRunning_Bad(t *testing.T) {
 		container: cm,
 	}
 
-	running, err := d.IsRunning(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	runningRes := d.IsRunning(context.Background())
+	if !runningRes.OK {
+		t.Fatal(runningRes.Error())
 	}
+	running := core.MustCast[bool](runningRes)
 	if running {
 		t.Fatal("expected false")
 	}
@@ -416,10 +445,11 @@ func TestDevOps_IsRunning_ContainerStopped_Bad(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -438,15 +468,15 @@ func TestDevOps_IsRunning_ContainerStopped_Bad(t *testing.T) {
 		PID:       12345,
 		StartedAt: time.Now(),
 	}
-	err = state.Add(c)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c); !r.OK {
+		t.Fatal(r.Error())
 	}
 
-	running, err := d.IsRunning(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	runningRes := d.IsRunning(context.Background())
+	if !runningRes.OK {
+		t.Fatal(runningRes.Error())
 	}
+	running := core.MustCast[bool](runningRes)
 	if running {
 		t.Fatal("expected false")
 	}
@@ -462,10 +492,11 @@ func TestDevOps_findContainer_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -484,15 +515,15 @@ func TestDevOps_findContainer_Good(t *testing.T) {
 		PID:       syscall.Getpid(),
 		StartedAt: time.Now(),
 	}
-	err = state.Add(c)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c); !r.OK {
+		t.Fatal(r.Error())
 	}
 
-	found, err := d.findContainer(context.Background(), "my-container")
-	if err != nil {
-		t.Fatal(err)
+	foundRes := d.findContainer(context.Background(), "my-container")
+	if !foundRes.OK {
+		t.Fatal(foundRes.Error())
 	}
+	found := core.MustCast[*container.Container](foundRes)
 	if found == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -514,10 +545,11 @@ func TestDevOps_findContainer_NotFound_Bad(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -529,11 +561,11 @@ func TestDevOps_findContainer_NotFound_Bad(t *testing.T) {
 		container: cm,
 	}
 
-	found, err := d.findContainer(context.Background(), "nonexistent")
-	if err != nil {
-		t.Fatal(err)
+	foundRes := d.findContainer(context.Background(), "nonexistent")
+	if !foundRes.OK {
+		t.Fatal(foundRes.Error())
 	}
-	if found != nil {
+	if core.MustCast[*container.Container](foundRes) != nil {
 		t.Fatal("expected nil")
 	}
 }
@@ -548,10 +580,11 @@ func TestDevOps_Stop_NotFound_Bad(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -563,12 +596,33 @@ func TestDevOps_Stop_NotFound_Bad(t *testing.T) {
 		container: cm,
 	}
 
-	err = d.Stop(context.Background())
-	if err == nil {
+	stopRes := d.Stop(context.Background())
+	if stopRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "not found"; !core.Contains(s, sub) {
+	if s, sub := stopRes.Error(), "not found"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
+	}
+}
+
+func TestDevOps_Shell_NotRunning_Bad(t *testing.T) {
+	dev, _ := newTestDevOps(t)
+	if r := dev.Shell(context.Background(), ShellOptions{}); r.OK {
+		t.Fatal("expected error when dev environment is not running")
+	}
+}
+
+func TestDevOps_Serve_NotRunning_Bad(t *testing.T) {
+	dev, _ := newTestDevOps(t)
+	if r := dev.Serve(context.Background(), t.TempDir(), ServeOptions{}); r.OK {
+		t.Fatal("expected error when dev environment is not running")
+	}
+}
+
+func TestDevOps_Test_NotRunning_Bad(t *testing.T) {
+	dev, _ := newTestDevOps(t)
+	if r := dev.Test(context.Background(), t.TempDir(), TestOptions{}); r.OK {
+		t.Fatal("expected error when dev environment is not running")
 	}
 }
 
@@ -650,10 +704,11 @@ func TestDevOps_Boot_NotInstalled_Bad(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -665,11 +720,11 @@ func TestDevOps_Boot_NotInstalled_Bad(t *testing.T) {
 		container: cm,
 	}
 
-	err = d.Boot(context.Background(), DefaultBootOptions())
-	if err == nil {
+	bootRes := d.Boot(context.Background(), DefaultBootOptions())
+	if bootRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "not installed"; !core.Contains(s, sub) {
+	if s, sub := bootRes.Error(), "not installed"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -691,10 +746,11 @@ func TestDevOps_Boot_AlreadyRunning_Bad(t *testing.T) {
 	}
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -714,16 +770,15 @@ func TestDevOps_Boot_AlreadyRunning_Bad(t *testing.T) {
 		PID:       syscall.Getpid(),
 		StartedAt: time.Now(),
 	}
-	err = state.Add(c)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c); !r.OK {
+		t.Fatal(r.Error())
 	}
 
-	err = d.Boot(context.Background(), DefaultBootOptions())
-	if err == nil {
+	bootRes := d.Boot(context.Background(), DefaultBootOptions())
+	if bootRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "already running"; !core.Contains(s, sub) {
+	if s, sub := bootRes.Error(), "already running"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -745,10 +800,11 @@ func TestDevOps_Status_WithImageVersion_Good(t *testing.T) {
 	}
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	// Manually set manifest with version info
 	mgr.manifest.Images[ImageName()] = ImageInfo{
@@ -767,10 +823,11 @@ func TestDevOps_Status_WithImageVersion_Good(t *testing.T) {
 		container: cm,
 	}
 
-	status, err := d.Status(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	statusRes := d.Status(context.Background())
+	if !statusRes.OK {
+		t.Fatal(statusRes.Error())
 	}
+	status := core.MustCast[*DevStatus](statusRes)
 	if !(status.Installed) {
 		t.Fatal("expected true")
 	}
@@ -789,10 +846,11 @@ func TestDevOps_findContainer_MultipleContainers_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -819,20 +877,19 @@ func TestDevOps_findContainer_MultipleContainers_Good(t *testing.T) {
 		PID:       syscall.Getpid(),
 		StartedAt: time.Now(),
 	}
-	err = state.Add(c1)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c1); !r.OK {
+		t.Fatal(r.Error())
 	}
-	err = state.Add(c2)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c2); !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	// Find specific container
-	found, err := d.findContainer(context.Background(), "container-2")
-	if err != nil {
-		t.Fatal(err)
+	foundRes := d.findContainer(context.Background(), "container-2")
+	if !foundRes.OK {
+		t.Fatal(foundRes.Error())
 	}
+	found := core.MustCast[*container.Container](foundRes)
 	if found == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -851,10 +908,11 @@ func TestDevOps_Status_ContainerWithUptime_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -876,15 +934,15 @@ func TestDevOps_Status_ContainerWithUptime_Good(t *testing.T) {
 		Memory:    4096,
 		CPUs:      2,
 	}
-	err = state.Add(c)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c); !r.OK {
+		t.Fatal(r.Error())
 	}
 
-	status, err := d.Status(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	statusRes := d.Status(context.Background())
+	if !statusRes.OK {
+		t.Fatal(statusRes.Error())
 	}
+	status := core.MustCast[*DevStatus](statusRes)
 	if !(status.Running) {
 		t.Fatal("expected true")
 	}
@@ -903,10 +961,11 @@ func TestDevOps_IsRunning_DifferentContainerName_Bad(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -926,16 +985,16 @@ func TestDevOps_IsRunning_DifferentContainerName_Bad(t *testing.T) {
 		PID:       syscall.Getpid(),
 		StartedAt: time.Now(),
 	}
-	err = state.Add(c)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c); !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	// IsRunning looks for "core-dev", not "other-container"
-	running, err := d.IsRunning(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	runningRes := d.IsRunning(context.Background())
+	if !runningRes.OK {
+		t.Fatal(runningRes.Error())
 	}
+	running := core.MustCast[bool](runningRes)
 	if running {
 		t.Fatal("expected false")
 	}
@@ -959,10 +1018,11 @@ func TestDevOps_Boot_FreshFlag_Good(t *testing.T) {
 	}
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -982,9 +1042,8 @@ func TestDevOps_Boot_FreshFlag_Good(t *testing.T) {
 		PID:       99999999, // Non-existent PID - List() will mark it as stopped
 		StartedAt: time.Now(),
 	}
-	err = state.Add(c)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c); !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	// Boot with Fresh=true should try to stop the existing container
@@ -995,10 +1054,10 @@ func TestDevOps_Boot_FreshFlag_Good(t *testing.T) {
 		Name:   "core-dev",
 		Fresh:  true,
 	}
-	err = d.Boot(context.Background(), opts)
+	bootRes := d.Boot(context.Background(), opts)
 	// The mock hypervisor's Run succeeds
-	if err != nil {
-		t.Fatal(err)
+	if !bootRes.OK {
+		t.Fatal(bootRes.Error())
 	}
 }
 
@@ -1012,10 +1071,11 @@ func TestDevOps_Stop_ContainerNotRunning_Bad(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -1035,17 +1095,16 @@ func TestDevOps_Stop_ContainerNotRunning_Bad(t *testing.T) {
 		PID:       99999999,
 		StartedAt: time.Now(),
 	}
-	err = state.Add(c)
-	if err != nil {
-		t.Fatal(err)
+	if r := state.Add(c); !r.OK {
+		t.Fatal(r.Error())
 	}
 
 	// Stop should fail because container is not running
-	err = d.Stop(context.Background())
-	if err == nil {
+	stopRes := d.Stop(context.Background())
+	if stopRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "not running"; !core.Contains(s, sub) {
+	if s, sub := stopRes.Error(), "not running"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -1068,10 +1127,11 @@ func TestDevOps_Boot_FreshWithNoExisting_Good(t *testing.T) {
 	}
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -1090,10 +1150,10 @@ func TestDevOps_Boot_FreshWithNoExisting_Good(t *testing.T) {
 		Name:   "core-dev",
 		Fresh:  true,
 	}
-	err = d.Boot(context.Background(), opts)
+	bootRes := d.Boot(context.Background(), opts)
 	// The mock hypervisor succeeds
-	if err != nil {
-		t.Fatal(err)
+	if !bootRes.OK {
+		t.Fatal(bootRes.Error())
 	}
 }
 
@@ -1130,18 +1190,18 @@ func TestDevOps_Install_Delegates_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	d := &DevOps{medium: io.Local,
 		images: mgr,
 	}
 
 	// This will fail because no source is available, but it tests delegation
-	err = d.Install(context.Background(), nil)
-	if err == nil {
+	if r := d.Install(context.Background(), nil); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -1157,18 +1217,18 @@ func TestDevOps_CheckUpdate_Delegates_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	d := &DevOps{medium: io.Local,
 		images: mgr,
 	}
 
 	// This will fail because image not installed, but it tests delegation
-	_, _, _, err = d.CheckUpdate(context.Background())
-	if err == nil {
+	if r := d.CheckUpdate(context.Background()); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -1191,10 +1251,11 @@ func TestDevOps_Boot_Success_Good(t *testing.T) {
 	}
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	statePath := coreutil.JoinPath(tempDir, "containers.json")
 	state := container.NewState(statePath)
@@ -1208,9 +1269,9 @@ func TestDevOps_Boot_Success_Good(t *testing.T) {
 
 	// Boot without Fresh flag and no existing container
 	opts := DefaultBootOptions()
-	err = d.Boot(context.Background(), opts)
-	if err != nil {
-		t.Fatal(err)
+	bootRes := d.Boot(context.Background(), opts)
+	if !bootRes.OK {
+		t.Fatal(bootRes.Error())
 	} // Mock hypervisor succeeds
 }
 
@@ -1224,10 +1285,11 @@ func TestDevOps_Config_Good(t *testing.T) {
 	t.Setenv("CORE_IMAGES_DIR", tempDir)
 
 	cfg := DefaultConfig()
-	mgr, err := NewImageManager(io.Local, cfg)
-	if err != nil {
-		t.Fatal(err)
+	mgrRes := NewImageManager(io.Local, cfg)
+	if !mgrRes.OK {
+		t.Fatal(mgrRes.Error())
 	}
+	mgr := core.MustCast[*ImageManager](mgrRes)
 
 	d := &DevOps{medium: io.Local,
 		config: cfg,

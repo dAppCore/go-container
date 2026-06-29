@@ -5,7 +5,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/container/internal/proc"
@@ -18,15 +17,17 @@ type ServeOptions struct {
 }
 
 // Serve mounts the project and starts a dev server.
-func (d *DevOps) Serve(ctx context.Context, projectDir string, opts ServeOptions) (
-	err error, // result
-) {
-	running, err := d.IsRunning(ctx)
-	if err != nil {
-		return err
+//
+// Usage:
+//
+//	if r := dev.Serve(ctx, ".", devenv.ServeOptions{}); !r.OK { return r }
+func (d *DevOps) Serve(ctx context.Context, projectDir string, opts ServeOptions) core.Result { // Value: nil
+	runningRes := d.IsRunning(ctx)
+	if !runningRes.OK {
+		return runningRes
 	}
-	if !running {
-		return coreerr.E("DevOps.Serve", "dev environment not running (run 'core dev boot' first)", nil)
+	if !core.MustCast[bool](runningRes) {
+		return core.Fail(core.E("DevOps.Serve", "dev environment not running (run 'core dev boot' first)", nil))
 	}
 
 	if opts.Port == 0 {
@@ -39,8 +40,8 @@ func (d *DevOps) Serve(ctx context.Context, projectDir string, opts ServeOptions
 	}
 
 	// Mount project directory via SSHFS
-	if err := d.mountProject(ctx, servePath); err != nil {
-		return coreerr.E("DevOps.Serve", "failed to mount project", err)
+	if r := d.mountProject(ctx, servePath); !r.OK {
+		return core.Fail(core.E("DevOps.Serve", "failed to mount project", r.Value.(error)))
 	}
 
 	// Detect and run serve command
@@ -53,9 +54,7 @@ func (d *DevOps) Serve(ctx context.Context, projectDir string, opts ServeOptions
 }
 
 // mountProject mounts a directory into the VM via SSHFS.
-func (d *DevOps) mountProject(ctx context.Context, path string) (
-	err error, // result
-) {
+func (d *DevOps) mountProject(ctx context.Context, path string) core.Result { // Value: nil
 	absPath := coreutil.AbsPath(path)
 
 	// Use reverse SSHFS mount
@@ -69,7 +68,10 @@ func (d *DevOps) mountProject(ctx context.Context, path string) (
 		"root@localhost",
 		core.Sprintf("mkdir -p /app && sshfs -p 10000 %s@localhost:%s /app -o allow_other", core.Env("USER"), absPath),
 	)
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return core.Fail(core.E("DevOps.mountProject", "ssh sshfs", err))
+	}
+	return core.Ok(nil)
 }
 
 // DetectServeCommand auto-detects the serve command for a project.

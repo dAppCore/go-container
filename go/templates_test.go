@@ -66,10 +66,11 @@ func TestGetTemplate_CoreDev_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	content, err := GetTemplate("core-dev")
-	if err != nil {
-		t.Fatal(err)
+	contentRes := GetTemplate("core-dev")
+	if !contentRes.OK {
+		t.Fatal(contentRes.Error())
 	}
+	content := core.MustCast[string](contentRes)
 	if got := content; len(got) == 0 {
 		t.Fatal("expected non-empty value")
 	}
@@ -93,10 +94,11 @@ func TestGetTemplate_ServerPhp_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	content, err := GetTemplate("server-php")
-	if err != nil {
-		t.Fatal(err)
+	contentRes := GetTemplate("server-php")
+	if !contentRes.OK {
+		t.Fatal(contentRes.Error())
 	}
+	content := core.MustCast[string](contentRes)
 	if got := content; len(got) == 0 {
 		t.Fatal("expected non-empty value")
 	}
@@ -120,11 +122,11 @@ func TestGetTemplate_NotFound_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	_, err := GetTemplate("nonexistent-template")
-	if err == nil {
+	r := GetTemplate("nonexistent-template")
+	if r.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "template not found"; !core.Contains(s, sub) {
+	if s, sub := r.Error(), "template not found"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -141,10 +143,11 @@ func TestApplyVariables_SimpleSubstitution_Good(t *testing.T) {
 		"PLACE": "Core",
 	}
 
-	result, err := ApplyVariables(content, vars)
-	if err != nil {
-		t.Fatal(err)
+	resultRes := ApplyVariables(content, vars)
+	if !resultRes.OK {
+		t.Fatal(resultRes.Error())
 	}
+	result := core.MustCast[string](resultRes)
 	if got, want := result, "Hello World, welcome to Core!"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -162,10 +165,11 @@ func TestApplyVariables_WithDefaults_Good(t *testing.T) {
 		// CPUS not provided, should use default
 	}
 
-	result, err := ApplyVariables(content, vars)
-	if err != nil {
-		t.Fatal(err)
+	resultRes := ApplyVariables(content, vars)
+	if !resultRes.OK {
+		t.Fatal(resultRes.Error())
 	}
+	result := core.MustCast[string](resultRes)
 	if got, want := result, "Memory: 2048MB, CPUs: 2"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -180,10 +184,11 @@ func TestApplyVariables_AllDefaults_Good(t *testing.T) {
 	content := "${HOST:-localhost}:${PORT:-8080}"
 	vars := map[string]string{} // No vars provided
 
-	result, err := ApplyVariables(content, vars)
-	if err != nil {
-		t.Fatal(err)
+	resultRes := ApplyVariables(content, vars)
+	if !resultRes.OK {
+		t.Fatal(resultRes.Error())
 	}
+	result := core.MustCast[string](resultRes)
 	if got, want := result, "localhost:8080"; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -205,10 +210,11 @@ memory: ${MEMORY:-512}
 		"HOSTNAME": "custom-host",
 	}
 
-	result, err := ApplyVariables(content, vars)
-	if err != nil {
-		t.Fatal(err)
+	resultRes := ApplyVariables(content, vars)
+	if !resultRes.OK {
+		t.Fatal(resultRes.Error())
 	}
+	result := core.MustCast[string](resultRes)
 	if s, sub := result, "hostname: custom-host"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
@@ -229,10 +235,11 @@ func TestApplyVariables_EmptyDefault_Good(t *testing.T) {
 	content := "value: ${OPT:-}"
 	vars := map[string]string{}
 
-	result, err := ApplyVariables(content, vars)
-	if err != nil {
-		t.Fatal(err)
+	resultRes := ApplyVariables(content, vars)
+	if !resultRes.OK {
+		t.Fatal(resultRes.Error())
 	}
+	result := core.MustCast[string](resultRes)
 	if got, want := result, "value: "; !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %v, got %v", want, got)
 	}
@@ -247,14 +254,14 @@ func TestApplyVariables_MissingRequired_Bad(t *testing.T) {
 	content := "SSH Key: ${SSH_KEY}"
 	vars := map[string]string{} // Missing required SSH_KEY
 
-	_, err := ApplyVariables(content, vars)
-	if err == nil {
+	avRes := ApplyVariables(content, vars)
+	if avRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "missing required variables"; !core.Contains(s, sub) {
+	if s, sub := avRes.Error(), "missing required variables"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
-	if s, sub := err.Error(), "SSH_KEY"; !core.Contains(s, sub) {
+	if s, sub := avRes.Error(), "SSH_KEY"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -270,17 +277,16 @@ func TestApplyVariables_MultipleMissing_Bad(t *testing.T) {
 		"VAR2": "provided",
 	}
 
-	_, err := ApplyVariables(content, vars)
-	if err == nil {
+	avRes := ApplyVariables(content, vars)
+	if avRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "missing required variables"; !core.
-		// Should mention both missing vars
-		Contains(s, sub) {
+	// Should mention both missing vars
+	if s, sub := avRes.Error(), "missing required variables"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 
-	errStr := err.Error()
+	errStr := avRes.Error()
 	if !(core.Contains(errStr, "VAR1") || core.Contains(errStr, "VAR3")) {
 		t.Fatal("expected true")
 	}
@@ -296,16 +302,16 @@ func TestTemplates_ApplyTemplate_Good(t *testing.T) {
 		"SSH_KEY": "ssh-rsa AAAA... user@host",
 	}
 
-	result, err := ApplyTemplate("core-dev", vars)
-	if err != nil {
-		t.Fatal(err)
+	resultRes := ApplyTemplate("core-dev", vars)
+	if !resultRes.OK {
+		t.Fatal(resultRes.Error())
 	}
+	result := core.MustCast[string](resultRes)
 	if got := result; len(got) == 0 {
 		t.Fatal("expected non-empty value")
 	}
-	if s, sub := result, "ssh-rsa AAAA... user@host"; !core.
-		// Default values should be applied
-		Contains(s, sub) {
+	// Default values should be applied
+	if s, sub := result, "ssh-rsa AAAA... user@host"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 	if s, sub := result, "core-dev"; !core. // HOSTNAME default
@@ -324,11 +330,11 @@ func TestApplyTemplate_TemplateNotFound_Bad(t *testing.T) {
 		"SSH_KEY": "test",
 	}
 
-	_, err := ApplyTemplate("nonexistent", vars)
-	if err == nil {
+	r := ApplyTemplate("nonexistent", vars)
+	if r.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "template not found"; !core.Contains(s, sub) {
+	if s, sub := r.Error(), "template not found"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -342,11 +348,11 @@ func TestApplyTemplate_MissingVariable_Bad(t *testing.T) {
 	// server-php requires SSH_KEY
 	vars := map[string]string{} // Missing required SSH_KEY
 
-	_, err := ApplyTemplate("server-php", vars)
-	if err == nil {
+	r := ApplyTemplate("server-php", vars)
+	if r.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "missing required variables"; !core.Contains(s, sub) {
+	if s, sub := r.Error(), "missing required variables"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -640,10 +646,11 @@ func TestTemplates_VariablePatternEdgeCases_Good(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := ApplyVariables(tt.content, tt.vars)
-			if err != nil {
-				t.Fatal(err)
+			resultRes := ApplyVariables(tt.content, tt.vars)
+			if !resultRes.OK {
+				t.Fatal(resultRes.Error())
 			}
+			result := core.MustCast[string](resultRes)
 			if got, want := result, tt.expected; !reflect.DeepEqual(got, want) {
 				t.Fatalf("want %v, got %v", want, got)
 			}

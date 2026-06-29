@@ -14,7 +14,6 @@ import (
 	"dappco.re/go/container"
 	"dappco.re/go/container/internal/proc"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 var (
@@ -44,6 +43,21 @@ func addVMRunCommand(c *core.Core) {
 			core.Option{Key: "gpu", Value: false},
 		),
 		Action: func(opts core.Options) core.Result {
+			// --publish/--volume/--env are repeatable (read like --var); no
+			// short forms (core.Option carries no short alias).
+			publishRes := parsePublish(optionStrings(opts, "publish"))
+			if !publishRes.OK {
+				return publishRes
+			}
+			volumeRes := parseVolumes(optionStrings(opts, "volume"))
+			if !volumeRes.OK {
+				return volumeRes
+			}
+			envRes := parseEnv(optionStrings(opts, "env"))
+			if !envRes.OK {
+				return envRes
+			}
+
 			runOpts := container.RunOptions{
 				Name:    opts.String("name"),
 				Detach:  opts.Bool("detach"),
@@ -51,31 +65,25 @@ func addVMRunCommand(c *core.Core) {
 				CPUs:    opts.Int("cpus"),
 				SSHPort: opts.Int("ssh-port"),
 				GPU:     opts.Bool("gpu"),
+				Ports:   core.MustCast[map[int]int](publishRes),
+				Volumes: core.MustCast[map[string]string](volumeRes),
+				Env:     core.MustCast[[]string](envRes),
 			}
 
-			// If template is specified, build and run from template
+			// If template is specified, build and run from template.
 			if templateName := opts.String("template"); templateName != "" {
 				vars := ParseVarFlags(optionStrings(opts, "var"))
 				return resultFromError(RunFromTemplate(templateName, vars, runOpts))
 			}
 
-			// Otherwise, require an image path
+			// Otherwise, require an image path; trailing args are the container command.
 			args := optionArgs(opts)
 			if len(args) == 0 {
-				return core.Fail(coreerr.E("vm run", vmT("cmd.vm.run.error.image_required"), nil))
+				return core.Fail(core.E("vm run", vmT("cmd.vm.run.error.image_required"), nil))
 			}
-			image := args[0]
+			runOpts.Args = args[1:]
 
-			return resultFromError(runContainer(
-				image,
-				opts.String("name"),
-				opts.Bool("detach"),
-				opts.Int("memory"),
-				opts.Int("cpus"),
-				opts.Int("ssh-port"),
-				opts.String("runtime"),
-				opts.Bool("gpu"),
-			))
+			return resultFromError(runContainer(args[0], opts.String("runtime"), runOpts))
 		},
 	})
 }
@@ -94,7 +102,7 @@ func resolveRuntime(flag string) (
 	case "", "auto":
 		rt := container.Detect()
 		if rt.Type == container.RuntimeNone {
-			return container.RuntimeNone, coreerr.E("resolveRuntime", vmT("cmd.vm.run.error.no_runtime"), nil)
+			return container.RuntimeNone, core.E("resolveRuntime", vmT("cmd.vm.run.error.no_runtime"), nil)
 		}
 		return rt.Type, nil
 	case "apple":
@@ -109,11 +117,11 @@ func resolveRuntime(flag string) (
 		// TIM is an image format; route it to the LinuxKit provider.
 		return container.RuntimeLinuxKit, nil
 	default:
-		return container.RuntimeNone, coreerr.E("resolveRuntime", "unknown runtime: "+flag, nil)
+		return container.RuntimeNone, core.E("resolveRuntime", "unknown runtime: "+flag, nil)
 	}
 }
 
-func runContainer(image, name string, detach bool, memory, cpus, sshPort int, runtimeFlag string, gpu bool) (
+func runContainer(image, runtimeFlag string, opts container.RunOptions) (
 	err error, // result
 ) {
 	rtType, err := resolveRuntime(runtimeFlag)
@@ -121,46 +129,39 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int, ru
 		return err
 	}
 
-	opts := container.RunOptions{
-		Name:    name,
-		Detach:  detach,
-		Memory:  memory,
-		CPUs:    cpus,
-		SSHPort: sshPort,
-		GPU:     gpu,
-	}
-
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("image")), image)
-	if name != "" {
-		core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.name")), name)
+	if opts.Name != "" {
+		core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.name")), opts.Name)
 	}
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.runtime")), string(rtType))
 
 	if rtType == container.RuntimeApple {
-		return runContainerApple(image, name, detach, memory, cpus, gpu)
+		return runContainerApple(image, opts)
 	}
 
 	// LinuxKit (default) path — also used for Docker/Podman which route through
 	// the LinuxKit manager's hypervisor wrapper until native providers land.
-	manager, err := container.NewLinuxKitManager(io.Local)
-	if err != nil {
-		return coreerr.E("runContainer", vmT("i18n.fail.init", "container manager"), err)
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return core.E("runContainer", vmT("i18n.fail.init", "container manager"), mgrRes.Value.(error))
 	}
+	manager := core.MustCast[*container.LinuxKitManager](mgrRes)
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.hypervisor")), manager.Hypervisor().Name())
 	core.Println()
 
 	ctx := context.Background()
-	c, err := manager.Run(ctx, image, opts)
-	if err != nil {
-		return coreerr.E("runContainer", vmT("i18n.fail.run", "container"), err)
+	runRes := manager.Run(ctx, image, opts)
+	if !runRes.OK {
+		return core.E("runContainer", vmT("i18n.fail.run", "container"), runRes.Value.(error))
 	}
+	c := core.MustCast[*container.Container](runRes)
 
-	if detach {
+	if opts.Detach {
 		core.Print(nil, "%s %s", successStyle.Render(vmT("started")), c.ID)
 		core.Print(nil, "%s %d", dimStyle.Render(vmT("cmd.vm.label.pid")), c.PID)
 		core.Println()
-		core.Println(vmT("cmd.vm.hint.view_logs", map[string]any{"ID": c.ID[:8]}))
-		core.Println(vmT("cmd.vm.hint.stop", map[string]any{"ID": c.ID[:8]}))
+		core.Println(vmT("cmd.vm.hint.view_logs", map[string]any{"ID": shortID(c.ID)}))
+		core.Println(vmT("cmd.vm.hint.stop", map[string]any{"ID": shortID(c.ID)}))
 	} else {
 		core.Println()
 		core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.container_stopped")), c.ID)
@@ -169,44 +170,159 @@ func runContainer(image, name string, detach bool, memory, cpus, sshPort int, ru
 	return nil
 }
 
-// runContainerApple boots an image through the AppleProvider. Ports and
-// volumes are omitted — they are handled via the Apple CLI directly when
-// declared on the image's source config.
-func runContainerApple(image, name string, detach bool, memory, cpus int, gpu bool) (
+// runContainerApple boots an image through the AppleProvider, forwarding the
+// resolved RunOptions: name, resources, published ports, volume mounts, env,
+// container args, and GPU request.
+func runContainerApple(image string, opts container.RunOptions) (
 	err error, // result
 ) {
 	p := container.NewAppleProvider()
 	if !p.Available() {
-		return coreerr.E("runContainerApple", vmT("cmd.vm.run.error.apple_unavailable"), nil)
+		return core.E("runContainerApple", vmT("cmd.vm.run.error.apple_unavailable"), nil)
 	}
 	core.Println()
 
 	img := &container.Image{
-		Name:     name,
+		Name:     opts.Name,
 		Path:     image,
 		Format:   container.DetectImageFormat(image),
 		Provider: string(container.RuntimeApple),
 	}
 
-	opts := []container.RunOption{
-		container.WithName(name),
-		container.WithMemory(memory),
-		container.WithCPUs(cpus),
-		container.WithDetach(detach),
+	runOpts := []container.RunOption{
+		container.WithName(opts.Name),
+		container.WithMemory(opts.Memory),
+		container.WithCPUs(opts.CPUs),
+		container.WithDetach(opts.Detach),
+		container.WithPorts(opts.Ports),
+		container.WithVolumes(opts.Volumes),
+		container.WithEnv(opts.Env...),
 	}
-	if gpu {
-		opts = append(opts, container.WithGPU(true))
+	if len(opts.Args) > 0 {
+		runOpts = append(runOpts, container.WithArgs(opts.Args...))
+	}
+	if opts.GPU {
+		runOpts = append(runOpts, container.WithGPU(true))
 	}
 
-	c, err := p.Run(img, opts...)
-	if err != nil {
-		return coreerr.E("runContainerApple", vmT("i18n.fail.run", "container"), err)
+	runRes := p.Run(img, runOpts...)
+	if !runRes.OK {
+		return core.E("runContainerApple", vmT("i18n.fail.run", "container"), runRes.Value.(error))
 	}
+	c := core.MustCast[*container.Container](runRes)
 
 	core.Print(nil, "%s %s", successStyle.Render(vmT("started")), c.ID)
 	core.Print(nil, "%s %d", dimStyle.Render(vmT("cmd.vm.label.pid")), c.PID)
 	core.Println()
 	return nil
+}
+
+// shortID truncates a container id to its first 8 characters for display.
+// Apple container ids are the user-chosen --name and may be shorter than 8,
+// so a naive id[:8] would panic.
+func shortID(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
+}
+
+// parsePublish parses docker-style "[host-ip:]host:container[/proto]" port
+// specs into a host→container map. The host-ip prefix and /proto suffix are
+// dropped (tcp assumed; RunOptions.Ports is map[int]int).
+//
+// Usage:
+//
+//	ports := core.MustCast[map[int]int](parsePublish([]string{"8080:80"}))
+func parsePublish(specs []string) core.Result { // Value: map[int]int
+	ports := make(map[int]int, len(specs))
+	for _, s := range specs {
+		spec := s
+		if core.Contains(spec, "/") {
+			spec = core.Split(spec, "/")[0]
+		}
+		parts := core.Split(spec, ":")
+		if len(parts) < 2 {
+			return core.Fail(core.E("vm run", core.Sprintf("invalid --publish %q: want host:container", s), nil))
+		}
+		hr := core.Atoi(parts[len(parts)-2])
+		cr := core.Atoi(parts[len(parts)-1])
+		if !hr.OK || !cr.OK {
+			return core.Fail(core.E("vm run", core.Sprintf("invalid --publish %q: non-numeric port", s), nil))
+		}
+		ports[core.MustCast[int](hr)] = core.MustCast[int](cr)
+	}
+	return core.Ok(ports)
+}
+
+// parseVolumes parses "host:container" mount specs into a host→container map.
+//
+// Usage:
+//
+//	vols := core.MustCast[map[string]string](parseVolumes([]string{"/data:/app"}))
+func parseVolumes(specs []string) core.Result { // Value: map[string]string
+	vols := make(map[string]string, len(specs))
+	for _, s := range specs {
+		parts := core.SplitN(s, ":", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return core.Fail(core.E("vm run", core.Sprintf("invalid --volume %q: want host:container", s), nil))
+		}
+		vols[parts[0]] = parts[1]
+	}
+	return core.Ok(vols)
+}
+
+// parseEnv validates KEY=VALUE env specs (the value may be empty or contain '=').
+//
+// Usage:
+//
+//	env := core.MustCast[[]string](parseEnv([]string{"PORT=8080"}))
+func parseEnv(specs []string) core.Result { // Value: []string
+	out := make([]string, 0, len(specs))
+	for _, s := range specs {
+		if !core.Contains(s, "=") {
+			return core.Fail(core.E("vm run", core.Sprintf("invalid --env %q: want KEY=VALUE", s), nil))
+		}
+		out = append(out, s)
+	}
+	return core.Ok(out)
+}
+
+// appleProvider returns an available AppleProvider, or nil when the Apple
+// container runtime is not present on this host.
+func appleProvider() *container.AppleProvider {
+	p := container.NewAppleProvider()
+	if p.Available() {
+		return p
+	}
+	return nil
+}
+
+// resolveContainerOwner resolves a partial id/name to its full id and the
+// runtime that owns it. Apple containers are consulted first when the runtime
+// is available, then LinuxKit-managed containers. A non-nil returned provider
+// means the container is an Apple container; nil means LinuxKit.
+func resolveContainerOwner(partialID string) (
+	*container.AppleProvider, // apple owner (nil for LinuxKit)
+	string, // full id
+	error, // result
+) {
+	if ap := appleProvider(); ap != nil {
+		if listRes := ap.List(); listRes.OK {
+			for _, c := range core.MustCast[[]*container.Container](listRes) {
+				if core.HasPrefix(c.ID, partialID) || core.HasPrefix(c.Name, partialID) {
+					return ap, c.ID, nil
+				}
+			}
+		}
+	}
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return nil, "", core.E("resolveContainerOwner", vmT("i18n.fail.init", "container manager"), mgrRes.Value.(error))
+	}
+	manager := core.MustCast[*container.LinuxKitManager](mgrRes)
+	fullID, err := resolveContainerID(manager, partialID)
+	return nil, fullID, err
 }
 
 var psAll bool
@@ -225,15 +341,26 @@ func addVMPsCommand(c *core.Core) {
 func listContainers(all bool) (
 	err error, // result
 ) {
-	manager, err := container.NewLinuxKitManager(io.Local)
-	if err != nil {
-		return coreerr.E("listContainers", vmT("i18n.fail.init", "container manager"), err)
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return core.E("listContainers", vmT("i18n.fail.init", "container manager"), mgrRes.Value.(error))
 	}
+	manager := core.MustCast[*container.LinuxKitManager](mgrRes)
 
 	ctx := context.Background()
-	containers, err := manager.List(ctx)
-	if err != nil {
-		return coreerr.E("listContainers", vmT("i18n.fail.list", "containers"), err)
+	listRes := manager.List(ctx)
+	if !listRes.OK {
+		return core.E("listContainers", vmT("i18n.fail.list", "containers"), listRes.Value.(error))
+	}
+	containers := core.MustCast[[]*container.Container](listRes)
+
+	// Include Apple containers when the runtime is available, so a container
+	// started via --runtime=apple is visible here too. Apple's `container ls`
+	// reports running containers; --all stopped-set remains LinuxKit-scoped.
+	if ap := appleProvider(); ap != nil {
+		if appleRes := ap.List(); appleRes.OK {
+			containers = append(containers, core.MustCast[[]*container.Container](appleRes)...)
+		}
 	}
 
 	// Filter if not showing all
@@ -282,7 +409,7 @@ func listContainers(all bool) (
 		}
 
 		core.Print(w, "%s\t%s\t%s\t%s\t%s\t%d",
-			c.ID[:8], c.Name, imageName, status, duration, c.PID)
+			shortID(c.ID), c.Name, imageName, status, duration, c.PID)
 	}
 
 	return w.Flush()
@@ -308,7 +435,7 @@ func addVMStopCommand(c *core.Core) {
 		Action: func(opts core.Options) core.Result {
 			args := optionArgs(opts)
 			if len(args) == 0 {
-				return core.Fail(coreerr.E("vm stop", vmT("cmd.vm.error.id_required"), nil))
+				return core.Fail(core.E("vm stop", vmT("cmd.vm.error.id_required"), nil))
 			}
 			return resultFromError(stopContainer(args[0]))
 		},
@@ -318,22 +445,29 @@ func addVMStopCommand(c *core.Core) {
 func stopContainer(id string) (
 	err error, // result
 ) {
-	manager, err := container.NewLinuxKitManager(io.Local)
-	if err != nil {
-		return coreerr.E("stopContainer", vmT("i18n.fail.init", "container manager"), err)
-	}
-
-	// Support partial ID matching
-	fullID, err := resolveContainerID(manager, id)
+	apple, fullID, err := resolveContainerOwner(id)
 	if err != nil {
 		return err
 	}
 
-	core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.stop.stopping")), fullID[:8])
+	core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.stop.stopping")), shortID(fullID))
 
+	if apple != nil {
+		if r := apple.Stop(fullID); !r.OK {
+			return core.E("stopContainer", vmT("i18n.fail.stop", "container"), r.Value.(error))
+		}
+		core.Print(nil, "%s", successStyle.Render(vmT("common.status.stopped")))
+		return nil
+	}
+
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return core.E("stopContainer", vmT("i18n.fail.init", "container manager"), mgrRes.Value.(error))
+	}
+	manager := core.MustCast[*container.LinuxKitManager](mgrRes)
 	ctx := context.Background()
-	if err := manager.Stop(ctx, fullID); err != nil {
-		return coreerr.E("stopContainer", vmT("i18n.fail.stop", "container"), err)
+	if r := manager.Stop(ctx, fullID); !r.OK {
+		return core.E("stopContainer", vmT("i18n.fail.stop", "container"), r.Value.(error))
 	}
 
 	core.Print(nil, "%s", successStyle.Render(vmT("common.status.stopped")))
@@ -346,10 +480,11 @@ func resolveContainerID(manager *container.LinuxKitManager, partialID string) (
 	error,
 ) {
 	ctx := context.Background()
-	containers, err := manager.List(ctx)
-	if err != nil {
-		return "", err
+	listRes := manager.List(ctx)
+	if !listRes.OK {
+		return "", listRes.Value.(error)
 	}
+	containers := core.MustCast[[]*container.Container](listRes)
 
 	var matches []*container.Container
 	for _, c := range containers {
@@ -360,11 +495,11 @@ func resolveContainerID(manager *container.LinuxKitManager, partialID string) (
 
 	switch len(matches) {
 	case 0:
-		return "", coreerr.E("resolveContainerID", vmT("cmd.vm.error.no_match", map[string]any{"ID": partialID}), nil)
+		return "", core.E("resolveContainerID", vmT("cmd.vm.error.no_match", map[string]any{"ID": partialID}), nil)
 	case 1:
 		return matches[0].ID, nil
 	default:
-		return "", coreerr.E("resolveContainerID", vmT("cmd.vm.error.multiple_match", map[string]any{"ID": partialID}), nil)
+		return "", core.E("resolveContainerID", vmT("cmd.vm.error.multiple_match", map[string]any{"ID": partialID}), nil)
 	}
 }
 
@@ -378,7 +513,7 @@ func addVMLogsCommand(c *core.Core) {
 		Action: func(opts core.Options) core.Result {
 			args := optionArgs(opts)
 			if len(args) == 0 {
-				return core.Fail(coreerr.E("vm logs", vmT("cmd.vm.error.id_required"), nil))
+				return core.Fail(core.E("vm logs", vmT("cmd.vm.error.id_required"), nil))
 			}
 			return resultFromError(viewLogs(args[0], opts.Bool("follow")))
 		},
@@ -388,21 +523,34 @@ func addVMLogsCommand(c *core.Core) {
 func viewLogs(id string, follow bool) (
 	err error, // result
 ) {
-	manager, err := container.NewLinuxKitManager(io.Local)
-	if err != nil {
-		return coreerr.E("viewLogs", vmT("i18n.fail.init", "container manager"), err)
-	}
-
-	fullID, err := resolveContainerID(manager, id)
+	apple, fullID, err := resolveContainerOwner(id)
 	if err != nil {
 		return err
 	}
 
-	ctx := context.Background()
-	reader, err := manager.Logs(ctx, fullID, follow)
-	if err != nil {
-		return coreerr.E("viewLogs", vmT("i18n.fail.get", "logs"), err)
+	if apple != nil {
+		// Apple logs are a snapshot via the container CLI's -n; --follow
+		// streaming is a LinuxKit capability.
+		logsRes := apple.Logs(fullID, 0)
+		if !logsRes.OK {
+			return core.E("viewLogs", vmT("i18n.fail.get", "logs"), logsRes.Value.(error))
+		}
+		core.Print(nil, "%s", core.MustCast[string](logsRes))
+		return nil
 	}
+
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return core.E("viewLogs", vmT("i18n.fail.init", "container manager"), mgrRes.Value.(error))
+	}
+	manager := core.MustCast[*container.LinuxKitManager](mgrRes)
+
+	ctx := context.Background()
+	logsRes := manager.Logs(ctx, fullID, follow)
+	if !logsRes.OK {
+		return core.E("viewLogs", vmT("i18n.fail.get", "logs"), logsRes.Value.(error))
+	}
+	reader := core.MustCast[container.ReadCloser](logsRes)
 	defer func() {
 		if err := reader.Close(); err != nil {
 			// Streaming has already ended; return the copy error if one exists.
@@ -417,29 +565,240 @@ func viewLogs(id string, follow bool) (
 func addVMExecCommand(c *core.Core) {
 	registerVMCommand(c, "vm/exec", core.Command{
 		Description: vmT("cmd.vm.exec.short"),
+		Flags: core.NewOptions(
+			// -i/--interactive and -t/--tty route exec through the TTY-wired
+			// path. Short forms parse to single-char keys (see wantInteractive).
+			core.Option{Key: "interactive", Value: false},
+			core.Option{Key: "tty", Value: false},
+		),
 		Action: func(opts core.Options) core.Result {
 			args := optionArgs(opts)
 			if len(args) < 2 {
-				return core.Fail(coreerr.E("vm exec", vmT("cmd.vm.error.id_and_cmd_required"), nil))
+				return core.Fail(core.E("vm exec", vmT("cmd.vm.error.id_and_cmd_required"), nil))
+			}
+			if wantInteractive(opts) {
+				return execInteractive(args[0], args[1:])
 			}
 			return resultFromError(execInContainer(args[0], args[1:]))
 		},
 	})
 }
 
+// wantInteractive reports whether exec should use the TTY-wired interactive
+// path. True when any of -i/--interactive/-t/--tty is set; the short forms
+// parse to single-char keys (i, t), the long forms to their full names.
+func wantInteractive(opts core.Options) bool {
+	return opts.Bool("interactive") || opts.Bool("i") || opts.Bool("tty") || opts.Bool("t")
+}
+
 func execInContainer(id string, cmd []string) (
 	err error, // result
 ) {
-	manager, err := container.NewLinuxKitManager(io.Local)
-	if err != nil {
-		return coreerr.E("execInContainer", vmT("i18n.fail.init", "container manager"), err)
-	}
-
-	fullID, err := resolveContainerID(manager, id)
+	apple, fullID, err := resolveContainerOwner(id)
 	if err != nil {
 		return err
 	}
 
+	if apple != nil {
+		execRes := apple.Exec(fullID, cmd[0], cmd[1:]...)
+		if !execRes.OK {
+			return execRes.Value.(error)
+		}
+		core.Print(nil, "%s", core.MustCast[string](execRes))
+		return nil
+	}
+
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return core.E("execInContainer", vmT("i18n.fail.init", "container manager"), mgrRes.Value.(error))
+	}
+	manager := core.MustCast[*container.LinuxKitManager](mgrRes)
+
 	ctx := context.Background()
-	return manager.Exec(ctx, fullID, cmd)
+	if r := manager.Exec(ctx, fullID, cmd); !r.OK {
+		return r.Value.(error)
+	}
+	return nil
+}
+
+// execInteractive runs cmd inside a container through the TTY-wired path,
+// dispatching by owner (Apple's `container exec -i -t` or LinuxKit's `ssh -t`).
+// It blocks until the remote command exits.
+func execInteractive(id string, cmd []string) core.Result { // Value: nil
+	apple, fullID, err := resolveContainerOwner(id)
+	if err != nil {
+		return core.Fail(err)
+	}
+	if apple != nil {
+		return apple.ExecInteractive(fullID, cmd...)
+	}
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return core.Fail(core.E("execInteractive", vmT("i18n.fail.init", "container manager"), mgrRes.Value.(error)))
+	}
+	return core.MustCast[*container.LinuxKitManager](mgrRes).ExecInteractive(context.Background(), fullID, cmd)
+}
+
+// shellContainer opens an interactive shell in a container, defaulting the
+// command to /bin/sh when none is given.
+func shellContainer(id string, cmd []string) core.Result { // Value: nil
+	if id == "" {
+		return core.Fail(core.E("vm shell", vmT("cmd.vm.error.id_required"), nil))
+	}
+	if len(cmd) == 0 {
+		cmd = []string{"/bin/sh"}
+	}
+	return execInteractive(id, cmd)
+}
+
+// addVMShellCommand adds the 'shell' command under vm.
+func addVMShellCommand(c *core.Core) {
+	registerVMCommand(c, "vm/shell", core.Command{
+		Description: "Open an interactive shell in a container (default /bin/sh)",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) == 0 {
+				return core.Fail(core.E("vm shell", vmT("cmd.vm.error.id_required"), nil))
+			}
+			return shellContainer(args[0], args[1:])
+		},
+	})
+}
+
+// addVMKillCommand adds the 'kill' command under vm.
+func addVMKillCommand(c *core.Core) {
+	registerVMCommand(c, "vm/kill", core.Command{
+		Description: "Kill a running container (SIGKILL)",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) == 0 {
+				return core.Fail(core.E("vm kill", vmT("cmd.vm.error.id_required"), nil))
+			}
+			return killContainer(args[0])
+		},
+	})
+}
+
+func killContainer(id string) core.Result {
+	if id == "" {
+		return core.Fail(core.E("vm kill", vmT("cmd.vm.error.id_required"), nil))
+	}
+	apple, fullID, err := resolveContainerOwner(id)
+	if err != nil {
+		return core.Fail(err)
+	}
+	core.Print(nil, "%s %s", dimStyle.Render("killing"), shortID(fullID))
+	if apple != nil {
+		if r := apple.Kill(fullID); !r.OK {
+			return r
+		}
+	} else {
+		mgrRes := container.NewLinuxKitManager(io.Local)
+		if !mgrRes.OK {
+			return mgrRes
+		}
+		if r := core.MustCast[*container.LinuxKitManager](mgrRes).Stop(context.Background(), fullID); !r.OK {
+			return r
+		}
+	}
+	core.Print(nil, "%s", successStyle.Render("killed"))
+	core.Println()
+	return core.Ok(nil)
+}
+
+// addVMRmCommand adds the 'rm' command under vm.
+func addVMRmCommand(c *core.Core) {
+	registerVMCommand(c, "vm/rm", core.Command{
+		Description: "Remove a container",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) == 0 {
+				return core.Fail(core.E("vm rm", vmT("cmd.vm.error.id_required"), nil))
+			}
+			return removeContainer(args[0])
+		},
+	})
+}
+
+func removeContainer(id string) core.Result {
+	if id == "" {
+		return core.Fail(core.E("vm rm", vmT("cmd.vm.error.id_required"), nil))
+	}
+	apple, fullID, err := resolveContainerOwner(id)
+	if err != nil {
+		return core.Fail(err)
+	}
+	if apple != nil {
+		if r := apple.Remove(fullID); !r.OK {
+			return r
+		}
+	} else {
+		mgrRes := container.NewLinuxKitManager(io.Local)
+		if !mgrRes.OK {
+			return mgrRes
+		}
+		manager := core.MustCast[*container.LinuxKitManager](mgrRes)
+		manager.Stop(context.Background(), fullID) // best-effort stop before remove
+		if r := manager.State().Remove(fullID); !r.OK {
+			return r
+		}
+	}
+	core.Print(nil, "%s %s", successStyle.Render("removed"), shortID(fullID))
+	core.Println()
+	return core.Ok(nil)
+}
+
+// addVMInspectCommand adds the 'inspect' command under vm.
+func addVMInspectCommand(c *core.Core) {
+	registerVMCommand(c, "vm/inspect", core.Command{
+		Description: "Show detailed container information (JSON)",
+		Action: func(opts core.Options) core.Result {
+			args := optionArgs(opts)
+			if len(args) == 0 {
+				return core.Fail(core.E("vm inspect", vmT("cmd.vm.error.id_required"), nil))
+			}
+			return inspectContainer(args[0])
+		},
+	})
+}
+
+func inspectContainer(id string) core.Result {
+	if id == "" {
+		return core.Fail(core.E("vm inspect", vmT("cmd.vm.error.id_required"), nil))
+	}
+	apple, fullID, err := resolveContainerOwner(id)
+	if err != nil {
+		return core.Fail(err)
+	}
+	var found *container.Container
+	if apple != nil {
+		ir := apple.Inspect(fullID)
+		if !ir.OK {
+			return ir
+		}
+		found = core.MustCast[*container.Container](ir)
+	} else {
+		mgrRes := container.NewLinuxKitManager(io.Local)
+		if !mgrRes.OK {
+			return mgrRes
+		}
+		lr := core.MustCast[*container.LinuxKitManager](mgrRes).List(context.Background())
+		if !lr.OK {
+			return lr
+		}
+		for _, x := range core.MustCast[[]*container.Container](lr) {
+			if x.ID == fullID {
+				found = x
+			}
+		}
+		if found == nil {
+			return core.Fail(core.E("vm inspect", "container not found: "+fullID, nil))
+		}
+	}
+	jr := core.JSONMarshalIndent(found, "", "  ")
+	if !jr.OK {
+		return jr
+	}
+	core.Println(string(core.MustCast[[]byte](jr)))
+	return core.Ok(nil)
 }

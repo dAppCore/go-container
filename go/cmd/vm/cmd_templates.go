@@ -9,7 +9,6 @@ import (
 	"dappco.re/go/container/internal/coreutil"
 	"dappco.re/go/container/internal/proc"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 // addVMTemplatesCommand adds the 'templates' command under vm.
@@ -33,7 +32,7 @@ func addTemplatesShowCommand(c *core.Core) {
 		Action: func(opts core.Options) core.Result {
 			args := optionArgs(opts)
 			if len(args) == 0 {
-				return core.Fail(coreerr.E("templates show", vmT("cmd.vm.error.template_required"), nil))
+				return core.Fail(core.E("templates show", vmT("cmd.vm.error.template_required"), nil))
 			}
 			return resultFromError(showTemplate(args[0]))
 		},
@@ -47,7 +46,7 @@ func addTemplatesVarsCommand(c *core.Core) {
 		Action: func(opts core.Options) core.Result {
 			args := optionArgs(opts)
 			if len(args) == 0 {
-				return core.Fail(coreerr.E("templates vars", vmT("cmd.vm.error.template_required"), nil))
+				return core.Fail(core.E("templates vars", vmT("cmd.vm.error.template_required"), nil))
 			}
 			return resultFromError(showTemplateVars(args[0]))
 		},
@@ -93,10 +92,11 @@ func listTemplates() (
 func showTemplate(name string) (
 	err error, // result
 ) {
-	content, err := container.GetTemplate(name)
-	if err != nil {
-		return err
+	tmplRes := container.GetTemplate(name)
+	if !tmplRes.OK {
+		return tmplRes.Value.(error)
 	}
+	content := core.MustCast[string](tmplRes)
 
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("common.label.template")), repoNameStyle.Render(name))
 	core.Println()
@@ -108,10 +108,11 @@ func showTemplate(name string) (
 func showTemplateVars(name string) (
 	err error, // result
 ) {
-	content, err := container.GetTemplate(name)
-	if err != nil {
-		return err
+	tmplRes := container.GetTemplate(name)
+	if !tmplRes.OK {
+		return tmplRes.Value.(error)
 	}
+	content := core.MustCast[string](tmplRes)
 
 	required, optional := container.ExtractVariables(content)
 
@@ -152,15 +153,16 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	err error, // result
 ) {
 	// Apply template with variables
-	content, err := container.ApplyTemplate(templateName, vars)
-	if err != nil {
-		return coreerr.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "apply template"}), err)
+	tmplRes := container.ApplyTemplate(templateName, vars)
+	if !tmplRes.OK {
+		return core.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "apply template"}), tmplRes.Value.(error))
 	}
+	content := core.MustCast[string](tmplRes)
 
 	// Create a temporary directory for the build
 	tmpDir, err := coreutil.MkdirTemp("core-linuxkit-")
 	if err != nil {
-		return coreerr.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "create temp directory"}), err)
+		return core.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "create temp directory"}), err)
 	}
 	defer func() {
 		if err := io.Local.DeleteAll(tmpDir); err != nil {
@@ -171,7 +173,7 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	// Write the YAML file
 	yamlPath := coreutil.JoinPath(tmpDir, core.Concat(templateName, ".yml"))
 	if err := io.Local.Write(yamlPath, content); err != nil {
-		return coreerr.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "write template"}), err)
+		return core.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "write template"}), err)
 	}
 
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("common.label.template")), repoNameStyle.Render(templateName))
@@ -180,32 +182,34 @@ func RunFromTemplate(templateName string, vars map[string]string, runOpts contai
 	// Build the image using linuxkit
 	outputPath := coreutil.JoinPath(tmpDir, templateName)
 	if err := buildLinuxKitImage(yamlPath, outputPath); err != nil {
-		return coreerr.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "build image"}), err)
+		return core.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "build image"}), err)
 	}
 
 	// Find the built image (linuxkit creates .iso or other format)
 	imagePath := findBuiltImage(outputPath)
 	if imagePath == "" {
-		return coreerr.E("RunFromTemplate", vmT("cmd.vm.error.no_image_found"), nil)
+		return core.E("RunFromTemplate", vmT("cmd.vm.error.no_image_found"), nil)
 	}
 
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("common.label.image")), imagePath)
 	core.Println()
 
 	// Run the image
-	manager, err := container.NewLinuxKitManager(io.Local)
-	if err != nil {
-		return coreerr.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "initialize container manager"}), err)
+	mgrRes := container.NewLinuxKitManager(io.Local)
+	if !mgrRes.OK {
+		return core.E("RunFromTemplate", vmT("common.error.failed", map[string]any{"Action": "initialize container manager"}), mgrRes.Value.(error))
 	}
+	manager := core.MustCast[*container.LinuxKitManager](mgrRes)
 
 	core.Print(nil, "%s %s", dimStyle.Render(vmT("cmd.vm.label.hypervisor")), manager.Hypervisor().Name())
 	core.Println()
 
 	ctx := context.Background()
-	c, err := manager.Run(ctx, imagePath, runOpts)
-	if err != nil {
-		return coreerr.E("RunFromTemplate", vmT("i18n.fail.run", "container"), err)
+	runRes := manager.Run(ctx, imagePath, runOpts)
+	if !runRes.OK {
+		return core.E("RunFromTemplate", vmT("i18n.fail.run", "container"), runRes.Value.(error))
 	}
+	c := core.MustCast[*container.Container](runRes)
 
 	if runOpts.Detach {
 		core.Print(nil, "%s %s", successStyle.Render(vmT("common.label.started")), c.ID)
@@ -301,7 +305,7 @@ func lookupLinuxKit() (
 		}
 	}
 
-	return "", coreerr.E("lookupLinuxKit", vmT("cmd.vm.error.linuxkit_not_found"), nil)
+	return "", core.E("lookupLinuxKit", vmT("cmd.vm.error.linuxkit_not_found"), nil)
 }
 
 // ParseVarFlags parses --var flags into a map.

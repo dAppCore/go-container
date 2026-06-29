@@ -2,11 +2,14 @@ package container
 
 import (
 	"context"
-	"dappco.re/go"
 	"reflect"
 	"runtime"
 	"slices"
 	"testing"
+
+	core "dappco.re/go"
+
+	"dappco.re/go/container/internal/proc"
 )
 
 func TestQemuHypervisor_Available_Good(t *testing.T) {
@@ -130,18 +133,16 @@ func TestHypervisor_DetectHypervisor_Good(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	// DetectHypervisor tries to find an available hypervisor
-	hv, err := DetectHypervisor()
+	r := DetectHypervisor()
 
 	// This test may pass or fail depending on system configuration
-	// If no hypervisor is available, it should return an error
-	if err != nil {
-		if hv != nil {
-			t.Fatal("expected nil")
-		}
-		if s, sub := err.Error(), "no hypervisor available"; !core.Contains(s, sub) {
+	// If no hypervisor is available, it should return a failed Result
+	if !r.OK {
+		if s, sub := r.Error(), "no hypervisor available"; !core.Contains(s, sub) {
 			t.Fatalf("expected %v to contain %v", s, sub)
 		}
 	} else {
+		hv := core.MustCast[Hypervisor](r)
 		if hv == nil {
 			t.Fatal("expected non-nil value")
 		}
@@ -157,14 +158,15 @@ func TestGetHypervisor_Qemu_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	hv, err := GetHypervisor("qemu")
+	r := GetHypervisor("qemu")
 
 	// Depends on whether qemu is installed
-	if err != nil {
-		if s, sub := err.Error(), "not available"; !core.Contains(s, sub) {
+	if !r.OK {
+		if s, sub := r.Error(), "not available"; !core.Contains(s, sub) {
 			t.Fatalf("expected %v to contain %v", s, sub)
 		}
 	} else {
+		hv := core.MustCast[Hypervisor](r)
 		if hv == nil {
 			t.Fatal("expected non-nil value")
 		}
@@ -180,14 +182,15 @@ func TestGetHypervisor_QemuUppercase_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	hv, err := GetHypervisor("QEMU")
+	r := GetHypervisor("QEMU")
 
 	// Depends on whether qemu is installed
-	if err != nil {
-		if s, sub := err.Error(), "not available"; !core.Contains(s, sub) {
+	if !r.OK {
+		if s, sub := r.Error(), "not available"; !core.Contains(s, sub) {
 			t.Fatalf("expected %v to contain %v", s, sub)
 		}
 	} else {
+		hv := core.MustCast[Hypervisor](r)
 		if hv == nil {
 			t.Fatal("expected non-nil value")
 		}
@@ -203,26 +206,24 @@ func TestGetHypervisor_Hyperkit_Good(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	hv, err := GetHypervisor("hyperkit")
+	r := GetHypervisor("hyperkit")
 
 	// On non-darwin systems, should always fail
 	if runtime.GOOS != "darwin" {
-		if err == nil {
+		if r.OK {
 			t.Fatal("expected error")
 		}
-		if s, sub := err.Error(), "not available"; !core.Contains(
-
-			// On darwin, depends on whether hyperkit is installed
-			s, sub) {
+		// On darwin, depends on whether hyperkit is installed
+		if s, sub := r.Error(), "not available"; !core.Contains(s, sub) {
 			t.Fatalf("expected %v to contain %v", s, sub)
 		}
 	} else {
-
-		if err != nil {
-			if s, sub := err.Error(), "not available"; !core.Contains(s, sub) {
+		if !r.OK {
+			if s, sub := r.Error(), "not available"; !core.Contains(s, sub) {
 				t.Fatalf("expected %v to contain %v", s, sub)
 			}
 		} else {
+			hv := core.MustCast[Hypervisor](r)
 			if hv == nil {
 				t.Fatal("expected non-nil value")
 			}
@@ -239,11 +240,11 @@ func TestGetHypervisor_Unknown_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	_, err := GetHypervisor("unknown-hypervisor")
-	if err == nil {
+	r := GetHypervisor("unknown-hypervisor")
+	if r.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "unknown hypervisor"; !core.Contains(s, sub) {
+	if s, sub := r.Error(), "unknown hypervisor"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -269,10 +270,11 @@ func TestQemuHypervisor_BuildCommand_WithPortsAndVolumes_Good(t *testing.T) {
 		Detach: true,
 	}
 
-	cmd, err := q.BuildCommand(ctx, "/path/to/image.iso", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := q.BuildCommand(ctx, "/path/to/image.iso", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 	if cmd == nil {
 		t.Fatal("expected non-nil value")
 
@@ -305,10 +307,11 @@ func TestQemuHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 	ctx := context.Background()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
-	cmd, err := q.BuildCommand(ctx, "/path/to/image.qcow2", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := q.BuildCommand(ctx, "/path/to/image.qcow2", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 
 	// Check that the drive format is qcow2
 	found := false
@@ -334,10 +337,11 @@ func TestQemuHypervisor_BuildCommand_VMDKFormat_Good(t *testing.T) {
 	ctx := context.Background()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
-	cmd, err := q.BuildCommand(ctx, "/path/to/image.vmdk", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := q.BuildCommand(ctx, "/path/to/image.vmdk", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 
 	// Check that the drive format is vmdk
 	found := false
@@ -363,10 +367,11 @@ func TestQemuHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 	ctx := context.Background()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
-	cmd, err := q.BuildCommand(ctx, "/path/to/image.raw", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := q.BuildCommand(ctx, "/path/to/image.raw", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 
 	// Check that the drive format is raw
 	found := false
@@ -397,10 +402,11 @@ func TestHyperkitHypervisor_BuildCommand_WithPorts_Good(t *testing.T) {
 		Ports:   map[int]int{8080: 80},
 	}
 
-	cmd, err := h.BuildCommand(ctx, "/path/to/image.iso", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := h.BuildCommand(ctx, "/path/to/image.iso", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 	if cmd == nil {
 		t.Fatal("expected non-nil value")
 
@@ -433,10 +439,11 @@ func TestHyperkitHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 	ctx := context.Background()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
-	cmd, err := h.BuildCommand(ctx, "/path/to/image.qcow2", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := h.BuildCommand(ctx, "/path/to/image.qcow2", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 	if cmd == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -453,10 +460,11 @@ func TestHyperkitHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 	ctx := context.Background()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
-	cmd, err := h.BuildCommand(ctx, "/path/to/image.raw", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := h.BuildCommand(ctx, "/path/to/image.raw", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 	if cmd == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -478,10 +486,11 @@ func TestHyperkitHypervisor_BuildCommand_NoPorts_Good(t *testing.T) {
 		Ports:   nil,
 	}
 
-	cmd, err := h.BuildCommand(ctx, "/path/to/image.iso", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := h.BuildCommand(ctx, "/path/to/image.iso", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 	if cmd == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -503,10 +512,11 @@ func TestQemuHypervisor_BuildCommand_NoSSHPort_Good(t *testing.T) {
 		Ports:   nil,
 	}
 
-	cmd, err := q.BuildCommand(ctx, "/path/to/image.iso", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := q.BuildCommand(ctx, "/path/to/image.iso", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 	if cmd == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -523,11 +533,11 @@ func TestQemuHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
 	ctx := context.Background()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
-	_, err := q.BuildCommand(ctx, "/path/to/image.txt", opts)
-	if err == nil {
+	cmdRes := q.BuildCommand(ctx, "/path/to/image.txt", opts)
+	if cmdRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "unknown image format"; !core.Contains(s, sub) {
+	if s, sub := cmdRes.Error(), "unknown image format"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -543,11 +553,11 @@ func TestHyperkitHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
 	ctx := context.Background()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
-	_, err := h.BuildCommand(ctx, "/path/to/image.unknown", opts)
-	if err == nil {
+	cmdRes := h.BuildCommand(ctx, "/path/to/image.unknown", opts)
+	if cmdRes.OK {
 		t.Fatal("expected error")
 	}
-	if s, sub := err.Error(), "unknown image format"; !core.Contains(s, sub) {
+	if s, sub := cmdRes.Error(), "unknown image format"; !core.Contains(s, sub) {
 		t.Fatalf("expected %v to contain %v", s, sub)
 	}
 }
@@ -579,10 +589,11 @@ func TestHyperkitHypervisor_BuildCommand_ISOFormat_Good(t *testing.T) {
 		SSHPort: 2222,
 	}
 
-	cmd, err := h.BuildCommand(ctx, "/path/to/image.iso", opts)
-	if err != nil {
-		t.Fatal(err)
+	cmdRes := h.BuildCommand(ctx, "/path/to/image.iso", opts)
+	if !cmdRes.OK {
+		t.Fatal(cmdRes.Error())
 	}
+	cmd := core.MustCast[*proc.Command](cmdRes)
 	if cmd == nil {
 		t.Fatal("expected non-nil value")
 	}
@@ -1113,5 +1124,18 @@ func TestHypervisor_GetHypervisor_Ugly(t *testing.T) {
 	}
 	if got := linked; !got {
 		t.Fatal("expected callable symbol")
+	}
+}
+
+func TestHypervisor_discoverHostOS_Default_Good(t *testing.T) {
+	// With no GOOS override, host discovery must reflect the actual compiled
+	// OS (runtime.GOOS). A hardcoded default makes AppleProvider.Available()
+	// always false on macOS, silently disabling the Apple runtime even when
+	// the `container` binary is installed.
+	if core.Env("GOOS") != "" {
+		t.Skip("GOOS override active; this test covers the default path")
+	}
+	if got := discoverHostOS(); got != runtime.GOOS {
+		t.Fatalf("discoverHostOS() = %q, want runtime.GOOS %q", got, runtime.GOOS)
 	}
 }

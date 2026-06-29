@@ -9,7 +9,6 @@ import (
 
 	core "dappco.re/go"
 	"dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 
 	"dappco.re/go/container/internal/coreutil"
 )
@@ -83,19 +82,16 @@ func ListTemplatesIter() iter.Seq[Template] {
 //
 // Usage:
 //
-//	content, err := GetTemplate("core-dev")
-func GetTemplate(name string) (
-	string,
-	error,
-) {
+//	content := core.MustCast[string](GetTemplate("core-dev"))
+func GetTemplate(name string) core.Result { // Value: string
 	// Check embedded templates first
 	for _, t := range builtinTemplates {
 		if t.Name == name {
 			content, err := embeddedTemplates.ReadFile(t.Path)
 			if err != nil {
-				return "", coreerr.E("GetTemplate", "failed to read embedded template: "+name, err)
+				return core.Fail(core.E("GetTemplate", "failed to read embedded template: "+name, err))
 			}
-			return string(content), nil
+			return core.Ok(string(content))
 		}
 	}
 
@@ -106,47 +102,41 @@ func GetTemplate(name string) (
 		if io.Local.IsFile(templatePath) {
 			content, err := io.Local.Read(templatePath)
 			if err != nil {
-				return "", coreerr.E("GetTemplate", "failed to read user template: "+name, err)
+				return core.Fail(core.E("GetTemplate", "failed to read user template: "+name, err))
 			}
-			return content, nil
+			return core.Ok(content)
 		}
 	}
 
-	return "", coreerr.E("GetTemplate", "template not found: "+name, nil)
+	return core.Fail(core.E("GetTemplate", "template not found: "+name, nil))
 }
 
 // ApplyTemplate applies variable substitution to a template.
 // It supports two syntaxes:
-//   - ${VAR} - required variable, returns error if not provided
+//   - ${VAR} - required variable, returns a failed Result if not provided
 //   - ${VAR:-default} - variable with default value
 //
 // Usage:
 //
-//	content, err := ApplyTemplate("core-dev", vars)
-func ApplyTemplate(name string, vars map[string]string) (
-	string,
-	error,
-) {
-	content, err := GetTemplate(name)
-	if err != nil {
-		return "", err
+//	content := core.MustCast[string](ApplyTemplate("core-dev", vars))
+func ApplyTemplate(name string, vars map[string]string) core.Result { // Value: string
+	r := GetTemplate(name)
+	if !r.OK {
+		return r
 	}
 
-	return ApplyVariables(content, vars)
+	return ApplyVariables(core.MustCast[string](r), vars)
 }
 
 // ApplyVariables applies variable substitution to content string.
 // It supports two syntaxes:
-//   - ${VAR} - required variable, returns error if not provided
+//   - ${VAR} - required variable, returns a failed Result if not provided
 //   - ${VAR:-default} - variable with default value
 //
 // Usage:
 //
-//	content, err := ApplyVariables(raw, vars)
-func ApplyVariables(content string, vars map[string]string) (
-	string,
-	error,
-) {
+//	content := core.MustCast[string](ApplyVariables(raw, vars))
+func ApplyVariables(content string, vars map[string]string) core.Result { // Value: string
 	// Pattern for ${VAR:-default} syntax
 	defaultPattern := regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*):-([^}]*)\}`)
 
@@ -187,10 +177,10 @@ func ApplyVariables(content string, vars map[string]string) (
 	})
 
 	if len(missingVars) > 0 {
-		return "", coreerr.E("ApplyVariables", core.Concat("missing required variables: ", core.Join(", ", missingVars...)), nil)
+		return core.Fail(core.E("ApplyVariables", core.Concat("missing required variables: ", core.Join(", ", missingVars...)), nil))
 	}
 
-	return result, nil
+	return core.Ok(result)
 }
 
 // ExtractVariables extracts all variable names from a template.
