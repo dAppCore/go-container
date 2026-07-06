@@ -91,7 +91,7 @@ func LoadConfig(m io.Medium) core.Result { // Value: *Config
 	}
 
 	// Use centralized config service.
-	r := config.New(config.WithMedium(configmedium{Medium: m}), config.WithPath(configPath))
+	r := config.New(config.WithMedium(m), config.WithPath(configPath))
 	if !r.OK {
 		return r
 	}
@@ -103,21 +103,4 @@ func LoadConfig(m io.Medium) core.Result { // Value: *Config
 	}
 
 	return core.Ok(cfg)
-}
-
-type configmedium struct {
-	io.Medium
-}
-
-func (m configmedium) Read(path string) core.Result {
-	content, err := m.Medium.Read(path)
-	return core.ResultOf(content, err)
-}
-
-func (m configmedium) Write(path, content string) core.Result {
-	return core.ResultOf(nil, m.Medium.Write(path, content))
-}
-
-func (m configmedium) EnsureDir(path string) core.Result {
-	return core.ResultOf(nil, m.Medium.EnsureDir(path))
 }
