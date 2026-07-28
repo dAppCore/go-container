@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	dappco.re/go/cli v0.11.1
 	dappco.re/go/config v0.18.0
-	dappco.re/go/io v0.14.0
+	dappco.re/go/io v0.15.0
 	forge.lthn.ai/Snider/Borg v0.3.1
 	forge.lthn.ai/Snider/Enchantrix v0.0.4
 	gopkg.in/yaml.v3 v3.0.1 // Note: LinuxKit config YAML parse; no core.* YAML equivalent.

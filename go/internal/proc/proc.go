@@ -1,3 +1,12 @@
+//go:build unix
+
+// proc.go — process control over raw POSIX syscalls.
+//
+// Constrained to unix because that is what it is: Kill, Wait4, pipe(2) and
+// integer file descriptors have no Windows equivalent, and the file compiled
+// there only to fail. See proc_windows.go for the Windows half, which reaches
+// the same API a different way.
+
 package proc
 
 import (
