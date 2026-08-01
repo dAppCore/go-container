@@ -1,7 +1,6 @@
 package container
 
 import (
-	"context"
 	"reflect"
 	"runtime"
 	"slices"
@@ -21,11 +20,11 @@ func TestQemuHypervisor_Available_Good(t *testing.T) {
 	q := NewQemuHypervisor()
 
 	// Check if qemu is available on this system
-	available := q.Available()
+	_ = q.Available()
 
 	// We just verify it returns a boolean without error
 	// The actual availability depends on the system
-	if got, want := reflect.TypeOf(available), reflect.TypeOf(true); got != want {
+	if got, want := reflect.TypeFor[bool](), reflect.TypeFor[bool](); got != want {
 		t.Fatalf("want type %v, got %v", want, got)
 	}
 }
@@ -63,7 +62,7 @@ func TestHyperkitHypervisor_Available_Good(t *testing.T) {
 		}
 	} else {
 		// On darwin, just verify it returns a boolean
-		if got, want := reflect.TypeOf(available), reflect.TypeOf(true); got != want {
+		if got, want := reflect.TypeFor[bool](), reflect.TypeFor[bool](); got != want {
 			t.Fatalf("want type %v, got %v", want, got)
 		}
 	}
@@ -120,7 +119,7 @@ func TestHypervisor_IsKVMAvailable_Good(t *testing.T) {
 		}
 	} else {
 		// On linux, just verify it returns a boolean
-		if got, want := reflect.TypeOf(result), reflect.TypeOf(true); got != want {
+		if got, want := reflect.TypeFor[bool](), reflect.TypeFor[bool](); got != want {
 			t.Fatalf("want type %v, got %v", want, got)
 		}
 	}
@@ -257,7 +256,7 @@ func TestQemuHypervisor_BuildCommand_WithPortsAndVolumes_Good(t *testing.T) {
 	}
 	q := NewQemuHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{
 		Memory:  2048,
 		CPUs:    4,
@@ -304,7 +303,7 @@ func TestQemuHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 	}
 	q := NewQemuHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmdRes := q.BuildCommand(ctx, "/path/to/image.qcow2", opts)
@@ -314,13 +313,7 @@ func TestQemuHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 	cmd := core.MustCast[*proc.Command](cmdRes)
 
 	// Check that the drive format is qcow2
-	found := false
-	for _, arg := range cmd.Args {
-		if arg == "file=/path/to/image.qcow2,format=qcow2" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(cmd.Args, "file=/path/to/image.qcow2,format=qcow2")
 	if !(found) {
 		t.Fatal("expected true")
 	}
@@ -334,7 +327,7 @@ func TestQemuHypervisor_BuildCommand_VMDKFormat_Good(t *testing.T) {
 	}
 	q := NewQemuHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmdRes := q.BuildCommand(ctx, "/path/to/image.vmdk", opts)
@@ -344,13 +337,7 @@ func TestQemuHypervisor_BuildCommand_VMDKFormat_Good(t *testing.T) {
 	cmd := core.MustCast[*proc.Command](cmdRes)
 
 	// Check that the drive format is vmdk
-	found := false
-	for _, arg := range cmd.Args {
-		if arg == "file=/path/to/image.vmdk,format=vmdk" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(cmd.Args, "file=/path/to/image.vmdk,format=vmdk")
 	if !(found) {
 		t.Fatal("expected true")
 	}
@@ -364,7 +351,7 @@ func TestQemuHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 	}
 	q := NewQemuHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmdRes := q.BuildCommand(ctx, "/path/to/image.raw", opts)
@@ -374,13 +361,7 @@ func TestQemuHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 	cmd := core.MustCast[*proc.Command](cmdRes)
 
 	// Check that the drive format is raw
-	found := false
-	for _, arg := range cmd.Args {
-		if arg == "file=/path/to/image.raw,format=raw" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(cmd.Args, "file=/path/to/image.raw,format=raw")
 	if !(found) {
 		t.Fatal("expected true")
 	}
@@ -394,7 +375,7 @@ func TestHyperkitHypervisor_BuildCommand_WithPorts_Good(t *testing.T) {
 	}
 	h := NewHyperkitHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{
 		Memory:  1024,
 		CPUs:    2,
@@ -436,7 +417,7 @@ func TestHyperkitHypervisor_BuildCommand_QCow2Format_Good(t *testing.T) {
 	}
 	h := NewHyperkitHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmdRes := h.BuildCommand(ctx, "/path/to/image.qcow2", opts)
@@ -457,7 +438,7 @@ func TestHyperkitHypervisor_BuildCommand_RawFormat_Good(t *testing.T) {
 	}
 	h := NewHyperkitHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmdRes := h.BuildCommand(ctx, "/path/to/image.raw", opts)
@@ -478,7 +459,7 @@ func TestHyperkitHypervisor_BuildCommand_NoPorts_Good(t *testing.T) {
 	}
 	h := NewHyperkitHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{
 		Memory:  512,
 		CPUs:    1,
@@ -504,7 +485,7 @@ func TestQemuHypervisor_BuildCommand_NoSSHPort_Good(t *testing.T) {
 	}
 	q := NewQemuHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{
 		Memory:  512,
 		CPUs:    1,
@@ -530,7 +511,7 @@ func TestQemuHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
 	}
 	q := NewQemuHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmdRes := q.BuildCommand(ctx, "/path/to/image.txt", opts)
@@ -550,7 +531,7 @@ func TestHyperkitHypervisor_BuildCommand_UnknownFormat_Bad(t *testing.T) {
 	}
 	h := NewHyperkitHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{Memory: 1024, CPUs: 1}
 
 	cmdRes := h.BuildCommand(ctx, "/path/to/image.unknown", opts)
@@ -582,7 +563,7 @@ func TestHyperkitHypervisor_BuildCommand_ISOFormat_Good(t *testing.T) {
 	}
 	h := NewHyperkitHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{
 		Memory:  1024,
 		CPUs:    2,

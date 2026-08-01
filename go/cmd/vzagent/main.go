@@ -48,10 +48,7 @@ type capWriter struct {
 
 // Write appends p up to the cap; overflow is counted, never buffered.
 func (w *capWriter) Write(p []byte) (int, error) {
-	room := w.max - w.buf.Len()
-	if room > len(p) {
-		room = len(p)
-	}
+	room := min(w.max-w.buf.Len(), len(p))
 	if room > 0 {
 		w.buf.Write(p[:room])
 	}

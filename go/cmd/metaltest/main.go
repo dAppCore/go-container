@@ -107,7 +107,7 @@ func main() {
 	w.WaitUntilCompleted() // warm
 
 	ts := time.Now()
-	for i := 0; i < iters; i++ {
+	for range iters {
 		c := dispatch()
 		c.Commit()
 		c.WaitUntilCompleted()
@@ -116,7 +116,7 @@ func main() {
 
 	tb := time.Now()
 	var last metal.MTLCommandBuffer
-	for i := 0; i < iters; i++ {
+	for range iters {
 		c := dispatch()
 		c.Commit()
 		last = c
@@ -146,10 +146,10 @@ func main() {
 	// (A) re-encode each step: fresh encoder, encode `cmds` ops, commit, wait.
 	objc.AutoreleasePool(func() {
 		ta := time.Now()
-		for s := 0; s < steps; s++ {
+		for range steps {
 			c := queue.CommandBuffer()
 			e := c.ComputeCommandEncoder()
-			for k := 0; k < cmds; k++ {
+			for range cmds {
 				e.SetComputePipelineState(pso)
 				e.SetBufferWithOffsetAtIndex(sbuf, 0, 0)
 				e.DispatchThreadgroupsThreadsPerThreadgroup(sgrid, sgroup)
@@ -171,14 +171,14 @@ func main() {
 	}
 	icbDesc := metal.NewMTLIndirectCommandBufferDescriptor()
 	icbDesc.SetCommandTypes(metal.MTLIndirectCommandTypeConcurrentDispatch)
-	icbDesc.SetInheritBuffers(false)      // we bind the buffer per command
+	icbDesc.SetInheritBuffers(false)       // we bind the buffer per command
 	icbDesc.SetInheritPipelineState(false) // we set the PSO per command
 	icbDesc.SetMaxKernelBufferBindCount(1)
 	icb := dev.NewIndirectCommandBufferWithDescriptorMaxCommandCountOptions(icbDesc, cmds, metal.MTLResourceStorageModeShared)
 
 	objc.AutoreleasePool(func() {
 		tr := time.Now()
-		for k := 0; k < cmds; k++ {
+		for k := range cmds {
 			c := icb.IndirectComputeCommandAtIndex(uint(k))
 			c.SetComputePipelineState(psoICB)
 			c.SetKernelBufferOffsetAtIndex(sbuf, 0, 0)
@@ -188,7 +188,7 @@ func main() {
 
 		rng := foundation.NSRange{Location: 0, Length: cmds}
 		tbb := time.Now()
-		for s := 0; s < steps; s++ {
+		for range steps {
 			c := queue.CommandBuffer()
 			e := c.ComputeCommandEncoder()
 			e.UseResourceUsage(sbuf, metal.MTLResourceUsageRead|metal.MTLResourceUsageWrite) // ICBs don't auto-track residency
@@ -267,7 +267,7 @@ func main() {
 
 		got := unsafe.Slice((*float32)(outBuf.Contents()), sq)
 		var maxErr float32
-		for i := 0; i < sq; i++ {
+		for i := range sq {
 			want := sin[i] * sin[i]
 			d := got[i] - want
 			if d < 0 {

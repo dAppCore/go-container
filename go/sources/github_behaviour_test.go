@@ -1,7 +1,6 @@
 package sources
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -58,7 +57,7 @@ func TestGitHubBehaviour_Available_Good(t *testing.T) {
 func TestGitHubBehaviour_LatestVersion_Good(t *testing.T) {
 	fakeGH(t)
 	src := NewGitHubSource(SourceConfig{GitHubRepo: "host-uk/core-images"})
-	r := src.LatestVersion(context.Background())
+	r := src.LatestVersion(t.Context())
 	if !r.OK {
 		t.Fatalf("LatestVersion returned error: %v", r.Error())
 	}
@@ -74,7 +73,7 @@ func TestGitHubBehaviour_Download_Good(t *testing.T) {
 		GitHubRepo: "host-uk/core-images",
 		ImageName:  "core-devops.qcow2",
 	})
-	if r := src.Download(context.Background(), io.Local, dest, nil); !r.OK {
+	if r := src.Download(t.Context(), io.Local, dest, nil); !r.OK {
 		t.Fatalf("Download returned error: %v", r.Error())
 	}
 	if !io.Local.IsFile(core.PathJoin(dest, "core-devops.qcow2")) {
@@ -90,7 +89,7 @@ func TestGitHubBehaviour_Download_Good(t *testing.T) {
 func TestGitHubBehaviour_LatestVersion_Bad(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	src := NewGitHubSource(SourceConfig{GitHubRepo: "host-uk/core-images"})
-	if r := src.LatestVersion(context.Background()); r.OK {
+	if r := src.LatestVersion(t.Context()); r.OK {
 		t.Skip("gh resolved despite an empty PATH on this host")
 	}
 }
@@ -103,7 +102,7 @@ func TestGitHubBehaviour_Download_Bad(t *testing.T) {
 		GitHubRepo: "host-uk/core-images",
 		ImageName:  "core-devops.qcow2",
 	})
-	r := src.Download(context.Background(), io.NewMemoryMedium(), t.TempDir(), nil)
+	r := src.Download(t.Context(), io.NewMemoryMedium(), t.TempDir(), nil)
 	if r.OK {
 		t.Skip("gh resolved despite an empty PATH on this host")
 	}

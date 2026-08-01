@@ -175,7 +175,7 @@ func TestImages_CheckUpdate_Bad(t *testing.T) {
 		}
 		mgr := core.MustCast[*ImageManager](mgrRes)
 
-		r := mgr.CheckUpdate(context.Background())
+		r := mgr.CheckUpdate(t.Context())
 		if r.OK {
 			t.Fatal("expected error")
 		}
@@ -434,7 +434,7 @@ func TestImageManager_Install_NoSourceAvailable_Bad(t *testing.T) {
 		sources:  nil, // no sources
 	}
 
-	r := mgr.Install(context.Background(), nil)
+	r := mgr.Install(t.Context(), nil)
 	if r.OK {
 		t.Fatal("expected error")
 	}
@@ -520,7 +520,7 @@ func TestImageManager_Install_WithMockSource_Good(t *testing.T) {
 		sources:  []sources.ImageSource{mock},
 	}
 
-	if r := mgr.Install(context.Background(), nil); !r.OK {
+	if r := mgr.Install(t.Context(), nil); !r.OK {
 		t.Fatal(r.Error())
 	}
 	if !(mgr.IsInstalled()) {
@@ -563,7 +563,7 @@ func TestImageManager_Install_DownloadError_Bad(t *testing.T) {
 		sources:  []sources.ImageSource{mock},
 	}
 
-	if r := mgr.Install(context.Background(), nil); r.OK {
+	if r := mgr.Install(t.Context(), nil); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -590,7 +590,7 @@ func TestImageManager_Install_VersionError_Bad(t *testing.T) {
 		sources:  []sources.ImageSource{mock},
 	}
 
-	r := mgr.Install(context.Background(), nil)
+	r := mgr.Install(t.Context(), nil)
 	if r.OK {
 		t.Fatal("expected error")
 	}
@@ -625,7 +625,7 @@ func TestImageManager_Install_SkipsUnavailableSource_Good(t *testing.T) {
 		sources:  []sources.ImageSource{unavailableMock, availableMock},
 	}
 
-	if r := mgr.Install(context.Background(), nil); !r.OK {
+	if r := mgr.Install(t.Context(), nil); !r.OK {
 		t.Fatal(r.Error())
 	}
 
@@ -664,7 +664,7 @@ func TestImageManager_CheckUpdate_WithMockSource_Good(t *testing.T) {
 		sources: []sources.ImageSource{mock},
 	}
 
-	r := mgr.CheckUpdate(context.Background())
+	r := mgr.CheckUpdate(t.Context())
 	if !r.OK {
 		t.Fatal(r.Error())
 	}
@@ -709,7 +709,7 @@ func TestImageManager_CheckUpdate_NoUpdate_Good(t *testing.T) {
 		sources: []sources.ImageSource{mock},
 	}
 
-	r := mgr.CheckUpdate(context.Background())
+	r := mgr.CheckUpdate(t.Context())
 	if !r.OK {
 		t.Fatal(r.Error())
 	}
@@ -753,7 +753,7 @@ func TestImageManager_CheckUpdate_NoSource_Bad(t *testing.T) {
 		sources: []sources.ImageSource{unavailableMock},
 	}
 
-	r := mgr.CheckUpdate(context.Background())
+	r := mgr.CheckUpdate(t.Context())
 	if r.OK {
 		t.Fatal("expected error")
 	}
@@ -790,7 +790,7 @@ func TestImageManager_CheckUpdate_VersionError_Bad(t *testing.T) {
 		sources: []sources.ImageSource{mock},
 	}
 
-	r := mgr.CheckUpdate(context.Background())
+	r := mgr.CheckUpdate(t.Context())
 	if r.OK {
 		t.Fatal("expected error")
 	}
@@ -817,7 +817,7 @@ func TestImageManager_Install_EmptySources_Bad(t *testing.T) {
 		sources:  []sources.ImageSource{}, // Empty slice, not nil
 	}
 
-	r := mgr.Install(context.Background(), nil)
+	r := mgr.Install(t.Context(), nil)
 	if r.OK {
 		t.Fatal("expected error")
 	}
@@ -845,7 +845,7 @@ func TestImageManager_Install_AllUnavailable_Bad(t *testing.T) {
 		sources:  []sources.ImageSource{mock1, mock2},
 	}
 
-	r := mgr.Install(context.Background(), nil)
+	r := mgr.Install(t.Context(), nil)
 	if r.OK {
 		t.Fatal("expected error")
 	}
@@ -879,7 +879,7 @@ func TestImageManager_CheckUpdate_FirstSourceUnavailable_Good(t *testing.T) {
 		sources: []sources.ImageSource{unavailable, available},
 	}
 
-	r := mgr.CheckUpdate(context.Background())
+	r := mgr.CheckUpdate(t.Context())
 	if !r.OK {
 		t.Fatal(r.Error())
 	}

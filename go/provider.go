@@ -1,6 +1,10 @@
 package container
 
-import core "dappco.re/go"
+import (
+	"maps"
+
+	core "dappco.re/go"
+)
 
 // Provider abstracts the container backend (LinuxKit, Apple Containers).
 // Each provider implements a consistent lifecycle: build an image from a
@@ -198,9 +202,7 @@ func WithPorts(ports map[int]int) RunOption {
 		if o.Ports == nil {
 			o.Ports = make(map[int]int, len(ports))
 		}
-		for h, c := range ports {
-			o.Ports[h] = c
-		}
+		maps.Copy(o.Ports, ports)
 	}
 }
 
@@ -214,9 +216,7 @@ func WithVolumes(vols map[string]string) RunOption {
 		if o.Volumes == nil {
 			o.Volumes = make(map[string]string, len(vols))
 		}
-		for h, c := range vols {
-			o.Volumes[h] = c
-		}
+		maps.Copy(o.Volumes, vols)
 	}
 }
 

@@ -1,7 +1,6 @@
 package sources
 
 import (
-	"context"
 	"errors"
 
 	core "dappco.re/go"
@@ -72,7 +71,7 @@ func TestCDNSource_LatestVersion_Good(t *testing.T) {
 		ImageName: "test.img",
 	})
 
-	r := src.LatestVersion(context.Background())
+	r := src.LatestVersion(t.Context())
 	if !r.OK {
 		t.Fatal(r.Error())
 	}
@@ -108,7 +107,7 @@ func TestCDNSource_Download_Good(t *testing.T) {
 	})
 
 	var progressCalled bool
-	r := src.Download(context.Background(), io.Local, dest, func(downloaded, total int64) {
+	r := src.Download(t.Context(), io.Local, dest, func(downloaded, total int64) {
 		progressCalled = true
 	})
 	if !r.OK {
@@ -147,7 +146,7 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 			ImageName: "test.img",
 		})
 
-		r := src.Download(context.Background(), io.Local, dest, nil)
+		r := src.Download(t.Context(), io.Local, dest, nil)
 		if r.OK {
 			t.Fatal("expected error")
 		}
@@ -163,7 +162,7 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 			ImageName: "test.img",
 		})
 
-		r := src.Download(context.Background(), io.Local, dest, nil)
+		r := src.Download(t.Context(), io.Local, dest, nil)
 		if r.OK {
 			t.Fatal("expected error")
 		}
@@ -176,7 +175,7 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 			ImageName: "test.img",
 		})
 
-		r := src.Download(context.Background(), io.Local, dest, nil)
+		r := src.Download(t.Context(), io.Local, dest, nil)
 		if r.OK {
 			t.Fatal("expected request creation error")
 		}
@@ -193,7 +192,7 @@ func TestCDNSource_Download_Bad(t *testing.T) {
 			CDNURL:    server.URL,
 			ImageName: "test.img",
 		})
-		r := src.Download(context.Background(), failingEnsureDirMedium{Medium: io.Local}, t.TempDir(), nil)
+		r := src.Download(t.Context(), failingEnsureDirMedium{Medium: io.Local}, t.TempDir(), nil)
 		if r.OK {
 			t.Fatal("expected EnsureDir error")
 		}
@@ -216,7 +215,7 @@ func TestCDNSource_LatestVersion_NoManifest_Bad(t *testing.T) {
 		ImageName: "test.img",
 	})
 
-	r := src.LatestVersion(context.Background())
+	r := src.LatestVersion(t.Context())
 	if !r.OK {
 		t.Fatal(r.Error())
 	}
@@ -243,7 +242,7 @@ func TestCDNSource_LatestVersion_ServerError_Bad(t *testing.T) {
 		ImageName: "test.img",
 	})
 
-	r := src.LatestVersion(context.Background())
+	r := src.LatestVersion(t.Context())
 	if !r.OK {
 		t.Fatal(r.Error())
 	}
@@ -260,7 +259,7 @@ func TestCDNSource_LatestVersion_MalformedURL_Ugly(t *testing.T) {
 		ImageName: "test.img",
 	})
 
-	r := src.LatestVersion(context.Background())
+	r := src.LatestVersion(t.Context())
 	if !r.OK {
 		t.Fatal(r.Error())
 	}
@@ -290,7 +289,7 @@ func TestCDNSource_Download_NoProgress_Good(t *testing.T) {
 	})
 
 	// nil progress callback should be handled gracefully
-	r := src.Download(context.Background(), io.Local, dest, nil)
+	r := src.Download(t.Context(), io.Local, dest, nil)
 	if !r.OK {
 		t.Fatal(r.Error())
 	}
@@ -331,7 +330,7 @@ func TestCDNSource_Download_LargeFile_Good(t *testing.T) {
 
 	var progressCalls int
 	var lastDownloaded int64
-	r := src.Download(context.Background(), io.Local, dest, func(downloaded, total int64) {
+	r := src.Download(t.Context(), io.Local, dest, func(downloaded, total int64) {
 		progressCalls++
 		lastDownloaded = downloaded
 	})
@@ -377,7 +376,7 @@ func TestCDNSource_Download_HTTPErrorCodes_Bad(t *testing.T) {
 				ImageName: "test.img",
 			})
 
-			r := src.Download(context.Background(), io.Local, dest, nil)
+			r := src.Download(t.Context(), io.Local, dest, nil)
 			if r.OK {
 				t.Fatal("expected error")
 			}
@@ -468,7 +467,7 @@ func TestCDNSource_Download_CreatesDestDir_Good(t *testing.T) {
 		ImageName: "test.img",
 	})
 
-	r := src.Download(context.Background(), io.Local, dest, nil)
+	r := src.Download(t.Context(), io.Local, dest, nil)
 	if !r.OK {
 		t.Fatal(r.Error())
 	}

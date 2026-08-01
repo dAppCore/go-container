@@ -264,7 +264,7 @@ func TestProcBehaviour_Wait_Ugly(t *testing.T) {
 // TestProcBehaviour_StartCancelledContext_Ugly refuses to start once the context
 // is already cancelled.
 func TestProcBehaviour_Start_CancelledContext_Ugly(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	cmd := NewCommandContext(ctx, "sh", "-c", "true")
 	if err := cmd.Start(); err == nil {
@@ -315,7 +315,7 @@ func TestProcBehaviour_Process_Signal_Bad(t *testing.T) {
 // cancelled mid-flight.
 func TestProcBehaviour_Wait_ContextCancel_Ugly(t *testing.T) {
 	sh := shellPath(t)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cmd := NewCommandContext(ctx, sh, "-c", "sleep 30")
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("Start error: %v", err)

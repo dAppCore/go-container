@@ -1096,7 +1096,7 @@ func TestVz_Wait_Good(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		close(entry.Done)
 	}()
-	if r := p.Wait(context.Background(), "vz-wait-good"); !r.OK {
+	if r := p.Wait(t.Context(), "vz-wait-good"); !r.OK {
 		t.Fatalf("expected ok, got %v", r.Value)
 	}
 }
@@ -1111,10 +1111,10 @@ func TestVz_Wait_Bad(t *testing.T) {
 		t.Skip("virtualization framework not available")
 	}
 	p := NewVZProvider()
-	if r := p.Wait(context.Background(), ""); r.OK {
+	if r := p.Wait(t.Context(), ""); r.OK {
 		t.Fatal("expected error for empty id")
 	}
-	r := p.Wait(context.Background(), "never-ran")
+	r := p.Wait(t.Context(), "never-ran")
 	if r.OK {
 		t.Fatal("expected error for untracked id")
 	}
@@ -1136,7 +1136,7 @@ func TestVz_Wait_Ugly(t *testing.T) {
 	// VM (Done never closed) is untouched.
 	p := NewVZProvider()
 	vzFabricateTracked(t, p, &Container{ID: "vz-wait-ugly", Status: StatusRunning})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	r := p.Wait(ctx, "vz-wait-ugly")
 	if r.OK {
@@ -1483,12 +1483,12 @@ func TestVz_Tracked_Ugly(t *testing.T) {
 	p := NewVZProvider()
 	done := make(chan struct{})
 	go func() {
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			p.Tracked()
 		}
 		close(done)
 	}()
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		p.Tracked()
 	}
 	<-done

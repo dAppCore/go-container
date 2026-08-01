@@ -123,7 +123,7 @@ func TestMain_CapWriter_Ugly(t *testing.T) {
 	}
 	// Writes after the cap keep counting without growing the buffer.
 	w := &capWriter{max: 2}
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		if _, err := w.Write([]byte("xx")); err != nil {
 			t.Fatalf("write %d: %v", i, err)
 		}

@@ -32,7 +32,7 @@ func TestContainer_GenerateID_Uniqueness_Bad(t *core.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	seen := make(map[string]bool)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		r := GenerateID()
 		core.RequireTrue(t, r.OK, "GenerateID must succeed")
 		id := core.MustCast[string](r)

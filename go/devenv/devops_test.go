@@ -233,7 +233,7 @@ func TestDevOps_Status_Good(t *testing.T) {
 		t.Fatal(r.Error())
 	}
 
-	statusRes := d.Status(context.Background())
+	statusRes := d.Status(t.Context())
 	if !statusRes.OK {
 		t.Fatal(statusRes.Error())
 	}
@@ -281,7 +281,7 @@ func TestDevOps_Status_NotInstalled_Good(t *testing.T) {
 		container: cm,
 	}
 
-	statusRes := d.Status(context.Background())
+	statusRes := d.Status(t.Context())
 	if !statusRes.OK {
 		t.Fatal(statusRes.Error())
 	}
@@ -333,7 +333,7 @@ func TestDevOps_Status_NoContainer_Good(t *testing.T) {
 		container: cm,
 	}
 
-	statusRes := d.Status(context.Background())
+	statusRes := d.Status(t.Context())
 	if !statusRes.OK {
 		t.Fatal(statusRes.Error())
 	}
@@ -389,7 +389,7 @@ func TestDevOps_IsRunning_Good(t *testing.T) {
 		t.Fatal(r.Error())
 	}
 
-	runningRes := d.IsRunning(context.Background())
+	runningRes := d.IsRunning(t.Context())
 	if !runningRes.OK {
 		t.Fatal(runningRes.Error())
 	}
@@ -425,7 +425,7 @@ func TestDevOps_IsRunning_NotRunning_Bad(t *testing.T) {
 		container: cm,
 	}
 
-	runningRes := d.IsRunning(context.Background())
+	runningRes := d.IsRunning(t.Context())
 	if !runningRes.OK {
 		t.Fatal(runningRes.Error())
 	}
@@ -472,7 +472,7 @@ func TestDevOps_IsRunning_ContainerStopped_Bad(t *testing.T) {
 		t.Fatal(r.Error())
 	}
 
-	runningRes := d.IsRunning(context.Background())
+	runningRes := d.IsRunning(t.Context())
 	if !runningRes.OK {
 		t.Fatal(runningRes.Error())
 	}
@@ -519,7 +519,7 @@ func TestDevOps_findContainer_Good(t *testing.T) {
 		t.Fatal(r.Error())
 	}
 
-	foundRes := d.findContainer(context.Background(), "my-container")
+	foundRes := d.findContainer(t.Context(), "my-container")
 	if !foundRes.OK {
 		t.Fatal(foundRes.Error())
 	}
@@ -561,7 +561,7 @@ func TestDevOps_findContainer_NotFound_Bad(t *testing.T) {
 		container: cm,
 	}
 
-	foundRes := d.findContainer(context.Background(), "nonexistent")
+	foundRes := d.findContainer(t.Context(), "nonexistent")
 	if !foundRes.OK {
 		t.Fatal(foundRes.Error())
 	}
@@ -596,7 +596,7 @@ func TestDevOps_Stop_NotFound_Bad(t *testing.T) {
 		container: cm,
 	}
 
-	stopRes := d.Stop(context.Background())
+	stopRes := d.Stop(t.Context())
 	if stopRes.OK {
 		t.Fatal("expected error")
 	}
@@ -607,21 +607,21 @@ func TestDevOps_Stop_NotFound_Bad(t *testing.T) {
 
 func TestDevOps_Shell_NotRunning_Bad(t *testing.T) {
 	dev, _ := newTestDevOps(t)
-	if r := dev.Shell(context.Background(), ShellOptions{}); r.OK {
+	if r := dev.Shell(t.Context(), ShellOptions{}); r.OK {
 		t.Fatal("expected error when dev environment is not running")
 	}
 }
 
 func TestDevOps_Serve_NotRunning_Bad(t *testing.T) {
 	dev, _ := newTestDevOps(t)
-	if r := dev.Serve(context.Background(), t.TempDir(), ServeOptions{}); r.OK {
+	if r := dev.Serve(t.Context(), t.TempDir(), ServeOptions{}); r.OK {
 		t.Fatal("expected error when dev environment is not running")
 	}
 }
 
 func TestDevOps_Test_NotRunning_Bad(t *testing.T) {
 	dev, _ := newTestDevOps(t)
-	if r := dev.Test(context.Background(), t.TempDir(), TestOptions{}); r.OK {
+	if r := dev.Test(t.Context(), t.TempDir(), TestOptions{}); r.OK {
 		t.Fatal("expected error when dev environment is not running")
 	}
 }
@@ -720,7 +720,7 @@ func TestDevOps_Boot_NotInstalled_Bad(t *testing.T) {
 		container: cm,
 	}
 
-	bootRes := d.Boot(context.Background(), DefaultBootOptions())
+	bootRes := d.Boot(t.Context(), DefaultBootOptions())
 	if bootRes.OK {
 		t.Fatal("expected error")
 	}
@@ -774,7 +774,7 @@ func TestDevOps_Boot_AlreadyRunning_Bad(t *testing.T) {
 		t.Fatal(r.Error())
 	}
 
-	bootRes := d.Boot(context.Background(), DefaultBootOptions())
+	bootRes := d.Boot(t.Context(), DefaultBootOptions())
 	if bootRes.OK {
 		t.Fatal("expected error")
 	}
@@ -823,7 +823,7 @@ func TestDevOps_Status_WithImageVersion_Good(t *testing.T) {
 		container: cm,
 	}
 
-	statusRes := d.Status(context.Background())
+	statusRes := d.Status(t.Context())
 	if !statusRes.OK {
 		t.Fatal(statusRes.Error())
 	}
@@ -885,7 +885,7 @@ func TestDevOps_findContainer_MultipleContainers_Good(t *testing.T) {
 	}
 
 	// Find specific container
-	foundRes := d.findContainer(context.Background(), "container-2")
+	foundRes := d.findContainer(t.Context(), "container-2")
 	if !foundRes.OK {
 		t.Fatal(foundRes.Error())
 	}
@@ -938,7 +938,7 @@ func TestDevOps_Status_ContainerWithUptime_Good(t *testing.T) {
 		t.Fatal(r.Error())
 	}
 
-	statusRes := d.Status(context.Background())
+	statusRes := d.Status(t.Context())
 	if !statusRes.OK {
 		t.Fatal(statusRes.Error())
 	}
@@ -990,7 +990,7 @@ func TestDevOps_IsRunning_DifferentContainerName_Bad(t *testing.T) {
 	}
 
 	// IsRunning looks for "core-dev", not "other-container"
-	runningRes := d.IsRunning(context.Background())
+	runningRes := d.IsRunning(t.Context())
 	if !runningRes.OK {
 		t.Fatal(runningRes.Error())
 	}
@@ -1054,7 +1054,7 @@ func TestDevOps_Boot_FreshFlag_Good(t *testing.T) {
 		Name:   "core-dev",
 		Fresh:  true,
 	}
-	bootRes := d.Boot(context.Background(), opts)
+	bootRes := d.Boot(t.Context(), opts)
 	// The mock hypervisor's Run succeeds
 	if !bootRes.OK {
 		t.Fatal(bootRes.Error())
@@ -1100,7 +1100,7 @@ func TestDevOps_Stop_ContainerNotRunning_Bad(t *testing.T) {
 	}
 
 	// Stop should fail because container is not running
-	stopRes := d.Stop(context.Background())
+	stopRes := d.Stop(t.Context())
 	if stopRes.OK {
 		t.Fatal("expected error")
 	}
@@ -1150,7 +1150,7 @@ func TestDevOps_Boot_FreshWithNoExisting_Good(t *testing.T) {
 		Name:   "core-dev",
 		Fresh:  true,
 	}
-	bootRes := d.Boot(context.Background(), opts)
+	bootRes := d.Boot(t.Context(), opts)
 	// The mock hypervisor succeeds
 	if !bootRes.OK {
 		t.Fatal(bootRes.Error())
@@ -1201,7 +1201,7 @@ func TestDevOps_Install_Delegates_Good(t *testing.T) {
 	}
 
 	// This will fail because no source is available, but it tests delegation
-	if r := d.Install(context.Background(), nil); r.OK {
+	if r := d.Install(t.Context(), nil); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -1228,7 +1228,7 @@ func TestDevOps_CheckUpdate_Delegates_Good(t *testing.T) {
 	}
 
 	// This will fail because image not installed, but it tests delegation
-	if r := d.CheckUpdate(context.Background()); r.OK {
+	if r := d.CheckUpdate(t.Context()); r.OK {
 		t.Fatal("expected error")
 	}
 }
@@ -1269,7 +1269,7 @@ func TestDevOps_Boot_Success_Good(t *testing.T) {
 
 	// Boot without Fresh flag and no existing container
 	opts := DefaultBootOptions()
-	bootRes := d.Boot(context.Background(), opts)
+	bootRes := d.Boot(t.Context(), opts)
 	if !bootRes.OK {
 		t.Fatal(bootRes.Error())
 	} // Mock hypervisor succeeds

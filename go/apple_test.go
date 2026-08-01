@@ -1,7 +1,6 @@
 package container
 
 import (
-	"context"
 	"reflect"
 	"runtime"
 	"testing"
@@ -22,7 +21,7 @@ func TestApple_IsAppleAvailable_Good(t *testing.T) {
 	got := IsAppleAvailable()
 
 	// Function must not panic and must return a bool regardless of platform.
-	if got, want := reflect.TypeOf(got), reflect.TypeOf(true); got != want {
+	if got, want := reflect.TypeFor[bool](), reflect.TypeFor[bool](); got != want {
 		t.Fatalf("want type %v, got %v", want, got)
 	}
 	if runtime.GOOS != "darwin" {
@@ -222,7 +221,7 @@ func TestApple_Wait_UnknownID_Bad(t *testing.T) {
 	}
 	p := NewAppleProvider()
 
-	r := p.Wait(context.Background(), "no-such-container")
+	r := p.Wait(t.Context(), "no-such-container")
 	if r.OK {
 		t.Fatal("expected error")
 	}
@@ -760,7 +759,7 @@ func TestApple_AppleProvider_Decrypt_Ugly(t *testing.T) {
 func runningAppleContainer(t *testing.T, p *AppleProvider, name string) (string, func()) {
 	t.Helper()
 	const ref = "docker.io/library/alpine:latest"
-	ctx := context.Background()
+	ctx := t.Context()
 	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() // pre-clean
 	cleanup := func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }
 
@@ -1199,8 +1198,8 @@ func TestApple_isAppleSilicon_Ugly(t *testing.T) {
 		t.Fatal(auditTarget, auditVariant)
 	}
 	// Must return a bool and not panic.
-	got := isAppleSilicon()
-	if got, want := reflect.TypeOf(got), reflect.TypeOf(true); got != want {
+	_ = isAppleSilicon()
+	if got, want := reflect.TypeFor[bool](), reflect.TypeFor[bool](); got != want {
 		t.Fatalf("want type %v, got %v", want, got)
 	}
 }
@@ -1645,7 +1644,7 @@ func TestApple_AppleProvider_ExecInteractive_Good(t *testing.T) {
 	}
 	const name = "core-exec-i-e2e"
 	const ref = "docker.io/library/alpine:latest"
-	ctx := context.Background()
+	ctx := t.Context()
 	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run()
 	defer func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }()
 	if r := p.Pull(ref); !r.OK {
@@ -1654,7 +1653,7 @@ func TestApple_AppleProvider_ExecInteractive_Good(t *testing.T) {
 	if r := p.Run(&Image{Path: ref}, WithName(name), WithDetach(true), WithArgs("sleep", "60")); !r.OK {
 		t.Fatalf("Run: %v", r.Error())
 	}
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		ready := false
 		if lr := p.List(); lr.OK {
 			for _, c := range core.MustCast[[]*Container](lr) {
@@ -1730,7 +1729,7 @@ func TestApple_E2E_ContainerLifecycle_Smoke(t *testing.T) {
 	}
 	const name = "core-lifecycle-e2e"
 	const ref = "docker.io/library/alpine:latest"
-	ctx := context.Background()
+	ctx := t.Context()
 	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() // pre-clean leftovers
 	defer func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }()
 
@@ -1808,7 +1807,7 @@ func TestApple_E2E_RunPublish_Smoke(t *testing.T) {
 	}
 	const name = "core-publish-e2e"
 	const ref = "docker.io/library/alpine:latest"
-	ctx := context.Background()
+	ctx := t.Context()
 	_ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run()
 	defer func() { _ = proc.NewCommandContext(ctx, "container", "delete", "--force", name).Run() }()
 	if r := p.Pull(ref); !r.OK {

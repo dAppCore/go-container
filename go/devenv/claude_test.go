@@ -1,7 +1,6 @@
 package devenv
 
 import (
-	"context"
 	"reflect"
 	"testing"
 )
@@ -119,7 +118,7 @@ func TestFormatAuthList_EmptyAuth_Good(t *testing.T) {
 
 func TestClaude_DevOps_Claude_AutoBootFails_Bad(t *testing.T) {
 	dev, _ := newTestDevOps(t)
-	if r := dev.Claude(context.Background(), t.TempDir(), ClaudeOptions{NoAuth: true}); r.OK {
+	if r := dev.Claude(t.Context(), t.TempDir(), ClaudeOptions{NoAuth: true}); r.OK {
 		t.Fatal("expected error when auto-boot cannot find the dev image")
 	}
 }
@@ -127,14 +126,14 @@ func TestClaude_DevOps_Claude_AutoBootFails_Bad(t *testing.T) {
 func TestClaude_DevOps_CopyGHAuth_NoConfig_Good(t *testing.T) {
 	dev, _ := newTestDevOps(t)
 	t.Setenv("CORE_HOME", t.TempDir())
-	if r := dev.CopyGHAuth(context.Background()); !r.OK {
+	if r := dev.CopyGHAuth(t.Context()); !r.OK {
 		t.Fatalf("CopyGHAuth without gh config returned error: %v", r.Error())
 	}
 }
 
 func TestEnsureHostKey_Skip_Good(t *testing.T) {
 	t.Setenv("CORE_SKIP_SSH_SCAN", "true")
-	if r := ensureHostKey(context.Background(), DefaultSSHPort); !r.OK {
+	if r := ensureHostKey(t.Context(), DefaultSSHPort); !r.OK {
 		t.Fatalf("ensureHostKey skip returned error: %v", r.Error())
 	}
 }

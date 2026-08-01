@@ -122,7 +122,7 @@ func TestLinuxKitManager_Run_Detached_Good(t *testing.T) {
 	// Use a command that runs briefly then exits
 	mock.commandToRun = "sleep"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{
 		Name:   "test-vm",
 		Detach: true,
@@ -186,7 +186,7 @@ func TestLinuxKitManager_Run_DefaultValues_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{Detach: true}
 
 	runRes := manager.Run(ctx, imagePath, opts)
@@ -222,7 +222,7 @@ func TestLinuxKitManager_Run_ImageNotFound_Bad(t *testing.T) {
 	}
 	manager, _, _ := newTestManager(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{Detach: true}
 
 	runRes := manager.Run(ctx, "/nonexistent/image.iso", opts)
@@ -248,7 +248,7 @@ func TestLinuxKitManager_Run_UnsupportedFormat_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{Detach: true}
 
 	runRes := manager.Run(ctx, imagePath, opts)
@@ -278,7 +278,7 @@ func TestLinuxKitManager_Stop_Good(t *testing.T) {
 	}
 	_ = manager.State().Add(container)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	stopRes := manager.Stop(ctx, "abc12345")
 	// Stop should succeed (process doesn't exist, so container is marked stopped)
 	if !stopRes.OK {
@@ -303,7 +303,7 @@ func TestLinuxKitManager_Stop_NotFound_Bad(t *testing.T) {
 	}
 	manager, _, _ := newTestManager(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	stopRes := manager.Stop(ctx, "nonexistent")
 	if stopRes.OK {
 		t.Fatal("expected error")
@@ -334,7 +334,7 @@ func TestLinuxKitManager_Stop_NotRunning_Bad(t *testing.T) {
 	}
 	_ = state.Add(container)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	stopRes := manager.Stop(ctx, "abc12345")
 	if stopRes.OK {
 		t.Fatal("expected error")
@@ -362,7 +362,7 @@ func TestLinuxKitManager_List_Good(t *testing.T) {
 	_ = state.Add(&Container{ID: "aaa11111", Status: StatusStopped})
 	_ = state.Add(&Container{ID: "bbb22222", Status: StatusStopped})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	listRes := manager.List(ctx)
 	if !listRes.OK {
 		t.Fatal(listRes.Error())
@@ -395,7 +395,7 @@ func TestLinuxKitManager_List_VerifiesRunningStatus_Good(t *testing.T) {
 		PID:    999999, // PID that almost certainly doesn't exist
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	listRes := manager.List(ctx)
 	if !listRes.OK {
 		t.Fatal(listRes.Error())
@@ -439,7 +439,7 @@ func TestLinuxKitManager_Logs_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logsRes := manager.Logs(ctx, "abc12345", false)
 	if !logsRes.OK {
 		t.Fatal(logsRes.Error())
@@ -462,7 +462,7 @@ func TestLinuxKitManager_Logs_NotFound_Bad(t *testing.T) {
 	}
 	manager, _, _ := newTestManager(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logsRes := manager.Logs(ctx, "nonexistent", false)
 	if logsRes.OK {
 		t.Fatal("expected error")
@@ -485,7 +485,7 @@ func TestLinuxKitManager_Logs_NoLogFile_Bad(t *testing.T) {
 	container := &Container{ID: uniqueID}
 	_ = manager.State().Add(container)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logsRes := manager.Logs(ctx, uniqueID, false)
 
 	// If logs existed somehow, clean up the reader
@@ -510,7 +510,7 @@ func TestLinuxKitManager_Exec_NotFound_Bad(t *testing.T) {
 	}
 	manager, _, _ := newTestManager(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	execRes := manager.Exec(ctx, "nonexistent", []string{"ls"})
 	if execRes.OK {
 		t.Fatal("expected error")
@@ -531,7 +531,7 @@ func TestLinuxKitManager_Exec_NotRunning_Bad(t *testing.T) {
 	container := &Container{ID: "abc12345", Status: StatusStopped}
 	_ = manager.State().Add(container)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	execRes := manager.Exec(ctx, "abc12345", []string{"ls"})
 	if execRes.OK {
 		t.Fatal("expected error")
@@ -612,7 +612,7 @@ func TestQemuHypervisor_BuildCommand_Good(t *testing.T) {
 	}
 	q := NewQemuHypervisor()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := &HypervisorOptions{
 		Memory:  2048,
 		CPUs:    4,
@@ -681,7 +681,7 @@ func TestLinuxKitManager_Logs_Follow_Good(t *testing.T) {
 	}
 
 	// Create a cancellable context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Get the follow reader
 	logsRes := manager.Logs(ctx, uniqueID, true)
@@ -724,7 +724,7 @@ func TestFollowReader_Read_WithData_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	frRes := newFollowReader(ctx, io.Local, logPath)
@@ -774,7 +774,7 @@ func TestFollowReader_Read_ContextCancel_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	frRes := newFollowReader(ctx, io.Local, logPath)
 	if !frRes.OK {
@@ -809,7 +809,7 @@ func TestFollowReader_Close_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	frRes := newFollowReader(ctx, io.Local, logPath)
 	if !frRes.OK {
 		t.Fatal(frRes.Error())
@@ -834,7 +834,7 @@ func TestNewFollowReader_FileNotFound_Bad(t *testing.T) {
 	if len(auditTarget)+len(auditVariant) == 0 {
 		t.Fatal(auditTarget, auditVariant)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	frRes := newFollowReader(ctx, io.Local, "/nonexistent/path/to/file.log")
 	if frRes.OK {
 		t.Fatal("expected error")
@@ -859,7 +859,7 @@ func TestLinuxKitManager_Run_BuildCommandError_Bad(t *testing.T) {
 	// Configure mock to return an error
 	mock.buildErr = core.NewError("test error")
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{Detach: true}
 
 	runRes := manager.Run(ctx, imagePath, opts)
@@ -889,7 +889,7 @@ func TestLinuxKitManager_Run_Foreground_Good(t *testing.T) {
 	// Use echo which exits quickly
 	mock.commandToRun = "echo"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{
 		Name:   "test-foreground",
 		Detach: false, // Run in foreground
@@ -934,7 +934,7 @@ func TestLinuxKitManager_Stop_ContextCancelled_Good(t *testing.T) {
 	mock.commandToRun = "sleep"
 
 	// Start a container
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{
 		Name:   "test-cancel",
 		Detach: true,
@@ -948,11 +948,11 @@ func TestLinuxKitManager_Stop_ContextCancelled_Good(t *testing.T) {
 
 	// Ensure cleanup happens regardless of test outcome
 	t.Cleanup(func() {
-		_ = manager.Stop(context.Background(), container.ID)
+		_ = manager.Stop(t.Context(), container.ID)
 	})
 
 	// Create a context that's already cancelled
-	cancelCtx, cancel := context.WithCancel(context.Background())
+	cancelCtx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	// Stop with cancelled context
@@ -1006,7 +1006,7 @@ func TestLinuxKitManager_Run_WithPortsAndVolumes_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{
 		Name:    "test-ports",
 		Detach:  true,
@@ -1053,7 +1053,7 @@ func TestFollowReader_Read_ReaderError_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	frRes := newFollowReader(ctx, io.Local, logPath)
 	if !frRes.OK {
 		t.Fatal(frRes.Error())
@@ -1088,7 +1088,7 @@ func TestLinuxKitManager_Run_StartError_Bad(t *testing.T) {
 	// Use a command that doesn't exist to cause Start() to fail
 	mock.commandToRun = "/nonexistent/command/that/does/not/exist"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{
 		Name:   "test-start-error",
 		Detach: true,
@@ -1120,7 +1120,7 @@ func TestLinuxKitManager_Run_ForegroundStartError_Bad(t *testing.T) {
 	// Use a command that doesn't exist to cause Start() to fail
 	mock.commandToRun = "/nonexistent/command/that/does/not/exist"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{
 		Name:   "test-foreground-error",
 		Detach: false,
@@ -1152,7 +1152,7 @@ func TestLinuxKitManager_Run_ForegroundWithError_Good(t *testing.T) {
 	// Use a command that exits with error
 	mock.commandToRun = "false" // false command exits with code 1
 
-	ctx := context.Background()
+	ctx := t.Context()
 	opts := RunOptions{
 		Name:   "test-foreground-exit-error",
 		Detach: false,
@@ -1189,7 +1189,7 @@ func TestLinuxKitManager_Stop_ProcessExitedWhileRunning_Good(t *testing.T) {
 	}
 	_ = manager.State().Add(container)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	stopRes := manager.Stop(ctx, "test1234")
 	// Stop should succeed gracefully
 	if !stopRes.OK {
