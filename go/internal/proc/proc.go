@@ -12,11 +12,11 @@ package proc
 import (
 	"context"
 	goio "io"
+	"os"
 	"sync"
 	"syscall"
 
 	core "dappco.re/go"
-	coreio "dappco.re/go/io"
 
 	"dappco.re/go/container/internal/coreutil"
 )
@@ -427,8 +427,23 @@ func (c *Command) watchContext() {
 	}()
 }
 
+// isExecutable reports whether a PATH candidate is a runnable command.
+//
+// os.Stat rather than coreio.Local.Stat, and the exception is deliberate. The
+// Medium is sandboxed on os.Root, which by design refuses to follow a symlink
+// that leaves its root — correct for file I/O against a medium, and wrong for
+// this, because a PATH entry leaving its directory is the normal case rather
+// than the attack: /usr/local/bin/docker points into /Applications/Docker.app,
+// brew links into ../Cellar, /usr/bin is links into /etc/alternatives.
+//
+// go-io v0.15.2 moved Local.Stat onto os.Root and this silently began reporting
+// that Docker was absent on machines where it was installed and running —
+// detectDocker returned false, and no test noticed because none of them ran
+// where a symlinked runtime existed. os.Stat follows the link, which is what
+// exec.LookPath does and what proc_windows.go already gets for free by calling
+// it. A dangling link still fails, because the resolved target does not exist.
 func isExecutable(path string) bool {
-	info, err := coreio.Local.Stat(path)
+	info, err := os.Stat(path)
 	if err != nil {
 		return false
 	}
