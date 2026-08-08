@@ -46,9 +46,24 @@ type AppleProvider struct {
 	Version string
 	// RetentionWindow is the duration tracked entries persist after container exit.
 	RetentionWindow time.Duration
+	// StopPolls caps how many times SystemStop asks whether the services have
+	// gone down before giving up. Zero uses the default.
+	StopPolls int
+	// StopPollInterval spaces those checks. Zero uses the default.
+	StopPollInterval time.Duration
 
 	tracked map[string]*appleTracked
 }
+
+// How long SystemStop waits by default: ten checks, six seconds.
+//
+// Sized from a measured teardown rather than picked — a stop that needed a
+// second invocation took roughly six seconds to actually bring the apiserver
+// down. Both are fields on the provider so a test does not have to spend that.
+const (
+	appleDefaultStopPolls        = 10
+	appleDefaultStopPollInterval = 600 * time.Millisecond
+)
 
 // appleTracked records a detached apple container process for lifecycle
 // observation. The AppleProvider populates this map on Run and drains it when
@@ -66,7 +81,12 @@ type appleTracked struct {
 //
 //	p := container.NewAppleProvider()
 func NewAppleProvider() *AppleProvider {
-	return &AppleProvider{Binary: "container", RetentionWindow: 5 * time.Minute}
+	return &AppleProvider{
+		Binary:           "container",
+		RetentionWindow:  5 * time.Minute,
+		StopPolls:        appleDefaultStopPolls,
+		StopPollInterval: appleDefaultStopPollInterval,
+	}
 }
 
 // Available reports whether the AppleProvider can run on this host.
@@ -374,12 +394,73 @@ func (a *AppleProvider) SystemStart(installKernel bool) core.Result { // Value: 
 	return core.Ok(nil)
 }
 
-// SystemStop stops all `container` services.
+// SystemStop stops all `container` services and waits for them to be down.
 //
 // Usage:
 //
 //	if r := p.SystemStop(); !r.OK { return r }
+//
+// The waiting is the point. `container system stop` is asynchronous and
+// two-phase: the command returns while the CLI is still logging "stopping
+// containers", and status keeps reporting running for seconds afterwards —
+// measured at around six on a stop that needed a second invocation. A verb that
+// returned the moment the command exited was telling its caller the system was
+// down when it was not, and anything that stopped and immediately restarted, or
+// stopped and asserted, raced it.
+//
+// Bounded, because a waiter that can outlive what it waits for is a bug rather
+// than a wait: {@see AppleProvider.StopPolls} attempts spaced by
+// {@see AppleProvider.StopPollInterval}, then a Result naming the timeout. It
+// never blocks indefinitely on a system that will not come down.
+//
+// {@see SystemStopNoWait} keeps the old fire-and-forget behaviour for a caller
+// that genuinely wants it.
 func (a *AppleProvider) SystemStop() core.Result { // Value: nil
+	if r := a.SystemStopNoWait(); !r.OK {
+		return r
+	}
+
+	polls := a.StopPolls
+	if polls <= 0 {
+		polls = appleDefaultStopPolls
+	}
+
+	interval := a.StopPollInterval
+	if interval <= 0 {
+		interval = appleDefaultStopPollInterval
+	}
+
+	for i := 0; i < polls; i++ {
+		if !a.systemRunning() {
+			return core.Ok(nil)
+		}
+		time.Sleep(interval)
+	}
+
+	// One last look, so the final sleep is not wasted: the services may have
+	// gone down during it.
+	if !a.systemRunning() {
+		return core.Ok(nil)
+	}
+
+	return core.Fail(core.E(
+		"AppleProvider.SystemStop",
+		core.Concat("container system still running after ", strconv.Itoa(polls), " checks"),
+		nil,
+	))
+}
+
+// SystemStopNoWait issues the stop and returns as soon as the CLI command exits,
+// without waiting for the services to actually go down.
+//
+// Usage:
+//
+//	p.SystemStopNoWait() // shutting down; nothing after this depends on it
+//
+// This is what SystemStop used to do. It is honest only where the caller does
+// not care whether the system is down — a best-effort teardown on exit, say.
+// Anywhere the next step depends on the services being gone, use SystemStop.
+func (a *AppleProvider) SystemStopNoWait() core.Result { // Value: nil
 	if err := proc.NewCommand(a.Binary, appleSystemStopArgs()...).Run(); err != nil {
 		return core.Fail(core.E("AppleProvider.SystemStop", "stop container system", err))
 	}

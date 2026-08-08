@@ -5,6 +5,7 @@ package container
 import (
 	"strings"
 	"testing"
+	"time"
 
 	core "dappco.re/go"
 )
@@ -80,6 +81,7 @@ func TestAppleHermetic_SystemStatus_Good(t *testing.T) {
 
 func TestAppleHermetic_SystemStop_Good(t *testing.T) {
 	fake := newFakeAppleCLI(t)
+	fake.Respond("system status", appleStatusStopped, 0)
 	p := fake.Provider()
 
 	p.SystemStop()
@@ -215,5 +217,88 @@ func TestAppleHermetic_SystemRunning_Unparseable_Ugly(t *testing.T) {
 		if appleSystemRunning(out) {
 			t.Fatalf("appleSystemRunning(%q) = true; want false", out)
 		}
+	}
+}
+
+// --- SystemStop waits, and is bounded ---
+
+// `container system stop` is asynchronous and two-phase: it returns while the
+// CLI is still stopping containers, and status keeps reporting running for
+// seconds. SystemStop must not tell its caller the system is down until it is.
+func TestAppleHermetic_SystemStop_WaitsForDown_Good(t *testing.T) {
+	fake := newFakeAppleCLI(t)
+	p := fake.Provider()
+	p.StopPollInterval = time.Millisecond
+
+	// Still running when stop is issued; the fake flips to stopped underneath
+	// the poll, the way the real teardown does.
+	go func() {
+		time.Sleep(5 * time.Millisecond)
+		fake.Respond("system status", appleStatusStopped, 0)
+	}()
+
+	r := p.SystemStop()
+	if !r.OK {
+		t.Fatalf("SystemStop() failed though the system went down: %v", r)
+	}
+	if !fake.CalledWith("system stop") {
+		t.Fatalf("SystemStop did not issue the stop; invocations: %v", fake.Invocations())
+	}
+}
+
+// The bail. A waiter that can outlive what it waits for is a bug, so a system
+// that never goes down must produce a named timeout rather than a hang.
+func TestAppleHermetic_SystemStop_NeverStops_Bad(t *testing.T) {
+	fake := newFakeAppleCLI(t)
+	p := fake.Provider()
+	p.StopPolls = 3
+	p.StopPollInterval = time.Millisecond
+
+	done := make(chan core.Result, 1)
+	go func() { done <- p.SystemStop() }()
+
+	select {
+	case r := <-done:
+		if r.OK {
+			t.Fatal("SystemStop() OK though status never stopped reporting running")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("SystemStop() did not bail — it is unbounded")
+	}
+}
+
+// A stop the CLI itself refuses fails immediately, without polling.
+func TestAppleHermetic_SystemStop_CLIFails_Ugly(t *testing.T) {
+	fake := newFakeAppleCLI(t)
+	fake.Respond("system stop", "permission denied", 1)
+	p := fake.Provider()
+	p.StopPolls = 100
+	p.StopPollInterval = time.Second // never reached; the command failed
+
+	start := time.Now()
+	if r := p.SystemStop(); r.OK {
+		t.Fatal("SystemStop() OK though `container system stop` exited 1")
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("SystemStop polled after the command failed (%s)", elapsed)
+	}
+}
+
+// The escape hatch keeps the old semantics for callers that do not care.
+func TestAppleHermetic_SystemStopNoWait_DoesNotPoll_Good(t *testing.T) {
+	fake := newFakeAppleCLI(t)
+	p := fake.Provider()
+	p.StopPolls = 100
+	p.StopPollInterval = time.Second // would be 100s if it polled
+
+	start := time.Now()
+	if r := p.SystemStopNoWait(); !r.OK {
+		t.Fatalf("SystemStopNoWait() failed: %v", r)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("SystemStopNoWait waited (%s); it is meant to return at once", elapsed)
+	}
+	if !fake.CalledWith("system stop") {
+		t.Fatalf("SystemStopNoWait did not issue the stop; invocations: %v", fake.Invocations())
 	}
 }
