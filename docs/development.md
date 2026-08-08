@@ -38,6 +38,52 @@ go test ./devenv/
 Tests use `testify` for assertions. Most tests are self-contained and do not require a running hypervisor -- they test command construction, state management, template parsing, and configuration loading in isolation.
 
 
+## Testing a CLI-backed provider
+
+Do not gate a test on the runtime being installed:
+
+```go
+if !p.Available() { t.Skip("apple container runtime not available") }   // don't
+```
+
+CI is `golang:1.26-alpine` on Linux. A skip like that is unconditional there, so
+the test never runs in the pipeline it was written for -- and a suite reports
+green just as loudly for a skipped test as for a passing one. Roughly
+twenty-five AppleProvider tests were in that state.
+
+Use `fakeAppleCLI` (`apple_fake_test.go`) instead. It writes a real shell script
+and points the provider at it through the two seams that already exist --
+`AppleProvider.Binary` is a field, and `discoverHostOS` reads `$GOOS`:
+
+```go
+fake := newFakeAppleCLI(t)
+fake.Respond("image pull", "", 1)         // script stdout and exit code
+p := fake.Provider()                       // Binary wired, GOOS=darwin
+
+p.Pull("nope:latest")
+
+fake.CalledWith("image pull nope:latest")  // assert the argv it built
+```
+
+A shell script rather than a Go double on purpose: the seam under test *is*
+process execution -- argv construction, exit codes, stdout parsing -- and a Go
+double replaces exactly the part worth exercising.
+
+Fixtures of real CLI output are copied verbatim and carry the version they came
+from (`appleStatusRunning`, `appleStatusStopped` -- CLI 0.12.3). That is not
+ceremony: `systemRunning` used to substring-match `"running"`, and the stopped
+output is `apiserver is not running and not registered with launchd`, which
+contains it. A stopped runtime reported itself available. Invented fixtures are
+how that survives.
+
+### Known gaps
+
+| Gap | Note |
+|-----|------|
+| `cmd/metaltest` has no tests | The package is a manual bare-metal probe harness; it has never had a test file. |
+| Live-runtime tests remain gated | `CORE_APPLE_E2E=1` and `CONTAINER_VZ_LIVE=1` still gate the tests that need a real runtime. That gating is correct -- they are smoke tests against real hardware -- but it means they do not run in CI either. |
+
+
 ## Test naming convention
 
 Tests follow the `TestSubject_Function_{Good,Bad,Ugly}` pattern:

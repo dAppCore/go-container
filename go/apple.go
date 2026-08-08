@@ -103,7 +103,47 @@ func (a *AppleProvider) Available() bool {
 // `container system start`.
 func (a *AppleProvider) systemRunning() bool {
 	r := a.SystemStatus()
-	return r.OK && core.Contains(core.Lower(core.MustCast[string](r)), "running")
+	if !r.OK {
+		return false
+	}
+
+	return appleSystemRunning(core.MustCast[string](r))
+}
+
+// appleSystemRunning decides the question from `container system status` output.
+//
+// It reads the status table rather than searching the text, and the difference
+// is the whole point: the stopped output is
+//
+//	apiserver is not running and not registered with launchd
+//
+// which contains the substring "running". The previous check asked exactly
+// that, so a stopped system reported itself as available, Detect selected a
+// runtime whose every call exits 1, and the guard whose comment above explains
+// why it exists never once refused anything.
+//
+// Running is a FIELD/VALUE table, not a sentence:
+//
+//	FIELD              VALUE
+//	status             running
+//	appRoot            /Users/.../Application Support/com.apple.container/
+//
+// So the test is structural: find the `status` row, require its value to be
+// exactly the token `running`. The stopped prose has no status row at all and
+// falls through to false, as does anything unrecognised — fail closed, because
+// wrongly believing the runtime is up is the failure that costs, and wrongly
+// believing it is down only sends the caller to `container system start`.
+//
+// Verified against the real CLI's verbatim output, version 0.12.3 (f989901).
+func appleSystemRunning(status string) bool {
+	for _, line := range core.Split(status, "\n") {
+		fields := core.Fields(line)
+		if len(fields) >= 2 && core.Lower(fields[0]) == "status" {
+			return core.Lower(fields[1]) == "running"
+		}
+	}
+
+	return false
 }
 
 // Build produces an Image from a declarative configuration. For Apple
