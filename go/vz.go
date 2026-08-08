@@ -900,23 +900,6 @@ func (p *VZProvider) Exec(id, command string, args ...string) core.Result { // V
 	return core.Ok(resp.Stdout)
 }
 
-// ExecResult is the full outcome of a guest command: its captured streams and
-// exit code. A non-zero Exit is a successful exec (the command ran and exited),
-// not a verb failure — agent dispatch needs the real code and stderr that the
-// lossy Exec folds away.
-//
-// Usage:
-//
-//	res := core.MustCast[ExecResult](p.ExecResult(ctr.ID, "go", "test", "./..."))
-type ExecResult struct {
-	// Stdout is the captured standard output of the command.
-	Stdout string
-	// Stderr is the captured standard error of the command.
-	Stderr string
-	// Exit is the command's exit code (0 when it succeeded).
-	Exit int
-}
-
 // vzExecResult maps a §5 agent Response onto the ExecResult contract: a
 // refused verb (OK=false) is a failure naming the agent's error; an exec the
 // agent carried out is core.Ok(ExecResult) regardless of Exit — a command that

@@ -297,3 +297,27 @@ func ApplyRunOptions(opts ...RunOption) RunOptions {
 	}
 	return o
 }
+
+// ExecResult is the full outcome of a guest command: its captured streams and
+// exit code. A non-zero Exit is a successful exec (the command ran and exited),
+// not a verb failure — agent dispatch needs the real code and stderr that the
+// lossy Exec folds away.
+//
+// Usage:
+//
+//	res := core.MustCast[ExecResult](p.ExecResult(ctr.ID, "go", "test", "./..."))
+//
+// It lives here rather than beside the VZ provider that returns it because
+// there is nothing VZ about it — three fields, no Virtualization.framework in
+// sight. Declared in vz.go it inherited that file's //go:build darwin, so a
+// consumer naming container.ExecResult compiled on a Mac and failed on Linux
+// with "undefined", for no reason other than where the type was typed. Any
+// provider that grows a full-outcome exec returns this same shape.
+type ExecResult struct {
+	// Stdout is the captured standard output of the command.
+	Stdout string
+	// Stderr is the captured standard error of the command.
+	Stderr string
+	// Exit is the command's exit code (0 when it succeeded).
+	Exit int
+}
