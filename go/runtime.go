@@ -3,9 +3,9 @@ package container
 import (
 	"runtime"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
-	"dappco.re/go/container/internal/proc"
+	"github.com/dappcore/go-container/go/internal/proc"
 )
 
 // RuntimeType identifies a container runtime backend detected on the host.

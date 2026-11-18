@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"slices"
 
-	core "dappco.re/go"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-io/go"
 
-	"dappco.re/go/container/internal/coreutil"
+	"github.com/dappcore/go-container/go/internal/coreutil"
 )
 
 //go:embed templates/*.yml

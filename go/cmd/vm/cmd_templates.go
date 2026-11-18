@@ -4,11 +4,11 @@ import (
 	"context"
 	"text/tabwriter"
 
-	core "dappco.re/go"
-	"dappco.re/go/container"
-	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/container/internal/proc"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go"
+	"github.com/dappcore/go-container/go/internal/coreutil"
+	"github.com/dappcore/go-container/go/internal/proc"
+	"github.com/dappcore/go-io/go"
 )
 
 // addVMTemplatesCommand adds the 'templates' command under vm.

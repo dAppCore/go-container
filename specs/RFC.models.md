@@ -8,7 +8,7 @@ Status: Aspirational
 
 
 ## vm
-**Import:** `dappco.re/go/container/cmd/vm`
+**Import:** `github.com/dappcore/go-container/go/cmd/vm`
 **Files:** 4
 
 ## Types
@@ -22,7 +22,7 @@ Status: Aspirational
 
 
 ## container
-**Import:** `dappco.re/go/container`
+**Import:** `github.com/dappcore/go-container/go`
 **Files:** 5
 
 ## Types
@@ -199,7 +199,7 @@ Metadata for an embedded or user-supplied LinuxKit YAML template.
 
 
 ## coreutil
-**Import:** `dappco.re/go/container/internal/coreutil`
+**Import:** `github.com/dappcore/go-container/go/internal/coreutil`
 **Files:** 1
 
 ## Types
@@ -217,7 +217,7 @@ Metadata for an embedded or user-supplied LinuxKit YAML template.
 
 
 ## proc
-**Import:** `dappco.re/go/container/internal/proc`
+**Import:** `github.com/dappcore/go-container/go/internal/proc`
 **Files:** 1
 
 ## Types

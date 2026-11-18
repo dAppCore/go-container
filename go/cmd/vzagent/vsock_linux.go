@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"dappco.re/go/container/internal/vzproto"
+	"github.com/dappcore/go-container/go/internal/vzproto"
 )
 
 // listenBacklog is the pending-connection queue depth for the control port.

@@ -1,12 +1,12 @@
 package devenv
 
 import (
-	"dappco.re/go/config"
-	"dappco.re/go/io"
+	"github.com/dappcore/config/go"
+	"github.com/dappcore/go-io/go"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
-	"dappco.re/go/container/internal/coreutil"
+	"github.com/dappcore/go-container/go/internal/coreutil"
 )
 
 // Config holds global devops configuration from ~/.core/config.yaml.

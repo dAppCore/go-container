@@ -22,7 +22,7 @@
 package container
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // ServiceOptions configures the container service. Provider is required

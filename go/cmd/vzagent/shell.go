@@ -10,7 +10,7 @@ import (
 
 	"github.com/creack/pty"
 
-	"dappco.re/go/container/internal/vzproto"
+	"github.com/dappcore/go-container/go/internal/vzproto"
 )
 
 const (

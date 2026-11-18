@@ -10,7 +10,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Container represents a running LinuxKit container/VM instance.

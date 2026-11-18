@@ -3,8 +3,8 @@ package vm
 import (
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-io/go"
 
 	borgtim "forge.lthn.ai/Snider/Borg/pkg/tim"
 )

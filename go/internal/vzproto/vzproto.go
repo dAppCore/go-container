@@ -10,7 +10,7 @@
 // Stdlib note (AX-6): this package deliberately uses encoding/json,
 // encoding/binary and io instead of core helpers because it is shared with
 // the cmd/vzagent static GOOS=linux guest binary — host and agent must agree
-// on these bytes, and pulling dappco.re/go into the guest agent would bloat
+// on these bytes, and pulling github.com/dappcore/go into the guest agent would bloat
 // the tiny static binary the §5 contract ships inside LinuxKit images.
 package vzproto
 

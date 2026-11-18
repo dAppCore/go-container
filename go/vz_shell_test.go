@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestVz_Shell_Bad(t *testing.T) {

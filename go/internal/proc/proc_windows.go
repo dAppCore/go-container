@@ -23,7 +23,7 @@ import (
 	"os/exec"
 	"syscall"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Process is a started child, identified the same way as on unix.

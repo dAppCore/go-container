@@ -1,6 +1,6 @@
 ---
 Status: Aspirational
-module: dappco.re/go/container
+module: github.com/dappcore/go-container/go
 repo: core/go-container
 lang: go
 tier: lib
@@ -17,7 +17,7 @@ tags:
 
 > An agent should be able to build and run containers from this document alone.
 
-**Module:** `dappco.re/go/container`
+**Module:** `github.com/dappcore/go-container/go`
 **Repository:** `core/go-container`
 **Files:** 34
 **Sub-specs:** [Models](RFC.models.md) | [Commands](RFC.commands.md) | [Apple + Runtime Detection](RFC.apple.md) | [TIM Format](RFC.tim.md)

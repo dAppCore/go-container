@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/container"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go"
+	"github.com/dappcore/go-io/go"
 )
 
 // writeFixture writes an empty placeholder file via the local medium.

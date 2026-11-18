@@ -3,7 +3,7 @@ package container
 import (
 	"maps"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Provider abstracts the container backend (LinuxKit, Apple Containers).

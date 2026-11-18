@@ -1,8 +1,8 @@
 package vm
 
 import (
-	core "dappco.re/go"
-	"dappco.re/go/container"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go"
 )
 
 // addVMSystemCommand registers the `vm system` subgroup (start/status/stop) for

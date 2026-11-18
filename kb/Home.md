@@ -1,6 +1,6 @@
 # go-container
 
-Module: `dappco.re/go/core/container`
+Module: `github.com/dappcore/go-container/go`
 
 Container runtime for managing LinuxKit VMs as lightweight containers. Supports running LinuxKit images (ISO, qcow2, vmdk, raw) via QEMU or Hyperkit hypervisors. Includes a dev environment system for Claude Code agents and development workflows.
 
@@ -55,7 +55,7 @@ Container runtime for managing LinuxKit VMs as lightweight containers. Supports 
 ## Usage
 
 ```go
-import "dappco.re/go/core/container"
+import "github.com/dappcore/go-container/go"
 
 // Auto-detect hypervisor
 hv, _ := container.DetectHypervisor()

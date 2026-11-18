@@ -3,8 +3,8 @@ package devenv
 import (
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-io/go"
 )
 
 // TestConfigBehaviour_New_Good constructs a DevOps instance backed by a clean

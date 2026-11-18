@@ -10,7 +10,7 @@
 //
 // Stdlib note (AX-6): vzagent is a standalone GOOS=linux main that runs PID-1
 // adjacent inside a minimal guest — it uses the stdlib (flag, os/exec,
-// bytes) rather than dappco.re/go helpers so the binary stays small, static
+// bytes) rather than github.com/dappcore/go helpers so the binary stays small, static
 // and free of host-side framework dependencies.
 package main
 
@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"dappco.re/go/container/internal/vzproto"
+	"github.com/dappcore/go-container/go/internal/vzproto"
 )
 
 const (

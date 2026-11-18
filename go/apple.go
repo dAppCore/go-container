@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"time"
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
 
-	"dappco.re/go/container/internal/proc"
+	"github.com/dappcore/go-container/go/internal/proc"
 )
 
 var appleProviderLock = core.New().Lock("container.apple.provider").Mutex

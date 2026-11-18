@@ -5,7 +5,7 @@ package container
 import (
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // TestNewService_NilProvider_RegistersWithStateOnly — empty options registers

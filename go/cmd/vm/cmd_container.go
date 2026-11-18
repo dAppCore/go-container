@@ -10,10 +10,10 @@ import (
 	// Note: AX-6 — time is structural for elapsed container duration formatting; no core primitive.
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/container"
-	"dappco.re/go/container/internal/proc"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go"
+	"github.com/dappcore/go-container/go/internal/proc"
+	"github.com/dappcore/go-io/go"
 )
 
 var (

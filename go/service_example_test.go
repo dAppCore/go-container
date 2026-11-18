@@ -3,7 +3,7 @@
 package container
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // ExampleNewService wires the container service into a Core with a Provider
