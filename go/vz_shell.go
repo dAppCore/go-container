@@ -11,8 +11,8 @@ import (
 	"io"
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/container/internal/vzproto"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go/internal/vzproto"
 
 	vzvsock "github.com/tmc/apple/x/vzkit/vsock"
 )

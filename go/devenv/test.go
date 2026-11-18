@@ -3,11 +3,11 @@ package devenv
 import (
 	"context"
 
-	core "dappco.re/go"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-io/go"
 	"gopkg.in/yaml.v3"
 
-	"dappco.re/go/container/internal/coreutil"
+	"github.com/dappcore/go-container/go/internal/coreutil"
 )
 
 // TestConfig holds test configuration from .core/test.yaml.

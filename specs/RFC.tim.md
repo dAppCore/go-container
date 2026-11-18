@@ -3,7 +3,7 @@ Status: Aspirational
 parent: code/core/go/container/RFC.md
 section: 14
 feature: TIM Format Expansion
-module: dappco.re/go/container
+module: github.com/dappcore/go-container/go
 repo: core/go-container
 lang: go
 tags:

@@ -1,8 +1,8 @@
 package devenv
 
 import (
-	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/io"
+	"github.com/dappcore/go-container/go/internal/coreutil"
+	"github.com/dappcore/go-io/go"
 	"reflect"
 	"testing"
 )

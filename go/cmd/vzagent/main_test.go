@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"dappco.re/go/container/internal/vzproto"
+	"github.com/dappcore/go-container/go/internal/vzproto"
 )
 
 func TestMain_Handle_Good(t *testing.T) {

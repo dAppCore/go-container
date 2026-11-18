@@ -3,11 +3,11 @@ package container
 import (
 	"context"
 
-	core "dappco.re/go"
-	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/container/internal/proc"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go/internal/coreutil"
+	"github.com/dappcore/go-container/go/internal/proc"
 
-	"dappco.re/go/io"
+	"github.com/dappcore/go-io/go"
 	"reflect"
 	"slices"
 	"syscall"

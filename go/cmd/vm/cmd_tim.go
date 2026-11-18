@@ -1,8 +1,8 @@
 package vm
 
 import (
-	core "dappco.re/go"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-io/go"
 
 	"forge.lthn.ai/Snider/Borg/pkg/datanode"
 	borgtim "forge.lthn.ai/Snider/Borg/pkg/tim"

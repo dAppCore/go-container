@@ -3,10 +3,10 @@ package devenv
 import (
 	"context"
 
-	core "dappco.re/go"
-	"dappco.re/go/container"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go"
 
-	"dappco.re/go/container/internal/proc"
+	"github.com/dappcore/go-container/go/internal/proc"
 )
 
 // ShellOptions configures the shell connection.

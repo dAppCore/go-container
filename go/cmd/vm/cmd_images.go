@@ -4,8 +4,8 @@ import (
 	// Note: AX-6 — text/tabwriter is structural for CLI table formatting; no core primitive.
 	"text/tabwriter"
 
-	core "dappco.re/go"
-	"dappco.re/go/container"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go"
 )
 
 // requireApple returns an available AppleProvider, or a Fail explaining that

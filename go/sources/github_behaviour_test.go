@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-io/go"
 )
 
 func fakeGH(t *testing.T) string {

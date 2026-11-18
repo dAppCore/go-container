@@ -4,7 +4,7 @@ import (
 	"io"
 	"testing"
 
-	"dappco.re/go/container/internal/vzproto"
+	"github.com/dappcore/go-container/go/internal/vzproto"
 )
 
 // OpenShell runs a real shell on a PTY; `exit 7` propagates as code 7.

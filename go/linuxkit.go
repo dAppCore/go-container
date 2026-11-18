@@ -7,10 +7,10 @@ import (
 	"syscall" // Note: POSIX signal primitives; no core equivalent yet.
 	"time"
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
 
-	"dappco.re/go/container/internal/proc"
+	"github.com/dappcore/go-container/go/internal/proc"
 )
 
 // LinuxKitManager implements the Manager interface for LinuxKit VMs.

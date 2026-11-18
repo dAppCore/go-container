@@ -3,7 +3,7 @@ package container
 import (
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // TestContainerBehaviour_ParseDigestFromOutput_Good extracts the sha256 digest

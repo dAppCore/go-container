@@ -16,8 +16,8 @@ import (
 	"slices" // Note: AX-6 — deterministic volume ordering; no core sort primitive exists.
 	"time"
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
 
 	"github.com/tmc/apple/foundation"
 	vz "github.com/tmc/apple/virtualization"
@@ -25,7 +25,7 @@ import (
 	vzvm "github.com/tmc/apple/x/vzkit/vm"
 	vzvsock "github.com/tmc/apple/x/vzkit/vsock"
 
-	"dappco.re/go/container/internal/vzproto"
+	"github.com/dappcore/go-container/go/internal/vzproto"
 )
 
 var vzProviderLock = core.New().Lock("container.vz.provider").Mutex

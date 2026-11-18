@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
 
-	"dappco.re/go/container/internal/vzproto"
+	"github.com/dappcore/go-container/go/internal/vzproto"
 
 	vz "github.com/tmc/apple/virtualization"
 )

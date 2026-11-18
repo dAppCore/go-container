@@ -1,7 +1,7 @@
 package container
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // WithGPU requests Metal (Apple) or NVIDIA (Linux) GPU passthrough for the

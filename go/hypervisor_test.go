@@ -6,9 +6,9 @@ import (
 	"slices"
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
-	"dappco.re/go/container/internal/proc"
+	"github.com/dappcore/go-container/go/internal/proc"
 )
 
 func TestQemuHypervisor_Available_Good(t *testing.T) {

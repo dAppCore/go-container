@@ -8,7 +8,7 @@ Container runtime without the daemon overhead. Builds and runs immutable Linux i
 
 ## Key Facts
 
-- **Module**: `dappco.re/go/container`
+- **Module**: `github.com/dappcore/go-container/go`
 - **Repo**: `core/go-container`
 - **Files**: 34
 - **Providers**: LinuxKit (default), TIM (experimental), Apple Containers (macOS 26+)

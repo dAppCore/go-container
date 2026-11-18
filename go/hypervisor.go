@@ -4,10 +4,10 @@ import (
 	"context"
 	"runtime"
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
 
-	"dappco.re/go/container/internal/proc"
+	"github.com/dappcore/go-container/go/internal/proc"
 )
 
 // discoverHostOS reports the host operating system. A GOOS override (used by

@@ -16,9 +16,9 @@ import (
 	"sync"
 	"syscall"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 
-	"dappco.re/go/container/internal/coreutil"
+	"github.com/dappcore/go-container/go/internal/coreutil"
 )
 
 type fdProvider interface {

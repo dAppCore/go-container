@@ -3,11 +3,11 @@ package devenv
 import (
 	"context"
 
-	core "dappco.re/go"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-io/go"
 
-	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/container/internal/proc"
+	"github.com/dappcore/go-container/go/internal/coreutil"
+	"github.com/dappcore/go-container/go/internal/proc"
 )
 
 // ServeOptions configures the dev server.

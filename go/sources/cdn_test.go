@@ -3,10 +3,10 @@ package sources
 import (
 	"errors"
 
-	core "dappco.re/go"
-	"dappco.re/go/container/internal/coreutil"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go/internal/coreutil"
 
-	"dappco.re/go/io"
+	"github.com/dappcore/go-io/go"
 	goio "io"
 	"net/http"
 	"net/http/httptest"

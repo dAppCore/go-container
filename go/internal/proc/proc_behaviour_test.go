@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // shellPath resolves a POSIX shell, skipping the test if no /bin/sh is present

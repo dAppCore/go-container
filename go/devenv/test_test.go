@@ -3,9 +3,9 @@ package devenv
 import (
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/container/internal/coreutil"
-	"dappco.re/go/io"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-container/go/internal/coreutil"
+	"github.com/dappcore/go-io/go"
 )
 
 func TestDetectTestCommand_ComposerJSON_Good(t *testing.T) {

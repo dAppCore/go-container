@@ -1,6 +1,6 @@
 # Hypervisors
 
-Module: `dappco.re/go/core/container`
+Module: `github.com/dappcore/go-container/go`
 
 ## Interface
 

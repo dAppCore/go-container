@@ -3,7 +3,7 @@ Status: Aspirational
 parent: code/core/go/container/RFC.md
 sections: [12, 13]
 feature: Apple Containers Provider + Runtime Detection
-module: dappco.re/go/container
+module: github.com/dappcore/go-container/go
 repo: core/go-container
 lang: go
 tags:

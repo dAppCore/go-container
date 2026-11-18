@@ -6,22 +6,22 @@ Status: Aspirational
 
 > Ecosystem dependencies extracted from source code.
 
-## dappco.re/go (core framework)
+## github.com/dappcore/go (core framework)
 
 | Module | Import path | Used in |
 |--------|-------------|---------|
-| Core | `dappco.re/go` | All packages (`core` alias) |
-| Log | `dappco.re/go/log` | apple.go, container.go, gpu.go, hypervisor.go, linuxkit.go, runtime.go, tim.go, state.go, datacube.go, datanode.go, devenv/, sources/, cmd/vm/ (`coreerr` alias) |
-| I/O | `dappco.re/go/io` | apple.go, linuxkit.go, state.go, templates.go, tim.go, datacube.go, datanode.go, devenv/, sources/, cmd/vm/ (`io` alias for `dappco.re/go/io`) |
-| CLI | `dappco.re/go/cli/pkg/cli` | cmd/vm/cmd_vm.go |
-| Config | `dappco.re/go/config` | devenv/config.go |
+| Core | `github.com/dappcore/go` | All packages (`core` alias) |
+| Log | `github.com/dappcore/go-log/go` | apple.go, container.go, gpu.go, hypervisor.go, linuxkit.go, runtime.go, tim.go, state.go, datacube.go, datanode.go, devenv/, sources/, cmd/vm/ (`coreerr` alias) |
+| I/O | `github.com/dappcore/go-io/go` | apple.go, linuxkit.go, state.go, templates.go, tim.go, datacube.go, datanode.go, devenv/, sources/, cmd/vm/ (`io` alias for `github.com/dappcore/go-io/go`) |
+| CLI | `github.com/dappcore/cli/go/pkg/cli` | cmd/vm/cmd_vm.go |
+| Config | `github.com/dappcore/config/go` | devenv/config.go |
 
 ## Internal packages
 
 | Package | Import path | Purpose |
 |---------|-------------|---------|
-| proc | `dappco.re/go/container/internal/proc` | Process execution (StartProcess, Wait4, pipes). Used by: apple.go, hypervisor.go, linuxkit.go, runtime.go, devenv/shell.go, devenv/ssh_utils.go, devenv/claude.go, devenv/serve.go, sources/github.go, cmd/vm/ |
-| coreutil | `dappco.re/go/container/internal/coreutil` | Path utilities (HomeDir, TempDir, JoinPath, MkdirTemp, etc.). Used by: state.go, templates.go, devenv/, sources/cdn.go, cmd/vm/cmd_templates.go |
+| proc | `github.com/dappcore/go-container/go/internal/proc` | Process execution (StartProcess, Wait4, pipes). Used by: apple.go, hypervisor.go, linuxkit.go, runtime.go, devenv/shell.go, devenv/ssh_utils.go, devenv/claude.go, devenv/serve.go, sources/github.go, cmd/vm/ |
+| coreutil | `github.com/dappcore/go-container/go/internal/coreutil` | Path utilities (HomeDir, TempDir, JoinPath, MkdirTemp, etc.). Used by: state.go, templates.go, devenv/, sources/cdn.go, cmd/vm/cmd_templates.go |
 
 ## Standard library
 
@@ -53,7 +53,7 @@ Status: Aspirational
 
 ## AX-6 exemptions
 
-The following stdlib imports are structural exemptions (no `dappco.re/go` equivalent exists):
+The following stdlib imports are structural exemptions (no `github.com/dappcore/go` equivalent exists):
 - `context.Context` — process cancellation and timeout primitives
 - `encoding/hex` — stable hex string encoding for container IDs
 - `crypto/*` — no core crypto primitives
